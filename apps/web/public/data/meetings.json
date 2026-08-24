@@ -1,0 +1,75 @@
+{
+  "meetings": [
+    {
+      "id": "meet-1",
+      "title": "Q4 Strategic Review",
+      "status": "CONFIRMED",
+      "date": "October 24, 2024",
+      "time": "09:00 AM",
+      "location": "Main Boardroom (Executive Wing)",
+      "participants": [
+        "John Doe",
+        "Jane Smith",
+        "Alex Carter",
+        "Ben Davis"
+      ]
+    },
+    {
+      "id": "meet-2",
+      "title": "Product Roadmap Sync",
+      "status": "TENTATIVE",
+      "date": "October 26, 2024",
+      "time": "02:00 PM",
+      "location": "Virtual Video Conference",
+      "syncing": true,
+      "participants": [
+        "John Doe",
+        "Jane Smith",
+        "Alex Carter",
+        "Ben Davis",
+        "Clara Evans"
+      ]
+    },
+    {
+      "id": "meet-3",
+      "title": "Budget Approval FY24",
+      "status": "CONFIRMED",
+      "date": "October 28, 2024",
+      "time": "11:00 AM",
+      "location": "Executive Suite (Floor 42)",
+      "priority": true,
+      "participants": [
+        "John Doe",
+        "Jane Smith"
+      ]
+    },
+    {
+      "id": "meet-4",
+      "title": "Q3 Executive Performance Review",
+      "status": "COMPLETED",
+      "date": "September 15, 2024",
+      "time": "10:00 AM",
+      "location": "Boardroom A (Level 12)",
+      "participants": [
+        "John Doe",
+        "Jane Smith",
+        "Alex Carter",
+        "Ben Davis"
+      ]
+    },
+    {
+      "id": "meet-5",
+      "title": "Annual Compliance Audit Approval",
+      "status": "COMPLETED",
+      "date": "August 20, 2024",
+      "time": "01:30 PM",
+      "location": "Compliance Office Suite",
+      "participants": [
+        "John Doe",
+        "Alex Carter",
+        "Dan Forster",
+        "Emma Green"
+      ]
+    }
+  ]
+}

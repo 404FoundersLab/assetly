@@ -1,0 +1,189 @@
+{
+  "folders": [
+    {
+      "name": "HR",
+      "subfolders": [
+        { "name": "Employee Docs" },
+        { "name": "Policies" }
+      ]
+    },
+    {
+      "name": "Sales",
+      "subfolders": [
+        { "name": "Leads & Prospects" },
+        { "name": "Customers" }
+      ]
+    },
+    {
+      "name": "Marketing",
+      "subfolders": [
+        { "name": "Campaigns" },
+        { "name": "Brand Assets" },
+        { "name": "Market Research" }
+      ]
+    },
+    {
+      "name": "Operations",
+      "subfolders": [
+        { "name": "Vendor Management" },
+        { "name": "Inventory" },
+        { "name": "SOPs" }
+      ]
+    },
+    {
+      "name": "Shared",
+      "isShared": true
+    }
+  ],
+  "documents": {
+    "Employee Docs": [
+      {
+        "id": "doc-1",
+        "title": "EMP001 - John Doe Profile",
+        "type": "HR DOC",
+        "access": ["SUPER ADMIN", "HR MGR"],
+        "lastModified": "Today",
+        "owner": "HR Dept",
+        "status": "Confidential",
+        "iconType": "contact"
+      },
+      {
+        "id": "doc-2",
+        "title": "EMP002 - Jane Smith Resume",
+        "type": "HR DOC",
+        "access": ["SUPER ADMIN", "HR MGR"],
+        "lastModified": "Yesterday",
+        "owner": "HR Dept",
+        "status": "Approved",
+        "iconType": "contact"
+      },
+      {
+        "id": "doc-10",
+        "title": "Offer Letter Template",
+        "type": "TEMPLATE",
+        "access": ["SUPER ADMIN", "HR TEAM"],
+        "lastModified": "3 days ago",
+        "owner": "Talent Acquisition",
+        "status": "Approved",
+        "iconType": "sales"
+      },
+      {
+        "id": "doc-11",
+        "title": "Performance Review Q1 - Summary",
+        "type": "REVIEW",
+        "access": ["SUPER ADMIN", "HR MGR", "DEPT HEAD"],
+        "lastModified": "1 week ago",
+        "owner": "HR Dept",
+        "status": "Draft",
+        "iconType": "contact"
+      }
+    ],
+    "Policies": [
+      {
+        "id": "doc-3",
+        "title": "2026 Code of Conduct",
+        "type": "POLICY",
+        "access": ["ALL EMPLOYEES"],
+        "lastModified": "3 days ago",
+        "owner": "Compliance",
+        "status": "Approved",
+        "iconType": "marketing"
+      },
+      {
+        "id": "doc-12",
+        "title": "Remote Work Guidelines",
+        "type": "HANDBOOK",
+        "access": ["ALL EMPLOYEES"],
+        "lastModified": "Just now",
+        "owner": "Operations",
+        "status": "Approved",
+        "iconType": "marketing"
+      },
+      {
+        "id": "doc-13",
+        "title": "Health and Safety Protocol",
+        "type": "COMPLIANCE",
+        "access": ["SUPER ADMIN", "HR TEAM"],
+        "lastModified": "2 weeks ago",
+        "owner": "Compliance",
+        "status": "Confidential",
+        "iconType": "sales"
+      }
+    ],
+    "Leads & Prospects": [
+      {
+        "id": "doc-4",
+        "title": "Q4 Enterprise Sales Contract",
+        "type": "SALES",
+        "access": ["SUPER ADMIN", "LEGAL"],
+        "lastModified": "2h ago",
+        "owner": "Sales Ops",
+        "status": "Draft",
+        "iconType": "sales"
+      }
+    ],
+    "Customers": [
+      {
+        "id": "doc-5",
+        "title": "Acme Corp Account Plan",
+        "type": "SALES",
+        "access": ["SUPER ADMIN", "SALES TEAM"],
+        "lastModified": "5 days ago",
+        "owner": "Account Executive",
+        "status": "Approved",
+        "iconType": "sales"
+      }
+    ],
+    "Campaigns": [
+      {
+        "id": "doc-6",
+        "title": "Global Rebranding Brief",
+        "type": "MARKETING",
+        "access": ["SUPER ADMIN", "DEPT ADMIN"],
+        "lastModified": "Yesterday",
+        "owner": "Mktg Lead",
+        "status": "Approved",
+        "iconType": "marketing"
+      }
+    ],
+    "Brand Assets": [
+      {
+        "id": "doc-7",
+        "title": "Logo Kit & Styleguide",
+        "type": "BRANDING",
+        "access": ["ALL EMPLOYEES"],
+        "lastModified": "1 week ago",
+        "owner": "Design Team",
+        "status": "Approved",
+        "iconType": "marketing"
+      }
+    ],
+    "Market Research": [
+      {
+        "id": "doc-8",
+        "title": "Q1 Competitive Analysis",
+        "type": "RESEARCH",
+        "access": ["SUPER ADMIN", "DEPT ADMIN"],
+        "lastModified": "2 weeks ago",
+        "owner": "Mktg Lead",
+        "status": "Draft",
+        "iconType": "marketing"
+      }
+    ],
+    "Vendor Management": [],
+    "Inventory": [],
+    "SOPs": [],
+    "Shared": [
+      {
+        "id": "doc-9",
+        "title": "Annual Company Overview Presentation",
+        "type": "GENERAL",
+        "access": ["ALL EMPLOYEES"],
+        "lastModified": "Today",
+        "owner": "CEO Office",
+        "status": "Approved",
+        "iconType": "marketing"
+      }
+    ]
+  }
+}

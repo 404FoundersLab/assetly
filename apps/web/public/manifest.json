@@ -1,0 +1,34 @@
+{
+  "name": "Assetly - IT Asset & QR Scanner",
+  "short_name": "Assetly",
+  "description": "Enterprise IT Asset Management & Mobile QR Scanner",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F172A",
+  "theme_color": "#1565C0",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan Asset QR",
+      "short_name": "Scan QR",
+      "description": "Open mobile QR scanner",
+      "url": "/mobile?action=scan",
+      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Asset Inventory",
+      "short_name": "Assets",
+      "description": "View asset list",
+      "url": "/assets",
+      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+    }
+  ]
+}

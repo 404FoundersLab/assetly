@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: itasset-postgres
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform_dev
+      POSTGRES_DB: itasset
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/schema:/docker-entrypoint-initdb.d/schema:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d itasset"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: itasset-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Uncomment when API is implemented
+  # api:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile.api
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     DATABASE_URL: postgresql://platform:platform_dev@postgres:5432/itasset
+  #     REDIS_URL: redis://redis:6379
+  #     JWT_SECRET: dev-secret-change-in-production
+  #     CORS_ORIGIN: http://localhost:5173
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # Adminer for DB inspection during development
+  adminer:
+    image: adminer:4
+    container_name: itasset-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,75 @@
+{
+  "name": "endpoint-security-client",
+  "version": "2.0.0",
+  "description": "AssetManager Endpoint Security Client - GUI Edition",
+  "author": "AssetManager",
+  "main": "main.js",
+  "scripts": {
+    "start": "node node_modules/electron/cli.js .",
+    "build": "electron-builder --win portable",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux",
+    "build:publish": "electron-builder --win portable --publish never"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "systeminformation": "^5.21.0"
+  },
+  "devDependencies": {
+    "7zip-bin": "^5.2.0",
+    "electron": "28.3.3",
+    "electron-builder": "^24.9.1",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.35.3"
+  },
+  "build": {
+    "appId": "com.assetmanager.security",
+    "productName": "AssetManager Security Client",
+    "artifactName": "EndpointSecurityClient_Prod.exe",
+    "electronVersion": "28.3.3",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "remote-daemon.js",
+      "renderer/**",
+      "assets/**",
+      "node_modules/**",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "artifactName": "EndpointSecurityClient_macOS.${ext}",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "artifactName": "EndpointSecurityClient_Linux.${ext}"
+    },
+    "portable": {
+      "artifactName": "EndpointSecurityClient_Prod.exe"
+    }
+  }
+}

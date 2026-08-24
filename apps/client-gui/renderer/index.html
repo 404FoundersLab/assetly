@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Status - AssetManager Security Client</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Title Bar -->
+  <div class="title-bar">
+    <div class="title-bar-left">
+      <img src="../assets/icon.png" class="title-bar-brand-img" alt="Logo" />
+      <span id="title-bar-text">Status - Assetly Endpoint Security</span>
+    </div>
+    <div class="title-bar-right">
+      <button class="help-btn" id="btn-help">Help</button>
+    </div>
+  </div>
+
+  <!-- App Shell -->
+  <div class="app-shell">
+
+    <!-- Left Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <div class="nav-item active" id="nav-status" data-view="status">
+          <span class="nav-icon">🛡️</span> Status
+        </div>
+        <div class="nav-item" id="nav-scan" data-view="scan">
+          <span class="nav-icon">🔍</span> Scan for Threats
+        </div>
+        <div class="nav-item" id="nav-settings" data-view="settings">
+          <span class="nav-icon">⚙️</span> Change Settings
+        </div>
+        <div class="nav-item" id="nav-quarantine" data-view="quarantine">
+          <span class="nav-icon">🗂️</span> View Quarantine
+        </div>
+        <div class="nav-item" id="nav-logs" data-view="logs">
+          <span class="nav-icon">📋</span> View Logs
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="nav-item" id="nav-liveupdate" data-view="liveupdate">
+          <span class="nav-icon">🔄</span> LiveUpdate…
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <img src="../assets/icon.png" class="sidebar-brand-img" alt="Logo" />
+        <div class="sidebar-brand-text">
+          <div class="sidebar-brand-title">Assetly</div>
+          <div class="sidebar-brand-sub">Endpoint Security</div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+      <div class="loading-overlay">
+        <div class="spinner"></div>
+        <div>Collecting security information…</div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toasts"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
