@@ -225,20 +225,24 @@ export async function insertAuditLog(
     details?: string;
   },
 ): Promise<void> {
-  const sql = getSql();
-  const tenantId = audit.tenantId;
-  if (!tenantId) return; // Silent return if no tenant id since we can't log it
-  await sql`
-    INSERT INTO audit_logs (tenant_id, user_id, user_name, action, entity_type, entity_id, entity_label, details)
-    VALUES (
-      ${tenantId},
-      ${audit.userId ?? null},
-      ${audit.userName ?? null},
-      ${audit.action},
-      ${audit.entityType ?? null},
-      ${audit.entityId ?? null},
-      ${audit.entityLabel ?? null},
-      ${audit.details ?? null}
-    )
-  `;
+  try {
+    const sql = getSql();
+    const tenantId = audit.tenantId;
+    if (!tenantId) return; // Silent return if no tenant id since we can't log it
+    await sql`
+      INSERT INTO audit_logs (tenant_id, user_id, user_name, action, entity_type, entity_id, entity_label, details)
+      VALUES (
+        ${tenantId},
+        ${audit.userId ?? null},
+        ${audit.userName ?? null},
+        ${audit.action},
+        ${audit.entityType ?? null},
+        ${audit.entityId ?? null},
+        ${audit.entityLabel ?? null},
+        ${audit.details ?? null}
+      )
+    `;
+  } catch {
+    // Non-blocking: audit log errors should never prevent user operations
+  }
 }
