@@ -122,6 +122,21 @@ CREATE INDEX IF NOT EXISTS idx_asset_requests_employee ON asset_requests(tenant_
 CREATE INDEX IF NOT EXISTS idx_asset_requests_status ON asset_requests(tenant_id, status)
 `;
 
+// Inline: ownership_history table
+const OWNERSHIP_HISTORY_SQL = `
+CREATE TABLE IF NOT EXISTS ownership_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  event_type VARCHAR(50) NOT NULL,
+  description TEXT,
+  performed_by VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ownership_history_tenant ON ownership_history(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ownership_history_asset ON ownership_history(asset_id)
+`;
+
 // Inline: knowledge_chunks for RAG
 const KNOWLEDGE_CHUNKS_SQL = `
 CREATE TABLE IF NOT EXISTS knowledge_chunks (
