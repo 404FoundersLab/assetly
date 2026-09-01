@@ -5,6 +5,6 @@ export function isEmployeeRole(role: UserRole | undefined): boolean {
 }
 
 export function getHomeRouteForRole(role: UserRole | undefined): string {
-  if (role === 'platform_admin') return '/';
+  if (role === 'platform_admin') return '/system-admin/organizations';
   return isEmployeeRole(role) ? '/portal' : '/';
 }

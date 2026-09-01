@@ -70,7 +70,16 @@ export default async function handler(req: Request) {
 
     try {
       const sql = getSql();
-      const users = await sql`SELECT * FROM users WHERE email = ${email}` as DbUser[];
+      // Fetch user + derive role from user_roles JOIN (our schema uses a join table)
+      const users = await sql`
+        SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name,
+               COALESCE(r.name, u.role, 'viewer') AS role
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        LEFT JOIN roles r ON r.id = ur.role_id
+        WHERE lower(u.email) = ${email}
+        LIMIT 1
+      ` as DbUser[];
       if (users.length > 0) {
         const u = users[0];
         userRecord = {
@@ -82,12 +91,16 @@ export default async function handler(req: Request) {
           role: u.role,
         };
 
-        const tenants = await sql`SELECT * FROM tenants WHERE id = ${u.tenant_id}` as DbTenant[];
-        if (tenants.length > 0) {
-          tenantRecord = mapTenant(tenants[0]);
-        } else {
-          tenantRecord = null;
+        // Our schema uses 'companies' — try that first, fall back to 'tenants'
+        let tenants: DbTenant[] = [];
+        try {
+          tenants = await sql`SELECT * FROM companies WHERE id = ${u.tenant_id}` as DbTenant[];
+        } catch {
+          try {
+            tenants = await sql`SELECT * FROM tenants WHERE id = ${u.tenant_id}` as DbTenant[];
+          } catch { /* ignore */ }
         }
+        tenantRecord = tenants.length > 0 ? mapTenant(tenants[0]) : null;
       }
     } catch {
       // Ignore DB errors and optionally fall back to demo users
