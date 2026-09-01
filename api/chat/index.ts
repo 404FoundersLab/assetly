@@ -20,16 +20,14 @@ import { answerFromPolicyPassages, pickRelevantPassages } from '../_lib/policy-e
 export const config = { runtime: 'edge' };
 
 /** Free-tier friendly default (2.0-flash often has limit: 0 on free tier). */
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_FALLBACK_MODELS = [
   GEMINI_MODEL,
-  'gemini-1.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-1.5-pro',
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.7-flash',
   'gemini-flash-latest',
+  'gemini-flash-lite-latest',
 ].filter((m, i, arr) => arr.indexOf(m) === i);
 
 function isRetryableGeminiStatus(status: number, errText: string): boolean {
