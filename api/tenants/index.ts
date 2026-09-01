@@ -54,6 +54,9 @@ export default async function handler(req: Request) {
         }
       }
 
+      const adminEmail = body.adminEmail ? String(body.adminEmail).trim().toLowerCase() : null;
+      const adminName = body.adminName ? String(body.adminName).trim() : 'Admin';
+
       const rows = await sql`
         INSERT INTO tenants (
           id, name, slug, plan, domain, infrastructure_strategy, admin_email, admin_name, database_url, billing_region
@@ -61,13 +64,41 @@ export default async function handler(req: Request) {
           ${id}, ${name}, ${slug}, ${plan},
           ${body.domain ? String(body.domain) : null},
           ${strategy},
-          ${body.adminEmail ? String(body.adminEmail) : null},
-          ${body.adminName ? String(body.adminName) : null},
+          ${adminEmail},
+          ${adminName},
           ${dedicatedDbUrl},
           ${billingRegion}
         )
         RETURNING *
       ` as DbTenant[];
+
+      let generatedPassword: string | undefined;
+      if (adminEmail) {
+        try {
+          const userId = crypto.randomUUID();
+          const names = adminName.split(' ');
+          const firstName = names[0] || 'Admin';
+          const lastName = names.slice(1).join(' ') || '';
+
+          await sql`
+            INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+            VALUES (${userId}, ${id}, ${adminEmail}, ${firstName}, ${lastName}, 'tenant_admin')
+            ON CONFLICT (email) DO UPDATE SET tenant_id = ${id}, role = 'tenant_admin'
+          `;
+
+          const randomSuffix = crypto.randomUUID().split('-')[0].toUpperCase();
+          generatedPassword = `Temp-${randomSuffix}`;
+          const hashed = await hashPassword(generatedPassword);
+
+          await sql`
+            INSERT INTO user_passwords (email, password_hash, must_change_password)
+            VALUES (${adminEmail}, ${hashed}, true)
+            ON CONFLICT (email) DO UPDATE SET password_hash = ${hashed}, must_change_password = true
+          `;
+        } catch {
+          // Non-blocking if user creation fails
+        }
+      }
 
       await insertAuditLog({
         userId: auth.sub,
@@ -79,7 +110,7 @@ export default async function handler(req: Request) {
         details: `Provisioned tenant ${slug}`,
       });
 
-      return json(mapTenant(rows[0]), 201);
+      return json({ ...mapTenant(rows[0]), generatedPassword }, 201);
     }
 
     return error('Method not allowed', 405);
