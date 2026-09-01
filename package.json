@@ -18,7 +18,8 @@
     "preview": "npm run preview --prefix apps/web",
     "docker:up": "docker compose -f docker/docker-compose.demo.yml up -d",
     "docker:down": "docker compose -f docker/docker-compose.demo.yml down",
-    "migrate:rag": "tsx scripts/migrate-013.ts"
+    "migrate:rag": "tsx scripts/migrate-013.ts",
+    "setup:db": "node scripts/setup-fresh-db.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
@@ -26,6 +27,7 @@
     "jose": "^5.9.6"
   },
   "devDependencies": {
+    "pg": "^8.23.0",
     "tsx": "^4.19.2",
     "vercel": "^39.0.0"
   },
