@@ -14,7 +14,6 @@ import {
   useTheme,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import InventoryIcon from '@mui/icons-material/Inventory2';
 import StoreIcon from '@mui/icons-material/Store';
 import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -22,7 +21,10 @@ import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
+import CategoryIcon from '@mui/icons-material/Category';
 import LanIcon from '@mui/icons-material/Lan';
+import LaptopMacIcon from '@mui/icons-material/LaptopMac';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import SecurityIcon from '@mui/icons-material/Security';
 import SyncIcon from '@mui/icons-material/Sync';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
@@ -60,10 +62,12 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Inventory',
     items: [
-      { to: '/assets', label: 'Assets', icon: <InventoryIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/assets', label: 'IT Assets', icon: <LaptopMacIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/devices', label: 'Peripherals', icon: <DevicesOtherIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/network-devices', label: 'Network devices', icon: <LanIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/store-devices', label: 'Store devices', icon: <StorefrontIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/assets/types', label: 'Device types', icon: <CategoryIcon fontSize="small" />, permission: 'asset_type:write' },
       { to: '/lifecycle', label: 'Lifecycle', icon: <SyncIcon fontSize="small" />, permission: 'module:assets' },
-      { to: '/devices', label: 'Devices', icon: <DevicesOtherIcon fontSize="small" />, permission: 'module:assets' },
-      { to: '/network-devices', label: 'Network Devices', icon: <LanIcon fontSize="small" />, permission: 'module:assets' },
       { to: '/mobile', label: 'Mobile & Field', icon: <PhoneIphoneIcon fontSize="small" />, permission: 'module:assets' },
     ],
   },
@@ -105,8 +109,23 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-function isNavActive(pathname: string, to: string): boolean {
+function isNavActive(pathname: string, search: string, to: string): boolean {
   if (to === '/') return pathname === '/';
+  const family = new URLSearchParams(search).get('family');
+  const menuFamily: Record<string, string> = {
+    '/assets': 'it_asset',
+    '/devices': 'peripheral',
+    '/network-devices': 'network',
+    '/store-devices': 'store',
+  };
+  if (pathname === '/assets/new' && menuFamily[to]) {
+    return (family ?? 'it_asset') === menuFamily[to];
+  }
+  if (to === '/assets') {
+    if (pathname === '/assets/types' || pathname.startsWith('/assets/types/')) return false;
+    if (pathname === '/assets/new') return false;
+    return pathname === '/assets' || pathname.startsWith('/assets/');
+  }
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
@@ -181,7 +200,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
               {group.items
                 .filter((item) => (!item.permission || can(item.permission)) && (!item.role || item.role === user?.role))
                 .map((item) => {
-                const active = isNavActive(location.pathname, item.to);
+                const active = isNavActive(location.pathname, location.search, item.to);
                 return (
                   <ListItemButton
                     key={item.to}

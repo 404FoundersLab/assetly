@@ -1,6 +1,7 @@
 import type {
   Asset,
   AssetAssignment,
+  AssetDeviceType,
   AuditLog,
   Department,
   Employee,
@@ -17,6 +18,7 @@ export interface SyncPayload {
   assignments: AssetAssignment[];
   ownershipHistory: OwnershipEvent[];
   auditLogs: AuditLog[];
+  assetCategories?: AssetDeviceType[];
 }
 
 export async function fetchSync(): Promise<SyncPayload> {

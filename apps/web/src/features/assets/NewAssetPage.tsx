@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -15,7 +15,7 @@ import { createFilterOptions } from '@mui/material/Autocomplete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 
 import { PageHeader } from '../../components/PageHeader';
@@ -26,9 +26,10 @@ import { reloadFromApi } from '../../components/DataBootstrap';
 import { createAsset as createAssetApi } from '../../services/api/assets';
 import { uploadImage } from '../../services/api/entities';
 import { EmployeeFormDialog } from '../employees/EmployeeFormDialog';
-import { CATEGORY_LABELS, STATUS_LABELS } from '../../data/demoData';
+import { STATUS_LABELS } from '../../data/demoData';
+import { useAssetCategories } from '../../hooks/useAssetCategories';
+import { DEVICE_FAMILY_META, isDeviceFamily } from '../../constants/deviceFamilies';
 import {
-  ASSET_CATEGORIES,
   ASSET_STATUSES,
   LIFECYCLE_LABELS,
   LIFECYCLE_STAGES,
@@ -80,8 +81,25 @@ export function NewAssetPage() {
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
   const assets = useAppSelector((s) => s.assets.items);
+  const { slugs, labelOf, types } = useAssetCategories();
+  const [searchParams] = useSearchParams();
+  const familyParam = searchParams.get('family');
+  const selectedFamily = isDeviceFamily(familyParam ?? '') ? familyParam : undefined;
+  const typeSlugs = useMemo(
+    () => (selectedFamily ? types.filter((t) => t.family === selectedFamily).map((t) => t.slug) : slugs),
+    [selectedFamily, types, slugs],
+  );
+  const familyMeta = selectedFamily ? DEVICE_FAMILY_META[selectedFamily] : DEVICE_FAMILY_META.it_asset;
 
-  const [form, setForm] = useState<AssetFormState>(createEmptyAssetForm);
+  const [form, setForm] = useState<AssetFormState>(() =>
+    createEmptyAssetForm(typeSlugs[0] ?? 'laptop'),
+  );
+
+  useEffect(() => {
+    if (typeSlugs.length && !typeSlugs.includes(form.category)) {
+      setForm((prev) => ({ ...prev, category: typeSlugs[0] }));
+    }
+  }, [typeSlugs, form.category]);
 
   const isHardware = ['laptop', 'desktop', 'server', 'mobile', 'network'].includes(form.category);
   const hardwareAssets = useMemo(
@@ -182,7 +200,7 @@ export function NewAssetPage() {
 
   const resetForAnother = () => {
     setCreatedItem(null);
-    setForm(createEmptyAssetForm());
+    setForm(createEmptyAssetForm(typeSlugs[0] ?? 'laptop'));
     setImageFile(null);
     setImagePreview(null);
   };
@@ -226,8 +244,8 @@ export function NewAssetPage() {
             <Button variant="contained" onClick={resetForAnother} startIcon={<RefreshIcon />}>
               Add Another Asset
             </Button>
-            <Button variant="outlined" component={RouterLink} to="/assets">
-              View All Assets
+            <Button variant="outlined" component={RouterLink} to={familyMeta.path}>
+              View {familyMeta.menu}
             </Button>
             <Button
               variant="text"
@@ -245,11 +263,11 @@ export function NewAssetPage() {
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto' }}>
       <PageHeader
-        title="Add New Asset"
+        title={`Add ${familyMeta.singular}`}
         subtitle="A QR code will be generated automatically after saving"
         breadcrumbs={[
-          { label: 'Assets', to: '/assets' },
-          { label: 'New Asset' },
+          { label: familyMeta.menu, to: familyMeta.path },
+          { label: 'New item' },
         ]}
       />
 
@@ -284,9 +302,9 @@ export function NewAssetPage() {
                 value={form.category}
                 onChange={(e) => set('category', e.target.value)}
               >
-                {ASSET_CATEGORIES.map((c) => (
+                {typeSlugs.map((c) => (
                   <MenuItem key={c} value={c}>
-                    {CATEGORY_LABELS[c]}
+                    {labelOf(c)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -630,7 +648,7 @@ export function NewAssetPage() {
           >
             Save & Generate QR
           </LoadingButton>
-          <Button variant="outlined" onClick={() => navigate('/assets')}>
+          <Button variant="outlined" onClick={() => navigate(familyMeta.path)}>
             Cancel
           </Button>
         </Box>

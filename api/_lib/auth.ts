@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { getSql, error } from './db';
 import { DEMO_USERS } from './demo-users';
 import { getJwtSecretKey, isDemoAuthEnabled } from './security';
+import { isPortfolioGuestEmail, isReadOnlyRole, matchPortfolioGuest } from './portfolio-guest';
 
 const PBKDF2_ITERATIONS = 100_000;
 const PBKDF2_PREFIX = 'pbkdf2v1:';
@@ -83,6 +84,9 @@ function matchDemoPassword(email: string, password: string): boolean {
 
 export async function verifyPassword(email: string, password: string): Promise<boolean> {
   const normalized = email.toLowerCase();
+  if (isPortfolioGuestEmail(normalized)) {
+    return matchPortfolioGuest(normalized, password);
+  }
   try {
     const sql = getSql();
     const rows = await sql`
@@ -120,6 +124,7 @@ export async function verifyPassword(email: string, password: string): Promise<b
     /* user_passwords table may not exist yet — fall back to demo credentials when enabled */
   }
 
+  if (matchPortfolioGuest(normalized, password)) return true;
   return matchDemoPassword(normalized, password);
 }
 
@@ -132,9 +137,10 @@ export async function signAuthToken(user: {
   tenantId?: string;
   employeeId?: string;
 }): Promise<string> {
+  const isGuest = isPortfolioGuestEmail(user.email);
   return new SignJWT({
     email: user.email,
-    role: user.role,
+    role: isGuest ? 'viewer' : user.role,
     firstName: user.firstName,
     lastName: user.lastName,
     ...(user.tenantId ? { tenantId: user.tenantId } : {}),
@@ -143,7 +149,7 @@ export async function signAuthToken(user: {
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
-    .setExpirationTime('8h')
+    .setExpirationTime(isGuest ? '4h' : '8h')
     .sign(secret());
 }
 
@@ -161,6 +167,15 @@ export async function verifyAuthToken(req: Request): Promise<AuthUser | null> {
 export async function requireAuth(req: Request): Promise<AuthUser | Response> {
   const user = await verifyAuthToken(req);
   if (!user?.sub) return error('Unauthorized', 401);
+  if (isPortfolioGuestEmail(user.email)) {
+    user.role = 'viewer';
+  }
+  if (isReadOnlyRole(user.role)) {
+    const method = req.method.toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      return error('This account is read-only', 403);
+    }
+  }
   return user;
 }
 

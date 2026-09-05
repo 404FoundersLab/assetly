@@ -1,17 +1,19 @@
-export type AssetCategory =
-  | 'laptop'
-  | 'desktop'
-  | 'server'
-  | 'mobile'
-  | 'monitor'
-  | 'keyboard'
-  | 'mouse'
-  | 'webcam'
-  | 'headset'
-  | 'peripheral'
-  | 'network'
-  | 'software'
-  | 'other';
+/** Asset / device type slug. Built-in values plus tenant-defined types. */
+export type AssetCategory = string;
+
+export type DeviceFamily = 'it_asset' | 'peripheral' | 'network' | 'store';
+
+export interface AssetDeviceType {
+  id: string;
+  tenantId?: string;
+  slug: string;
+  label: string;
+  sortOrder: number;
+  isActive: boolean;
+  showInRequests: boolean;
+  isPeripheral: boolean;
+  family: DeviceFamily;
+}
 export type AssetStatus = 'in_stock' | 'deployed' | 'in_repair' | 'retired' | 'lost' | 'disposed';
 export type LifecycleStage = 'procurement' | 'active' | 'maintenance' | 'end_of_life';
 export type EmployeeStatus = 'active' | 'terminated' | 'on_leave';
@@ -316,6 +318,7 @@ export const PERMISSIONS = {
   'asset:write': ['platform_admin', 'tenant_admin', 'it_admin'],
   'asset:delete': ['platform_admin', 'tenant_admin'],
   'asset:assign': ['platform_admin', 'tenant_admin', 'it_admin'],
+  'asset_type:write': ['platform_admin', 'tenant_admin', 'it_admin'],
   'employee:read': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'viewer'],
   'employee:write': ['platform_admin', 'tenant_admin', 'hr_admin'],
   'employee:delete': ['platform_admin', 'tenant_admin'],
@@ -369,7 +372,6 @@ export const REQUEST_CATEGORIES: AssetCategory[] = [
   'monitor',
   'keyboard',
   'mouse',
-  'webcam',
   'headset',
   'peripheral',
   'other',

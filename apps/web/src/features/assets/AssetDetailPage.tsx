@@ -33,9 +33,10 @@ import { AssetQrPanel } from '../../components/AssetQrPanel';
 import { AssignAssetDialog, ReturnAssetDialog } from './AssignAssetDialog';
 import { AssetEditDialog } from './AssetEditDialog';
 import { formatCurrency, formatDate, formatDateTime, getEmployeeName } from '../../utils/format';
-import { CATEGORY_LABELS } from '../../data/demoData';
 import { assetFinancials } from '../finance/itSpendMetrics';
 import { itSpendUrl } from '../../constants/routes';
+import { useAssetCategories } from '../../hooks/useAssetCategories';
+import { DEVICE_FAMILY_META } from '../../constants/deviceFamilies';
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -69,13 +70,16 @@ export function AssetDetailPage() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const { pathOf, metaOf, labelOf } = useAssetCategories();
+  const listPath = asset ? pathOf(asset.category) : DEVICE_FAMILY_META.it_asset.path;
+  const listLabel = asset ? metaOf(asset.category).menu : DEVICE_FAMILY_META.it_asset.menu;
 
   if (!asset) {
     return (
       <Box>
         <Alert severity="error">Asset not found</Alert>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/assets')} sx={{ mt: 2 }}>
-          Back to Assets
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)} sx={{ mt: 2 }}>
+          Back to {listLabel}
         </Button>
       </Box>
     );
@@ -91,8 +95,8 @@ export function AssetDetailPage() {
   return (
     <Box>
       <Breadcrumbs sx={{ mb: 2 }}>
-        <Link component={RouterLink} to="/assets" underline="hover" color="inherit">
-          Assets
+        <Link component={RouterLink} to={listPath} underline="hover" color="inherit">
+          {listLabel}
         </Link>
         <Typography color="text.primary">{asset.assetTag}</Typography>
       </Breadcrumbs>
@@ -128,7 +132,7 @@ export function AssetDetailPage() {
               Return
             </Button>
           )}
-          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/assets')}>
+          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)}>
             Back
           </Button>
         </Box>
@@ -173,7 +177,7 @@ export function AssetDetailPage() {
                 Asset Details
               </Typography>
               <Divider sx={{ mb: 1 }} />
-              <DetailRow label="Category" value={CATEGORY_LABELS[asset.category]} />
+              <DetailRow label="Category" value={labelOf(asset.category)} />
               <DetailRow label="Manufacturer" value={asset.manufacturer} />
               <DetailRow label="Model" value={asset.model} />
               <DetailRow label="Serial Number" value={asset.serialNumber} />
@@ -348,7 +352,7 @@ export function AssetDetailPage() {
         open={editOpen}
         onClose={() => setEditOpen(false)}
         asset={asset}
-        onDeleted={() => navigate('/assets')}
+        onDeleted={() => navigate(listPath)}
       />
     </Box>
   );

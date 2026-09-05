@@ -44,7 +44,8 @@ import {
   REQUEST_STATUS_LABELS,
   REQUEST_TYPE_LABELS,
 } from '../../data/demoData';
-import { REQUEST_CATEGORIES, type AssetRequestType } from '../../types';
+import type { AssetRequestType } from '../../types';
+import { useAssetCategories } from '../../hooks/useAssetCategories';
 import { LoadingButton } from '../../components/Loader';
 import { ApiError } from '../../services/api/client';
 import { EmployeeTicketsTab } from './EmployeeTicketsTab';
@@ -58,11 +59,12 @@ export function DeviceRequestPage() {
   const departments = useAppSelector((s) => s.departments.items);
   const employees = useAppSelector((s) => s.employees.items);
   const assets = useAppSelector((s) => s.assets.items);
+  const { requestSlugs, labelOf } = useAssetCategories();
 
   const [activeTab, setActiveTab] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [requestType, setRequestType] = useState<AssetRequestType>('new');
-  const [category, setCategory] = useState(REQUEST_CATEGORIES[0]);
+  const [category, setCategory] = useState('laptop');
   const [description, setDescription] = useState('');
   const [neededBy, setNeededBy] = useState('');
   const [loading, setLoading] = useState(false);
@@ -290,9 +292,9 @@ export function DeviceRequestPage() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value as typeof category)}
                 >
-                  {REQUEST_CATEGORIES.map((cat) => (
+                  {requestSlugs.map((cat) => (
                     <MenuItem key={cat} value={cat}>
-                      {CATEGORY_LABELS[cat]}
+                      {labelOf(cat)}
                     </MenuItem>
                   ))}
                 </Select>

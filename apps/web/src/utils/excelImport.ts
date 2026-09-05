@@ -291,6 +291,11 @@ export function detectColumnMapping(headers: string[]): ColumnMapping {
 
 export function mapExcelCategory(raw: string): AssetCategory {
   const value = raw.toLowerCase();
+  if (value.includes('electronic shelf') || value.includes('esl')) return 'esl';
+  if (value.includes('firmware')) return 'firmware_kit';
+  if (value.includes('epd') || value.includes('23 inch')) return 'epd_23_inch';
+  if (value.includes('newton')) return 'newton';
+  if (value.includes('gateway')) return 'gateway';
   if (value.includes('monitor')) return 'monitor';
   if (value.includes('server')) return 'server';
   if (value.includes('laptop')) return 'laptop';

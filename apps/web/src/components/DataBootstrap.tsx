@@ -8,6 +8,8 @@ import { importInventory as setInventory } from '../store/assetsSlice';
 import { replaceAllEmployees } from '../store/employeesSlice';
 import { replaceAllDepartments } from '../store/departmentsSlice';
 import { replaceAllVendors } from '../store/vendorsSlice';
+import { replaceAllAssetCategories } from '../store/assetCategoriesSlice';
+import { DEFAULT_DEVICE_TYPES } from '../constants/deviceTypes';
 import { replaceAllAuditLogs } from '../store/auditSlice';
 import { replaceAllRequests } from '../store/requestsSlice';
 import { fetchAssetRequests } from '../services/api/requests';
@@ -27,6 +29,7 @@ function hydrateFromSync(dispatch: AppDispatch, data: Awaited<ReturnType<typeof 
   dispatch(replaceAllDepartments(data.departments));
   dispatch(replaceAllVendors(data.vendors));
   dispatch(replaceAllAuditLogs(data.auditLogs));
+  dispatch(replaceAllAssetCategories(data.assetCategories?.length ? data.assetCategories : DEFAULT_DEVICE_TYPES));
 }
 
 export async function reloadFromApi(dispatch: AppDispatch): Promise<void> {

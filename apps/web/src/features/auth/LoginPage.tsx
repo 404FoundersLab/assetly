@@ -36,10 +36,15 @@ import { ApiError, checkApiHealth, loginErrorMessage } from '../../services/api/
 import { getHomeRouteForRole } from '../../utils/routing';
 import { apiUrl } from '../../services/api/config';
 
-/** Public portfolio demo — keep in sync with api/_lib/demo-users.ts */
+/** Full demo admin — only when DEMO_AUTH_ENABLED is on (do not use on a public portfolio). */
 const DEMO_LOGIN = {
   email: 'admin@solumtechnologies.com',
   password: 'Demo@123456',
+} as const;
+
+const DEFAULT_PORTFOLIO_GUEST = {
+  email: 'guest@assetly.demo',
+  password: 'ViewOnly@2026',
 } as const;
 
 const features = [
@@ -79,6 +84,9 @@ export function LoginPage() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoAuthEnabled, setDemoAuthEnabled] = useState(
     import.meta.env.VITE_DEMO_AUTH === 'true',
+  );
+  const [portfolioGuest, setPortfolioGuest] = useState<{ email: string; password: string } | null>(
+    import.meta.env.VITE_PORTFOLIO_GUEST === 'true' ? DEFAULT_PORTFOLIO_GUEST : null,
   );
   const [apiWarning, setApiWarning] = useState<string | null>(null);
   const [activeFeature, setActiveFeature] = useState(0);
@@ -125,8 +133,19 @@ export function LoginPage() {
     void fetch(apiUrl('/api/auth/demo-status'))
       .then(async (res) => {
         if (!res.ok) return;
-        const data = (await res.json()) as { enabled?: boolean };
+        const data = (await res.json()) as {
+          enabled?: boolean;
+          portfolioGuest?: { enabled?: boolean; email?: string; password?: string };
+        };
         if (typeof data.enabled === 'boolean') setDemoAuthEnabled(data.enabled);
+        if (data.portfolioGuest?.enabled && data.portfolioGuest.email && data.portfolioGuest.password) {
+          setPortfolioGuest({
+            email: data.portfolioGuest.email,
+            password: data.portfolioGuest.password,
+          });
+        } else if (data.portfolioGuest && data.portfolioGuest.enabled === false) {
+          setPortfolioGuest(null);
+        }
       })
       .catch(() => {
         /* keep VITE_DEMO_AUTH fallback */
@@ -152,6 +171,25 @@ export function LoginPage() {
     );
   };
 
+  const handleGuestLogin = async () => {
+    if (!portfolioGuest) return;
+    dispatch(clearError());
+    setEmail(portfolioGuest.email);
+    setPassword(portfolioGuest.password);
+    setDemoLoading(true);
+    try {
+      await completeLogin(portfolioGuest.email, portfolioGuest.password);
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? loginErrorMessage(err.status, err.message)
+          : 'Demo sign-in failed';
+      dispatch(setLoginError(msg));
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
   const handleDemoLogin = async () => {
     dispatch(clearError());
     setEmail(DEMO_LOGIN.email);
@@ -170,8 +208,16 @@ export function LoginPage() {
     }
   };
 
-  // Portfolio deep link: /login?demo=1 auto-enters the demo tenant (when demo auth is enabled)
+  // Portfolio deep link: /login?demo=1 auto-enters the read-only guest (or full demo if only that is on)
   useEffect(() => {
+    if (portfolioGuest) {
+      if (demoAutoStarted.current || isAuthenticated || requirePasswordSetup) return;
+      if (searchParams.get('demo') !== '1') return;
+      demoAutoStarted.current = true;
+      setSearchParams({}, { replace: true });
+      void handleGuestLogin();
+      return;
+    }
     if (!demoAuthEnabled) return;
     if (demoAutoStarted.current || isAuthenticated || requirePasswordSetup) return;
     if (searchParams.get('demo') !== '1') return;
@@ -619,7 +665,45 @@ export function LoginPage() {
               </Box>
             ) : (
               <Box component="form" onSubmit={handleSubmit}>
-                {demoAuthEnabled && (
+                {portfolioGuest && (
+                  <>
+                    <Button
+                      type="button"
+                      fullWidth
+                      variant="contained"
+                      size="large"
+                      startIcon={<PlayArrowIcon />}
+                      onClick={() => void handleGuestLogin()}
+                      disabled={loading || demoLoading || Boolean(apiWarning)}
+                      sx={{ py: 1.5, mb: 2 }}
+                    >
+                      {demoLoading ? 'Opening read-only demo…' : 'View demo'}
+                    </Button>
+
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <Typography variant="body2" component="div" fontWeight={600}>
+                        Recruiter / client preview — read only
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.75 }}>
+                        This account can browse the app. It cannot add, edit, delete, or assign data.
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 1, fontFamily: 'monospace' }}>
+                        {portfolioGuest.email}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {portfolioGuest.password}
+                      </Typography>
+                    </Alert>
+
+                    <Divider sx={{ my: 2 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        or sign in with your account
+                      </Typography>
+                    </Divider>
+                  </>
+                )}
+
+                {demoAuthEnabled && !portfolioGuest && (
                   <>
                     <Button
                       type="button"

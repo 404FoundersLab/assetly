@@ -16,7 +16,8 @@ import { LoadingButton } from '../../components/Loader';
 import { reloadFromApi } from '../../components/DataBootstrap';
 
 import { patchAsset, deleteAsset as deleteAssetApi } from '../../services/api/assets';
-import { CATEGORY_LABELS, STATUS_LABELS } from '../../data/demoData';
+import { STATUS_LABELS } from '../../data/demoData';
+import { useAssetCategories } from '../../hooks/useAssetCategories';
 import { LIFECYCLE_LABELS } from '../../utils/assetUtils';
 import type { Asset } from '../../types';
 
@@ -31,6 +32,7 @@ export function AssetEditDialog({ open, onClose, asset, onDeleted }: Props) {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const vendors = useAppSelector((s) => s.vendors.items);
+  const { slugs, labelOf } = useAssetCategories();
   const [form, setForm] = useState(asset);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -101,8 +103,8 @@ export function AssetEditDialog({ open, onClose, asset, onDeleted }: Props) {
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField select fullWidth label="Category" value={form.category} onChange={(e) => set('category', e.target.value)}>
-              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                <MenuItem key={k} value={k}>{v}</MenuItem>
+              {slugs.map((k) => (
+                <MenuItem key={k} value={k}>{labelOf(k)}</MenuItem>
               ))}
             </TextField>
           </Grid>

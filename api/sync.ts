@@ -16,6 +16,7 @@ import {
   type DbAuditLog,
 } from './_lib/mappers';
 import { requireAuth } from './_lib/auth';
+import { DEFAULT_DEVICE_TYPES, mapAssetCategory } from './_lib/asset-categories';
 
 export const config = { runtime: 'edge' };
 
@@ -93,6 +94,43 @@ export default async function handler(req: Request) {
         DbAuditLog[],
       ];
 
+    let assetCategories = DEFAULT_DEVICE_TYPES.map((t) =>
+      mapAssetCategory({
+        id: `default-${t.slug}`,
+        tenant_id: auth.tenantId!,
+        slug: t.slug,
+        label: t.label,
+        sort_order: t.sortOrder,
+        is_active: true,
+        show_in_requests: t.showInRequests,
+        is_peripheral: t.isPeripheral,
+        family: t.family,
+      }),
+    );
+    try {
+      let categoryRows: Parameters<typeof mapAssetCategory>[0][] = [];
+      try {
+        categoryRows = await sql`
+          SELECT id, tenant_id, slug, label, sort_order, is_active, show_in_requests, is_peripheral, family
+          FROM asset_categories
+          WHERE tenant_id = ${auth.tenantId!}
+          ORDER BY sort_order ASC, label ASC
+        ` as Parameters<typeof mapAssetCategory>[0][];
+      } catch {
+        categoryRows = await sql`
+          SELECT id, tenant_id, slug, label, sort_order, is_active, show_in_requests, is_peripheral
+          FROM asset_categories
+          WHERE tenant_id = ${auth.tenantId!}
+          ORDER BY sort_order ASC, label ASC
+        ` as Parameters<typeof mapAssetCategory>[0][];
+      }
+      if (categoryRows.length > 0) {
+        assetCategories = categoryRows.map(mapAssetCategory);
+      }
+    } catch {
+      /* table may not exist yet — keep defaults */
+    }
+
     return json({
       assets: assets.map(mapAsset),
       employees: employees.map(mapEmployee),
@@ -101,6 +139,7 @@ export default async function handler(req: Request) {
       assignments: assignments.map(mapAssignment),
       ownershipHistory: ownershipHistory.map(mapOwnershipEvent),
       auditLogs: auditLogs.map(mapAuditLog),
+      assetCategories,
     });
   } catch (e) {
     return error(e instanceof Error ? e.message : 'Sync failed', 500);

@@ -3,8 +3,98 @@ import { DEMO_USERS } from '../_lib/demo-users';
 import { signAuthToken, verifyPassword, insertAuditLog } from '../_lib/auth';
 import { isDemoAuthEnabled } from '../_lib/security';
 import { mapTenant, type DbUser, type DbTenant } from '../_lib/mappers';
+import {
+  isPortfolioGuestEmail,
+  isPortfolioGuestEnabled,
+  matchPortfolioGuest,
+  PORTFOLIO_GUEST_EMAIL,
+  PORTFOLIO_GUEST_NAME,
+} from '../_lib/portfolio-guest';
 
 export const config = { runtime: 'edge' };
+
+async function resolvePortfolioGuestSession() {
+  const sql = getSql();
+  const configuredTenant = process.env.PORTFOLIO_GUEST_TENANT_ID?.trim();
+
+  let tenantRows: DbTenant[] = [];
+  const tryLoad = async (query: Promise<unknown>) => {
+    try {
+      const rows = (await query) as DbTenant[];
+      if (rows.length > 0) tenantRows = rows;
+    } catch {
+      /* table or column may not exist */
+    }
+  };
+
+  if (configuredTenant) {
+    await tryLoad(sql`SELECT * FROM companies WHERE id = ${configuredTenant} LIMIT 1`);
+    if (tenantRows.length === 0) {
+      await tryLoad(sql`SELECT * FROM tenants WHERE id = ${configuredTenant} LIMIT 1`);
+    }
+  }
+  if (tenantRows.length === 0) {
+    await tryLoad(sql`SELECT * FROM tenants LIMIT 1`);
+  }
+  if (tenantRows.length === 0) {
+    await tryLoad(sql`SELECT * FROM companies LIMIT 1`);
+  }
+  if (tenantRows.length === 0) return null;
+
+  const tenant = mapTenant(tenantRows[0]);
+  const existing = await sql`
+    SELECT id FROM users WHERE lower(email) = ${PORTFOLIO_GUEST_EMAIL} LIMIT 1
+  ` as { id: string }[];
+  const userId = existing[0]?.id ?? crypto.randomUUID();
+  try {
+    await sql`
+      INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+      VALUES (
+        ${userId},
+        ${tenant.id},
+        ${PORTFOLIO_GUEST_EMAIL},
+        ${PORTFOLIO_GUEST_NAME.firstName},
+        ${PORTFOLIO_GUEST_NAME.lastName},
+        'viewer'
+      )
+      ON CONFLICT (email) DO UPDATE SET
+        role = 'viewer',
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name
+    `;
+  } catch {
+    await sql`
+      UPDATE users
+      SET role = 'viewer', first_name = ${PORTFOLIO_GUEST_NAME.firstName}, last_name = ${PORTFOLIO_GUEST_NAME.lastName}
+      WHERE lower(email) = ${PORTFOLIO_GUEST_EMAIL}
+    `;
+    if (existing.length === 0) {
+      await sql`
+        INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+        VALUES (
+          ${userId},
+          ${tenant.id},
+          ${PORTFOLIO_GUEST_EMAIL},
+          ${PORTFOLIO_GUEST_NAME.firstName},
+          ${PORTFOLIO_GUEST_NAME.lastName},
+          'viewer'
+        )
+      `;
+    }
+  }
+
+  return {
+    user: {
+      id: userId,
+      tenantId: tenant.id,
+      email: PORTFOLIO_GUEST_EMAIL,
+      firstName: PORTFOLIO_GUEST_NAME.firstName,
+      lastName: PORTFOLIO_GUEST_NAME.lastName,
+      role: 'viewer' as const,
+    },
+    tenant,
+  };
+}
 
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return corsPreflight();
@@ -16,10 +106,16 @@ export default async function handler(req: Request) {
     const password = String(body.password ?? '');
 
     if (!email) return error('Email is required', 400);
+    if (isPortfolioGuestEmail(email) && !isPortfolioGuestEnabled()) {
+      return error('Invalid email or password', 401);
+    }
 
     let optionalFirstTime = false;
     try {
       const sql = getSql();
+      if (isPortfolioGuestEmail(email)) {
+        /* guest never uses first-login password bypass */
+      } else {
       const rows = await sql`SELECT password_hash FROM user_passwords WHERE email = ${email}` as { password_hash: string }[];
       if (rows.length > 0 && rows[0].password_hash === 'optional-on-first-login') {
         optionalFirstTime = true;
@@ -51,12 +147,38 @@ export default async function handler(req: Request) {
           optionalFirstTime = true;
         }
       }
+      }
     } catch {
       // Ignore
     }
 
     if (!password && !optionalFirstTime) {
       return error('Email and password are required', 400);
+    }
+
+    if (matchPortfolioGuest(email, password)) {
+      try {
+        const guest = await resolvePortfolioGuestSession();
+        if (!guest) return error('Demo guest is not configured', 503);
+        const token = await signAuthToken(guest.user);
+        try {
+          await insertAuditLog({
+            tenantId: guest.user.tenantId,
+            userId: guest.user.id,
+            userName: `${guest.user.firstName} ${guest.user.lastName}`,
+            action: 'LOGIN',
+            entityType: 'user',
+            entityId: guest.user.id,
+            entityLabel: guest.user.email,
+            details: 'Portfolio guest signed in (read-only)',
+          });
+        } catch {
+          /* login should succeed even if audit log is unavailable */
+        }
+        return json({ token, user: guest.user, tenant: guest.tenant });
+      } catch (e) {
+        return error(e instanceof Error ? e.message : 'Demo guest sign-in failed', 500);
+      }
     }
 
     let userRecord: any = null;
