@@ -93,11 +93,11 @@ export function defaultWarrantyDate(): string {
   return date.toISOString().split('T')[0];
 }
 
-export function createEmptyAssetForm() {
+export function createEmptyAssetForm(category: AssetCategory = 'laptop') {
   return {
     assetTag: generateAssetTag(),
     name: '',
-    category: 'laptop' as AssetCategory,
+    category,
     status: 'in_stock' as AssetStatus,
     lifecycleStage: 'active' as LifecycleStage,
     serialNumber: '',

@@ -31,10 +31,13 @@ import { SearchField } from '../../components/SearchField';
 import { EmptyState } from '../../components/EmptyState';
 import { formatCurrency, formatDate, daysUntil, getEmployeeName } from '../../utils/format';
 import { assetMatchesSearch } from '../../utils/search';
-import { CATEGORY_LABELS, STATUS_LABELS } from '../../data/demoData';
+import { STATUS_LABELS } from '../../data/demoData';
+import { DEVICE_FAMILY_META } from '../../constants/deviceFamilies';
+import { useAssetCategories } from '../../hooks/useAssetCategories';
+import type { DeviceFamily } from '../../types';
 import { AssetImportDialog } from './AssetImportDialog';
 
-export function AssetsPage() {
+export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const warrantyFilter = searchParams.get('warranty');
@@ -42,9 +45,13 @@ export function AssetsPage() {
   const employees = useAppSelector((s) => s.employees.items);
   const vendors = useAppSelector((s) => s.vendors.items);
   const { can } = usePermissions();
+  const { familyOf, typesInFamily, labelOf } = useAssetCategories();
+  const meta = DEVICE_FAMILY_META[family];
+  const familyTypes = typesInFamily(family);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [importOpen, setImportOpen] = useState(false);
@@ -58,30 +65,37 @@ export function AssetsPage() {
     [vendors],
   );
 
+  const scoped = useMemo(
+    () => assets.filter((a) => familyOf(a.category) === family),
+    [assets, family, familyOf],
+  );
+
   const filtered = useMemo(() => {
-    return assets.filter((a) => {
+    return scoped.filter((a) => {
       const assignee = a.assignedEmployeeId ? employeeMap[a.assignedEmployeeId] : undefined;
       const matchSearch = assetMatchesSearch(a, search, {
         assigneeName: assignee ? getEmployeeName(assignee.firstName, assignee.lastName) : undefined,
         vendorName: vendorMap[a.vendorId],
-        categoryLabel: CATEGORY_LABELS[a.category],
+        categoryLabel: labelOf(a.category),
         statusLabel: STATUS_LABELS[a.status],
       });
       const matchStatus = statusFilter === 'all' || a.status === statusFilter;
+      const matchCategory = categoryFilter === 'all' || a.category === categoryFilter;
       const matchWarranty =
         !warrantyFilter ||
         (daysUntil(a.warrantyExpiresAt) <= Number(warrantyFilter) && daysUntil(a.warrantyExpiresAt) >= 0);
-      return matchSearch && matchStatus && matchWarranty;
+      return matchSearch && matchStatus && matchCategory && matchWarranty;
     });
-  }, [assets, search, statusFilter, warrantyFilter, employeeMap, vendorMap]);
+  }, [scoped, search, statusFilter, categoryFilter, warrantyFilter, employeeMap, vendorMap, labelOf]);
 
   const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const hasActiveFilters = Boolean(search || statusFilter !== 'all' || warrantyFilter);
+  const hasActiveFilters = Boolean(search || statusFilter !== 'all' || categoryFilter !== 'all' || warrantyFilter);
 
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('all');
-    if (warrantyFilter) navigate('/assets');
+    setCategoryFilter('all');
+    if (warrantyFilter) navigate(meta.path);
     setPage(0);
   };
 
@@ -102,16 +116,16 @@ export function AssetsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'assets-export.csv';
+    link.download = `${family}-export.csv`;
     link.click();
   };
 
   return (
     <Box>
       <PageHeader
-        title="Assets"
-        subtitle={`${filtered.length} of ${assets.length} assets${warrantyFilter ? ` · warranty expiring within ${warrantyFilter} days` : ''}`}
-        breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Assets' }]}
+        title={meta.title}
+        subtitle={`${filtered.length} of ${scoped.length} ${meta.title.toLowerCase()}${warrantyFilter ? ` · warranty expiring within ${warrantyFilter} days` : ''}`}
+        breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: meta.menu }]}
         actions={
           <>
             <Button
@@ -127,8 +141,8 @@ export function AssetsPage() {
                 <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setImportOpen(true)}>
                   Import Excel
                 </Button>
-                <Button startIcon={<AddIcon />} variant="contained" onClick={() => navigate('/assets/new')}>
-                  Add Asset
+                <Button startIcon={<AddIcon />} variant="contained" onClick={() => navigate(meta.newPath)}>
+                  Add {family === 'it_asset' ? 'asset' : 'device'}
                 </Button>
               </>
             )}
@@ -158,10 +172,25 @@ export function AssetsPage() {
             <MenuItem value="in_repair">In Repair</MenuItem>
             <MenuItem value="retired">Retired</MenuItem>
           </TextField>
+          <TextField
+            select
+            size="small"
+            label="Type"
+            value={categoryFilter}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(0); }}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="all">All types</MenuItem>
+            {familyTypes.map((t) => (
+              <MenuItem key={t.slug} value={t.slug}>
+                {t.label}
+              </MenuItem>
+            ))}
+          </TextField>
           {warrantyFilter && (
             <Chip
               label={`Warranty ≤ ${warrantyFilter} days`}
-              onDelete={() => navigate('/assets')}
+              onDelete={() => navigate(meta.path)}
               color="warning"
               size="small"
             />
@@ -180,11 +209,11 @@ export function AssetsPage() {
       </Card>
 
       <Card>
-        {assets.length === 0 ? (
+        {scoped.length === 0 ? (
           <EmptyState
             icon={<InventoryIcon />}
-            title="No assets in inventory"
-            description="Import your spreadsheet or add assets manually to start tracking hardware, warranties, and assignments."
+            title={`No ${meta.title.toLowerCase()} yet`}
+            description={meta.subtitle}
             action={
               can('asset:write')
                 ? {
@@ -242,7 +271,7 @@ export function AssetsPage() {
                             {[asset.manufacturer, asset.serialNumber].filter(Boolean).join(' · ') || '—'}
                           </Box>
                         </TableCell>
-                        <TableCell>{CATEGORY_LABELS[asset.category]}</TableCell>
+                        <TableCell>{labelOf(asset.category)}</TableCell>
                         <TableCell>
                           <StatusChip status={asset.status} />
                         </TableCell>

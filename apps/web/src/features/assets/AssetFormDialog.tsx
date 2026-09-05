@@ -15,6 +15,7 @@ import { LoadingButton } from '../../components/Loader';
 import { reloadFromApi } from '../../components/DataBootstrap';
 import { createAsset as createAssetApi } from '../../services/api/assets';
 import type { AssetCategory, AssetStatus, LifecycleStage } from '../../types';
+import { useAssetCategories } from '../../hooks/useAssetCategories';
 
 interface Props {
   open: boolean;
@@ -44,6 +45,7 @@ export function AssetFormDialog({ open, onClose }: Props) {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const vendors = useAppSelector((s) => s.vendors.items);
+  const { slugs, labelOf } = useAssetCategories();
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(false);
 
@@ -125,13 +127,9 @@ export function AssetFormDialog({ open, onClose }: Props) {
               value={form.category}
               onChange={(e) => handleChange('category', e.target.value)}
             >
-              {[
-                'laptop', 'desktop', 'server', 'mobile',
-                'monitor', 'keyboard', 'mouse', 'webcam', 'headset',
-                'peripheral', 'network', 'other',
-              ].map((c) => (
+              {slugs.map((c) => (
                 <MenuItem key={c} value={c}>
-                  {c.replace('_', ' ')}
+                  {labelOf(c)}
                 </MenuItem>
               ))}
             </TextField>

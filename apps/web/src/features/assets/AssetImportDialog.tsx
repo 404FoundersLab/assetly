@@ -53,7 +53,8 @@ interface Props {
 const STEPS = ['Upload file', 'Map columns', 'Review & edit', 'Import'];
 
 const CATEGORY_OPTIONS: AssetCategory[] = [
-  'laptop', 'desktop', 'server', 'mobile', 'monitor', 'keyboard', 'mouse', 'webcam', 'headset', 'other',
+  'laptop', 'desktop', 'server', 'mobile', 'monitor', 'keyboard', 'mouse', 'webcam', 'headset',
+  'esl', 'gateway', 'newton', 'epd_23_inch', 'firmware_kit', 'other',
 ];
 
 const STATUS_OPTIONS: AssetStatus[] = ['in_stock', 'deployed', 'in_repair', 'retired'];

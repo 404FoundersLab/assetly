@@ -22,6 +22,8 @@ import departmentsIndex from '../api/departments/index';
 import departmentsById from '../api/departments/[id]';
 import vendorsIndex from '../api/vendors/index';
 import vendorsById from '../api/vendors/[id]';
+import assetCategoriesIndex from '../api/asset-categories/index';
+import assetCategoriesById from '../api/asset-categories/[id]';
 import requestsIndex from '../api/requests/index';
 import requestsById from '../api/requests/[id]';
 import tenantsIndex from '../api/tenants/index';
@@ -92,6 +94,8 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/employees') return employeesIndex;
   if (pathname === '/api/departments') return departmentsIndex;
   if (pathname === '/api/vendors') return vendorsIndex;
+  if (pathname === '/api/asset-categories') return assetCategoriesIndex;
+  if (/^\/api\/asset-categories\/[^/]+$/.test(pathname)) return assetCategoriesById;
   if (pathname === '/api/requests') return requestsIndex;
   if (pathname === '/api/hr/leave') return hrLeave;
   if (/^\/api\/hr\/leave\/[^/]+$/.test(pathname)) return hrLeaveById;

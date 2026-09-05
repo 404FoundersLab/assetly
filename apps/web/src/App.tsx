@@ -18,6 +18,7 @@ import { LandingPage } from './features/portal/LandingPage';
 import { AssetsPage } from './features/assets/AssetsPage';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
 import { NewAssetPage } from './features/assets/NewAssetPage';
+import { DeviceTypesPage } from './features/assets/DeviceTypesPage';
 import { AssetLookupPage } from './features/assets/AssetLookupPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
@@ -27,8 +28,6 @@ import { AuditPage } from './features/audit/AuditPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { TenantUsersPage } from './features/settings/TenantUsersPage';
 import { DevicesPage } from './features/devices/DevicesPage';
-import { NetworkDevicesPage } from './features/network/NetworkDevicesPage';
-import { NetworkDeviceDetailPage } from './features/network/NetworkDeviceDetailPage';
 import { DeviceRequestPage } from './features/portal/DeviceRequestPage';
 import { RequestsPage } from './features/requests/RequestsPage';
 import { EndpointsPage } from './features/endpoints/EndpointsPage';
@@ -120,12 +119,13 @@ export default function App() {
         <Route path="dashboard" element={<ModuleRoute module="module:assets"><DashboardPage /></ModuleRoute>} />
         
         {/* Assets & IT Module */}
-        <Route path="assets" element={<ModuleRoute module="module:assets"><AssetsPage /></ModuleRoute>} />
+        <Route path="assets" element={<ModuleRoute module="module:assets"><AssetsPage family="it_asset" /></ModuleRoute>} />
+        <Route path="assets/types" element={<ModuleRoute module="module:assets"><DeviceTypesPage /></ModuleRoute>} />
         <Route path="assets/new" element={<ModuleRoute module="module:assets"><NewAssetPage /></ModuleRoute>} />
         <Route path="assets/:id" element={<ModuleRoute module="module:assets"><AssetDetailPage /></ModuleRoute>} />
         <Route path="devices" element={<ModuleRoute module="module:assets"><DevicesPage /></ModuleRoute>} />
-        <Route path="network-devices" element={<ModuleRoute module="module:assets"><NetworkDevicesPage /></ModuleRoute>} />
-        <Route path="network-devices/:id" element={<ModuleRoute module="module:assets"><NetworkDeviceDetailPage /></ModuleRoute>} />
+        <Route path="network-devices" element={<ModuleRoute module="module:assets"><AssetsPage family="network" /></ModuleRoute>} />
+        <Route path="store-devices" element={<ModuleRoute module="module:assets"><AssetsPage family="store" /></ModuleRoute>} />
         <Route path="endpoints" element={<ModuleRoute module="module:assets"><EndpointsPage /></ModuleRoute>} />
         <Route path="software" element={<ModuleRoute module="module:assets"><SoftwarePage /></ModuleRoute>} />
         <Route path="lifecycle" element={<ModuleRoute module="module:assets"><LifecyclePage /></ModuleRoute>} />
