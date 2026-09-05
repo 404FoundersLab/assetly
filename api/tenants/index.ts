@@ -1,6 +1,6 @@
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapTenant, type DbTenant } from '../_lib/mappers';
-import { requireAuth, insertAuditLog } from '../_lib/auth';
+import { requireAuth, insertAuditLog, hashPassword } from '../_lib/auth';
 import { provisionTenantDatabase } from '../_lib/provision';
 
 export const config = { runtime: 'edge' };
@@ -11,7 +11,6 @@ export default async function handler(req: Request) {
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
   if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
 
   // Only Platform Admins can manage tenants
   if (auth.role !== 'platform_admin') {

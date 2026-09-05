@@ -84,7 +84,7 @@ export function NewAssetPage() {
   const { slugs, labelOf, types } = useAssetCategories();
   const [searchParams] = useSearchParams();
   const familyParam = searchParams.get('family');
-  const selectedFamily = isDeviceFamily(familyParam ?? '') ? familyParam : undefined;
+  const selectedFamily = familyParam && isDeviceFamily(familyParam) ? familyParam : undefined;
   const typeSlugs = useMemo(
     () => (selectedFamily ? types.filter((t) => t.family === selectedFamily).map((t) => t.slug) : slugs),
     [selectedFamily, types, slugs],

@@ -7,7 +7,6 @@
     "strictFunctionTypes": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
     "lib": ["ES2022"]
