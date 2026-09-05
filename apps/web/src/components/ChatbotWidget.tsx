@@ -344,26 +344,26 @@ export function ChatbotWidget() {
           onClick={() => setOpen(true)}
           aria-label="chat"
           sx={{
-            background: 'linear-gradient(135deg, #1565C0 0%, #8E24AA 100%)',
+            background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #06B6D4 100%)',
             color: 'white',
-            width: 60,
-            height: 60,
+            width: 58,
+            height: 58,
             boxShadow: theme.palette.mode === 'dark'
-              ? '0 8px 24px rgba(142, 36, 170, 0.45)'
-              : '0 8px 24px rgba(21, 101, 192, 0.35)',
+              ? '0 8px 24px rgba(99, 102, 241, 0.45)'
+              : '0 8px 24px rgba(99, 102, 241, 0.35)',
             transition: 'transform 0.25s, box-shadow 0.25s, background 0.25s',
             animation: 'fabPulse 3s infinite',
             '@keyframes fabPulse': {
-              '0%': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 0 rgba(142, 36, 170, 0.5)' : '0 0 0 0 rgba(21, 101, 192, 0.4)' },
-              '70%': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 12px rgba(142, 36, 170, 0)' : '0 0 0 12px rgba(21, 101, 192, 0)' },
-              '100%': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 0 rgba(142, 36, 170, 0)' : '0 0 0 0 rgba(21, 101, 192, 0)' }
+              '0%': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 0 rgba(99, 102, 241, 0.5)' : '0 0 0 0 rgba(99, 102, 241, 0.4)' },
+              '70%': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 12px rgba(99, 102, 241, 0)' : '0 0 0 12px rgba(99, 102, 241, 0)' },
+              '100%': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 0 rgba(99, 102, 241, 0)' : '0 0 0 0 rgba(99, 102, 241, 0)' }
             },
             '&:hover': {
               transform: 'scale(1.08) rotate(5deg)',
-              background: 'linear-gradient(135deg, #1976D2 0%, #9C27B0 100%)',
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #0891B2 100%)',
               boxShadow: theme.palette.mode === 'dark'
-                ? '0 12px 28px rgba(142, 36, 170, 0.65)'
-                : '0 12px 28px rgba(21, 101, 192, 0.55)',
+                ? '0 12px 28px rgba(99, 102, 241, 0.65)'
+                : '0 12px 28px rgba(99, 102, 241, 0.55)',
             },
           }}
         >
@@ -379,13 +379,12 @@ export function ChatbotWidget() {
             height: 560,
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: 4,
+            borderRadius: '20px',
             overflow: 'hidden',
             boxShadow: theme.palette.mode === 'dark'
-              ? '0 12px 40px rgba(0,0,0,0.65)'
-              : '0 12px 40px rgba(0,0,0,0.18)',
-            border: '1px solid',
-            borderColor: 'divider',
+              ? '0 20px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08)'
+              : '0 20px 48px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.08)',
+            border: 'none',
             bgcolor: 'background.paper',
             animation: 'fadeInUp 0.3s cubic-bezier(0.1, 0.76, 0.55, 0.94)',
             '@keyframes fadeInUp': {
@@ -398,12 +397,12 @@ export function ChatbotWidget() {
           <Box
             sx={{
               p: 2,
-              background: 'linear-gradient(135deg, #1565C0 0%, #8E24AA 100%)',
+              background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #06B6D4 100%)',
               color: 'white',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              boxShadow: '0 2px 12px rgba(99, 102, 241, 0.3)',
             }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center">
@@ -420,9 +419,9 @@ export function ChatbotWidget() {
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    bgcolor: '#4caf50',
-                    border: '2px solid #1565C0',
-                    boxShadow: '0 0 8px #4caf50',
+                    bgcolor: '#10B981',
+                    border: '2px solid #6366F1',
+                    boxShadow: '0 0 8px #10B981',
                   }}
                 />
               </Box>

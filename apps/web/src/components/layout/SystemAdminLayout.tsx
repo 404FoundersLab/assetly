@@ -13,10 +13,11 @@ import {
   Tooltip,
   useMediaQuery,
   useTheme,
+  Chip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { SystemAdminSidebar, DRAWER_WIDTH } from './SystemAdminSidebar';
 import { GlobalSearch } from '../GlobalSearch';
@@ -33,6 +34,7 @@ export function SystemAdminLayout() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const user = useAuthUser();
+  const isDark = theme.palette.mode === 'dark';
 
   const initials = getUserInitials(user);
   const displayName = getUserDisplayName(user);
@@ -51,57 +53,82 @@ export function SystemAdminLayout() {
         sx={{
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { md: `${DRAWER_WIDTH}px` },
-          bgcolor: 'background.paper',
+          bgcolor: isDark ? 'rgba(9, 14, 23, 0.78)' : 'rgba(255, 255, 255, 0.85)',
           color: 'text.primary',
           borderBottom: '1px solid',
-          borderColor: 'divider',
-          backdropFilter: 'blur(8px)',
+          borderColor: theme.palette.divider,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          zIndex: (t) => t.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ minHeight: { xs: 56, md: 64 } }}>
+        <Toolbar sx={{ minHeight: { xs: 58, md: 68 }, px: { xs: 2, md: 3 }, gap: 2 }}>
           <IconButton
             color="inherit"
             edge="start"
             onClick={() => setMobileOpen(true)}
-            sx={{ mr: 1.5, display: { md: 'none' } }}
+            sx={{
+              display: { md: 'none' },
+              borderRadius: '10px',
+              border: `1px solid ${theme.palette.divider}`,
+            }}
             aria-label="Open navigation menu"
           >
             <MenuIcon />
           </IconButton>
 
           {showGlobalSearch ? (
-            <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
               <GlobalSearch />
+              <Chip
+                icon={<AdminPanelSettingsIcon sx={{ fontSize: 16 }} />}
+                label="Superadmin Platform"
+                size="small"
+                sx={{
+                  display: { xs: 'none', lg: 'inline-flex' },
+                  fontWeight: 700,
+                  fontSize: '0.72rem',
+                  bgcolor: isDark ? 'rgba(236, 72, 153, 0.12)' : 'rgba(236, 72, 153, 0.08)',
+                  color: '#EC4899',
+                  border: '1px solid',
+                  borderColor: isDark ? 'rgba(236, 72, 153, 0.3)' : 'rgba(236, 72, 153, 0.2)',
+                  borderRadius: '8px',
+                  height: 28,
+                }}
+              />
             </Box>
           ) : (
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="subtitle1" fontWeight={700} noWrap>
-                Administration
+              <Typography variant="subtitle1" fontWeight={800} noWrap sx={{ letterSpacing: '-0.02em' }}>
+                System Administration
               </Typography>
             </Box>
           )}
 
-          <ThemeModeToggle />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ThemeModeToggle />
 
-          <Tooltip title="Account">
-            <IconButton
-              onClick={(e) => setAnchorEl(e.currentTarget)}
-              sx={{ p: 0.5 }}
-              aria-label="Open account menu"
-            >
-              <Avatar
-                sx={{
-                  width: 36,
-                  height: 36,
-                  bgcolor: 'secondary.main',
-                  fontSize: '0.875rem',
-                  fontWeight: 700,
-                }}
+            <Tooltip title="Account menu">
+              <IconButton
+                onClick={(e) => setAnchorEl(e.currentTarget)}
+                sx={{ p: 0.5 }}
+                aria-label="Open account menu"
               >
-                {initials}
-              </Avatar>
-            </IconButton>
-          </Tooltip>
+                <Avatar
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    background: 'linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)',
+                    fontSize: '0.8125rem',
+                    fontWeight: 700,
+                    boxShadow: '0 2px 8px rgba(236, 72, 153, 0.35)',
+                  }}
+                >
+                  {initials}
+                </Avatar>
+              </IconButton>
+            </Tooltip>
+          </Box>
 
           <Menu
             anchorEl={anchorEl}
@@ -111,27 +138,43 @@ export function SystemAdminLayout() {
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
             slotProps={{
               paper: {
-                sx: { minWidth: 220, mt: 1, borderRadius: 2 },
+                sx: {
+                  minWidth: 220,
+                  mt: 1.5,
+                  borderRadius: '16px',
+                  p: 1,
+                  boxShadow: isDark
+                    ? '0 20px 40px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)'
+                    : '0 20px 40px -8px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.08)',
+                  backdropFilter: 'blur(20px)',
+                },
               },
             }}
           >
-            <Box sx={{ px: 2, py: 1.5 }}>
-              <Typography variant="body2" fontWeight={600}>
+            <Box sx={{ px: 1.5, py: 1.25 }}>
+              <Typography variant="body2" fontWeight={700}>
                 {displayName}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {getRoleLabel(user?.role)}
+              <Typography variant="caption" color="text.secondary" display="block">
+                {user?.email}
               </Typography>
+              <Chip
+                label={getRoleLabel(user?.role)}
+                size="small"
+                sx={{
+                  mt: 0.75,
+                  height: 20,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  bgcolor: isDark ? 'rgba(236, 72, 153, 0.15)' : 'rgba(236, 72, 153, 0.08)',
+                  color: '#EC4899',
+                }}
+              />
             </Box>
-            <Divider />
-            {/* 
-            <MenuItem onClick={() => { setAnchorEl(null); navigate('/settings'); }}>
-              <ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>
-              Settings
-            </MenuItem>
-            */}
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
+            <Divider sx={{ my: 0.75 }} />
+            <MenuItem onClick={handleLogout} sx={{ borderRadius: '10px', color: 'error.main' }}>
+              <ListItemIcon sx={{ minWidth: 32, color: 'error.main' }}>
                 <LogoutIcon fontSize="small" />
               </ListItemIcon>
               Sign out
@@ -149,15 +192,18 @@ export function SystemAdminLayout() {
           minWidth: 0,
           width: { xs: '100%', md: 'auto' },
           bgcolor: 'background.default',
+          backgroundImage: isDark
+            ? 'radial-gradient(ellipse 90% 50% at 50% -10%, rgba(236, 72, 153, 0.06), transparent)'
+            : 'radial-gradient(ellipse 90% 50% at 50% -10%, rgba(236, 72, 153, 0.02), transparent)',
           minHeight: '100vh',
           overflowX: 'hidden',
         }}
       >
-        <Toolbar sx={{ minHeight: { xs: 56, md: 64 } }} />
+        <Toolbar sx={{ minHeight: { xs: 58, md: 68 } }} />
         <Box
           sx={{
-            p: { xs: 2, sm: 2.5, md: 3 },
-            maxWidth: 1600,
+            p: { xs: 2, sm: 3, md: 4 },
+            maxWidth: 1680,
             mx: 'auto',
             width: '100%',
           }}

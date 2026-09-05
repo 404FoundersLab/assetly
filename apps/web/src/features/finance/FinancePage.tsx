@@ -314,7 +314,7 @@ export function FinancePage() {
           {activeTab === 0 && (
             <Box sx={{ mt: 3 }}>
               <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Card sx={{ p: 2, flex: 1, borderLeft: '4px solid #1565C0' }}>
+                <Card sx={{ p: 2, flex: 1, borderLeft: '4px solid #6366F1' }}>
                   <Typography variant="body2" color="text.secondary">Total Purchase Cost</Typography>
                   <Typography variant="h5" fontWeight={700}>{formatCurrency(totalPurchaseCost)}</Typography>
                 </Card>
@@ -640,8 +640,8 @@ export function FinancePage() {
                                 }}
                               />
                               <Legend wrapperStyle={{ fontSize: '12px' }} />
-                              <Bar name="Procurement Cost" dataKey="purchaseCost" fill="#1565C0" radius={[4, 4, 0, 0]} />
-                              <Bar name="Repair Charges" dataKey="repairCost" fill="#ED6C02" radius={[4, 4, 0, 0]} />
+                              <Bar name="Procurement Cost" dataKey="purchaseCost" fill="#6366F1" radius={[4, 4, 0, 0]} />
+                              <Bar name="Repair Charges" dataKey="repairCost" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           ) : (
                             <BarChart
@@ -664,7 +664,7 @@ export function FinancePage() {
                                   boxShadow: '0px 2px 8px rgba(0,0,0,0.1)',
                                 }}
                               />
-                              <Bar name="Procured + Repair Cost" dataKey="value" fill="#8E24AA" radius={[4, 4, 0, 0]} />
+                              <Bar name="Procured + Repair Cost" dataKey="value" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           )}
                         </ResponsiveContainer>
@@ -681,10 +681,10 @@ export function FinancePage() {
             <Box sx={{ mt: 3 }}>
               <Grid container spacing={3} sx={{ mb: 3 }}>
                 {[
-                  { label: 'Total Submitted', value: formatCurrency(expenses.reduce((s, e) => s + e.amount, 0)), color: '#1565C0' },
-                  { label: 'Pending Approval', value: String(expenses.filter(e => e.status === 'submitted').length), color: '#E65100' },
-                  { label: 'Approved & Paid', value: formatCurrency(expenses.filter(e => e.status === 'paid' || e.status === 'approved').reduce((s, e) => s + e.amount, 0)), color: '#2E7D32' },
-                  { label: 'Rejected', value: String(expenses.filter(e => e.status === 'rejected').length), color: '#C62828' },
+                  { label: 'Total Submitted', value: formatCurrency(expenses.reduce((s, e) => s + e.amount, 0)), color: '#6366F1' },
+                  { label: 'Pending Approval', value: String(expenses.filter(e => e.status === 'submitted').length), color: '#F59E0B' },
+                  { label: 'Approved & Paid', value: formatCurrency(expenses.filter(e => e.status === 'paid' || e.status === 'approved').reduce((s, e) => s + e.amount, 0)), color: '#10B981' },
+                  { label: 'Rejected', value: String(expenses.filter(e => e.status === 'rejected').length), color: '#EF4444' },
                 ].map(s => (
                   <Grid item xs={12} sm={6} md={3} key={s.label}>
                     <Card sx={{ p: 2, borderLeft: `4px solid ${s.color}` }}>

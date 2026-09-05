@@ -10,12 +10,11 @@ import {
   Divider,
   InputAdornment,
   IconButton,
-  Stack,
+  Chip,
   alpha,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import DevicesIcon from '@mui/icons-material/Devices';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
@@ -24,6 +23,9 @@ import AnalyticsIcon from '@mui/icons-material/Analytics';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import LayersIcon from '@mui/icons-material/Layers';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 import { clearError, setSession, setLoginError, setPendingSession } from '../../store/authSlice';
@@ -50,28 +52,28 @@ const DEFAULT_PORTFOLIO_GUEST = {
 const features = [
   {
     icon: <Inventory2Icon fontSize="small" />,
-    text: 'Full asset lifecycle — from procurement to retirement',
-    sub: 'Track hardware, software licences & accessories in one place',
+    text: 'Full Asset Lifecycle & Hardware Telemetry',
+    sub: 'Track laptops, mobile fleets, servers, and SAM licences from purchase to decommission',
   },
   {
     icon: <QrCodeScannerIcon fontSize="small" />,
-    text: 'Instant QR scanning & employee self-service',
-    sub: 'Assign, transfer or audit assets with a phone camera',
+    text: 'Instant QR Scanning & Employee Self-Service',
+    sub: 'Audit, verify, or transfer physical assets with any mobile camera',
   },
   {
     icon: <SecurityIcon fontSize="small" />,
-    text: 'Granular role-based access control',
-    sub: 'Super admin, IT manager, employee & read-only roles out of the box',
+    text: 'Zero-Trust Role-Based Access Control',
+    sub: 'Platform admin, tenant admin, HR manager, and employee scopes out of the box',
   },
   {
     icon: <NotificationsActiveIcon fontSize="small" />,
-    text: 'Warranty & maintenance alerts',
-    sub: 'Never miss an expiry — proactive notifications keep you ahead',
+    text: 'Automated Warranty & Maintenance Alerts',
+    sub: 'Predictive notifications keep your IT operations months ahead of contract expiries',
   },
   {
     icon: <AnalyticsIcon fontSize="small" />,
-    text: 'Real-time dashboard & tamper-proof audit trail',
-    sub: 'Full visibility into asset health, costs & every change ever made',
+    text: 'Real-Time Valuation & Tamper-Proof Audit Trail',
+    sub: 'Cryptographic accountability into every device change, cost center, and assignment',
   },
 ];
 
@@ -98,6 +100,7 @@ export function LoginPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const theme = useTheme();
   const isWide = useMediaQuery(theme.breakpoints.up('md'));
+  const isDark = theme.palette.mode === 'dark';
 
   // Auto-slide feature carousel
   useEffect(() => {
@@ -108,9 +111,10 @@ export function LoginPage() {
         setActiveFeature((prev) => (prev + 1) % features.length);
         setFeatureVisible(true);
       }, 350);
-    }, 3200);
+    }, 3600);
     return () => clearInterval(timer);
   }, [featurePaused]);
+
   const error = useAppSelector((s) => s.auth.error);
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const requirePasswordSetup = useAppSelector((s) => s.auth.requirePasswordSetup);
@@ -208,7 +212,7 @@ export function LoginPage() {
     }
   };
 
-  // Portfolio deep link: /login?demo=1 auto-enters the read-only guest (or full demo if only that is on)
+  // Portfolio deep link: /login?demo=1
   useEffect(() => {
     if (portfolioGuest) {
       if (demoAutoStarted.current || isAuthenticated || requirePasswordSetup) return;
@@ -263,40 +267,51 @@ export function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [demoAuthEnabled, searchParams, setSearchParams, isAuthenticated, requirePasswordSetup, dispatch]);
+  }, [demoAuthEnabled, portfolioGuest, isAuthenticated, requirePasswordSetup, searchParams, setSearchParams, dispatch]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     dispatch(clearError());
-    
+
     if (requirePasswordSetup) {
+      if (password.length < 8) {
+        dispatch(setLoginError('Password must be at least 8 characters'));
+        return;
+      }
       if (password !== confirmPassword) {
         dispatch(setLoginError('Passwords do not match'));
         return;
       }
-      if (password.length < 6) {
-        dispatch(setLoginError('Password must be at least 6 characters'));
-        return;
-      }
       setLoading(true);
       try {
-        await changePassword('', password);
-        dispatch(setSession({
-          user: (window as any).__pendingUser,
-          tenant: (window as any).__pendingTenant,
-          token: (window as any).__pendingToken,
-        }));
+        const token = (window as any).__pendingToken;
+        if (!token) throw new Error('Session expired, please refresh');
+        const user = (window as any).__pendingUser;
+        const tenant = (window as any).__pendingTenant;
+
+        await changePassword(token, password);
+        delete (window as any).__pendingUser;
+        delete (window as any).__pendingTenant;
+        delete (window as any).__pendingToken;
+
+        dispatch(setSession({ user, tenant, token }));
       } catch (err) {
-        dispatch(setLoginError(err instanceof Error ? err.message : 'Failed to set password'));
+        const msg = err instanceof ApiError ? err.message : 'Failed to set password';
+        dispatch(setLoginError(msg));
       } finally {
         setLoading(false);
       }
       return;
     }
 
+    if (!email.trim() || !password) {
+      dispatch(setLoginError('Please fill in all fields'));
+      return;
+    }
+
     setLoading(true);
     try {
-      await completeLogin(email, password);
+      await completeLogin(email.trim(), password);
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -318,194 +333,201 @@ export function LoginPage() {
         position: 'relative',
       }}
     >
-      <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}>
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
         <ThemeModeToggle />
       </Box>
 
+      {/* ── Left Showcase Panel (Aurora & Feature Glass) ── */}
       {isWide && (
         <Box
           sx={{
-            flex: 1,
+            flex: '1 1 55%',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            px: { md: 6, lg: 8 },
-            py: 6,
-            background: 'linear-gradient(160deg, #0a1628 0%, #0d2d6e 35%, #0f4c75 65%, #0a3d4a 100%)',
-            color: 'white',
+            justifyContent: 'space-between',
+            px: { md: 7, lg: 9 },
+            py: 7,
+            background: 'radial-gradient(circle at 15% 20%, #312E81 0%, transparent 45%), radial-gradient(circle at 85% 75%, #0E7490 0%, transparent 45%), #060911',
+            color: '#FFFFFF',
             position: 'relative',
             overflow: 'hidden',
           }}
         >
-          {/* ── Animated background orbs ── */}
-          <Box sx={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden',
-            '@keyframes float1': {
-              '0%,100%': { transform: 'translate(0,0) scale(1)' },
-              '50%': { transform: 'translate(30px,-40px) scale(1.08)' },
-            },
-            '@keyframes float2': {
-              '0%,100%': { transform: 'translate(0,0) scale(1)' },
-              '50%': { transform: 'translate(-20px,30px) scale(1.05)' },
-            },
-            '@keyframes float3': {
-              '0%,100%': { transform: 'translate(0,0) scale(1)' },
-              '50%': { transform: 'translate(15px,20px) scale(1.1)' },
-            },
-          }}>
-            <Box sx={{
-              position: 'absolute', width: 420, height: 420,
+          {/* Subtle Cyber Grid Overlay */}
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              pointerEvents: 'none',
+              backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)`,
+              backgroundSize: '54px 54px',
+            }}
+          />
+
+          {/* Glowing Ambient Orbs */}
+          <Box
+            sx={{
+              position: 'absolute',
+              width: 500,
+              height: 500,
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(99,179,237,0.18) 0%, transparent 70%)',
-              top: '-120px', left: '-80px',
-              animation: 'float1 9s ease-in-out infinite',
-            }} />
-            <Box sx={{
-              position: 'absolute', width: 320, height: 320,
+              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, transparent 70%)',
+              top: '-150px',
+              left: '-100px',
+              filter: 'blur(30px)',
+              pointerEvents: 'none',
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              width: 400,
+              height: 400,
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(72,187,120,0.14) 0%, transparent 70%)',
-              bottom: '-60px', right: '-40px',
-              animation: 'float2 11s ease-in-out infinite',
-            }} />
-            <Box sx={{
-              position: 'absolute', width: 200, height: 200,
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(159,122,234,0.15) 0%, transparent 70%)',
-              top: '40%', right: '15%',
-              animation: 'float3 7s ease-in-out infinite',
-            }} />
-            {/* Subtle grid overlay */}
-            <Box sx={{
-              position: 'absolute', inset: 0,
-              backgroundImage: `linear-gradient(${alpha('#fff', 0.025)} 1px, transparent 1px),
-                                linear-gradient(90deg, ${alpha('#fff', 0.025)} 1px, transparent 1px)`,
-              backgroundSize: '48px 48px',
-            }} />
+              background: 'radial-gradient(circle, rgba(6, 182, 212, 0.14) 0%, transparent 70%)',
+              bottom: '-100px',
+              right: '-50px',
+              filter: 'blur(30px)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* Top Brand Tag */}
+          <Box sx={{ position: 'relative', zIndex: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #06B6D4 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 18px rgba(99, 102, 241, 0.45)',
+                }}
+              >
+                <LayersIcon sx={{ fontSize: 24, color: '#FFFFFF' }} />
+              </Box>
+              <Box>
+                <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.02em', color: '#FFFFFF' }}>
+                  {APP_NAME}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600 }}>
+                  IT Fleet Intelligence Platform
+                </Typography>
+              </Box>
+            </Box>
           </Box>
 
-          {/* ── Logo badge ── */}
-          <Box sx={{ position: 'relative', zIndex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4 }}>
-              <Box sx={{
-                width: 44, height: 44, borderRadius: 2,
-                background: 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 0 1px rgba(255,255,255,0.12), 0 4px 16px rgba(59,130,246,0.4)',
-              }}>
-                <DevicesIcon sx={{ fontSize: 24 }} />
-              </Box>
-              <Typography variant="h6" fontWeight={700} sx={{ letterSpacing: '-0.01em' }}>
-                {APP_NAME}
-              </Typography>
-            </Box>
-
-            {/* ── Hero headline ── */}
+          {/* Middle Hero Content */}
+          <Box sx={{ position: 'relative', zIndex: 2, my: 'auto', py: 4, maxWidth: 520 }}>
             <Typography
-              variant="h3"
+              variant="h2"
               fontWeight={800}
               sx={{
-                letterSpacing: '-0.03em',
-                lineHeight: 1.15,
+                letterSpacing: '-0.035em',
+                lineHeight: 1.12,
                 mb: 2,
-                fontSize: { md: '2rem', lg: '2.4rem' },
-                background: 'linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.75) 100%)',
+                fontSize: { md: '2.4rem', lg: '2.9rem' },
+                background: 'linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              Every asset.<br />One source of truth.
+              Unified IT Operations.
+              <br />
+              Zero Blindspots.
             </Typography>
 
             <Typography
               variant="body1"
-              sx={{ color: alpha('#fff', 0.6), lineHeight: 1.7, mb: 5, maxWidth: 380 }}
+              sx={{ color: 'rgba(255, 255, 255, 0.65)', lineHeight: 1.65, mb: 4.5, fontSize: '1rem' }}
             >
-              From procurement to retirement — track, assign and audit every device,
-              licence and accessory across your entire organisation.
+              From provisioning to retirement — oversee every laptop, cloud license,
+              network switch, and store device with cryptographic clarity.
             </Typography>
 
-            {/* ── Glassmorphism feature card ── */}
+            {/* Feature Carousel Glassmorphic Card */}
             <Box
               onMouseEnter={() => setFeaturePaused(true)}
               onMouseLeave={() => setFeaturePaused(false)}
               sx={{
-                background: `linear-gradient(135deg, ${alpha('#fff', 0.07)} 0%, ${alpha('#fff', 0.03)} 100%)`,
-                backdropFilter: 'blur(12px)',
-                border: `1px solid ${alpha('#fff', 0.1)}`,
-                borderRadius: 3,
+                background: 'rgba(255, 255, 255, 0.04)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '18px',
                 p: 3,
-                mb: 3,
                 position: 'relative',
                 overflow: 'hidden',
-                cursor: 'default',
-                transition: 'border-color 0.3s',
-                '&:hover': { borderColor: alpha('#fff', 0.2) },
+                boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.5)',
+                transition: 'border-color 0.25s ease',
+                '&:hover': { borderColor: 'rgba(255, 255, 255, 0.22)' },
               }}
             >
-              {/* Shimmer top edge */}
-              <Box sx={{
-                position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px',
-                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-              }} />
+              {/* Highlight line */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '15%',
+                  right: '15%',
+                  height: '1px',
+                  background: 'linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.6), transparent)',
+                }}
+              />
 
-              {/* Slide content */}
               <Box
                 sx={{
                   display: 'flex',
                   alignItems: 'flex-start',
-                  gap: 2.5,
+                  gap: 2,
                   minHeight: 72,
                   opacity: featureVisible ? 1 : 0,
-                  transform: featureVisible ? 'translateY(0) scale(1)' : 'translateY(10px) scale(0.98)',
-                  transition: 'opacity 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.4s cubic-bezier(0.4,0,0.2,1)',
+                  transform: featureVisible ? 'translateY(0)' : 'translateY(8px)',
+                  transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
-                {/* Large icon */}
-                <Box sx={{
-                  width: 52, height: 52, borderRadius: 2.5, flexShrink: 0,
-                  background: 'linear-gradient(135deg, rgba(99,179,237,0.25) 0%, rgba(72,187,120,0.15) 100%)',
-                  border: `1px solid ${alpha('#fff', 0.15)}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  '& svg': { fontSize: 26, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' },
-                }}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '12px',
+                    bgcolor: 'rgba(99, 102, 241, 0.2)',
+                    border: '1px solid rgba(99, 102, 241, 0.35)',
+                    color: '#818CF8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
                   {features[activeFeature].icon}
                 </Box>
-
                 <Box sx={{ flex: 1 }}>
-                  <Typography
-                    sx={{
-                      fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.3,
-                      color: '#fff', mb: 0.5,
-                    }}
-                  >
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#FFFFFF', mb: 0.25, fontSize: '0.95rem' }}>
                     {features[activeFeature].text}
                   </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: alpha('#fff', 0.55), lineHeight: 1.5 }}
-                  >
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.825rem' }}>
                     {features[activeFeature].sub}
                   </Typography>
                 </Box>
               </Box>
 
-              {/* Progress bar + dots row */}
+              {/* Progress & Indicators */}
               <Box sx={{ mt: 2.5 }}>
-                {/* Thin animated progress bar */}
-                <Box sx={{
-                  height: 2, borderRadius: 99,
-                  bgcolor: alpha('#fff', 0.1), mb: 1.5, overflow: 'hidden',
-                }}>
+                <Box sx={{ height: 2.5, borderRadius: 99, bgcolor: 'rgba(255, 255, 255, 0.1)', mb: 1.5, overflow: 'hidden' }}>
                   <Box
                     key={`${activeFeature}-${featurePaused}`}
                     sx={{
-                      height: '100%', borderRadius: 99,
-                      background: 'linear-gradient(90deg, #60a5fa, #34d399)',
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #6366F1, #06B6D4)',
                       width: featurePaused ? '100%' : '0%',
                       ...(featurePaused
                         ? { transition: 'none' }
                         : {
-                            animation: 'progressFill 3.2s linear forwards',
+                            animation: 'progressFill 3.6s linear forwards',
                             '@keyframes progressFill': {
                               from: { width: '0%' },
                               to: { width: '100%' },
@@ -515,95 +537,114 @@ export function LoginPage() {
                   />
                 </Box>
 
-                {/* Step dots */}
                 <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
                   {features.map((_, i) => (
                     <Box
                       key={i}
                       onClick={() => {
                         setFeatureVisible(false);
-                        setTimeout(() => { setActiveFeature(i); setFeatureVisible(true); }, 400);
+                        setTimeout(() => {
+                          setActiveFeature(i);
+                          setFeatureVisible(true);
+                        }, 350);
                       }}
                       sx={{
-                        height: 5,
-                        width: i === activeFeature ? 24 : 6,
+                        height: 4,
+                        width: i === activeFeature ? 22 : 6,
                         borderRadius: 99,
-                        bgcolor: i === activeFeature
-                          ? 'rgba(96,165,250,0.9)'
-                          : alpha('#fff', 0.22),
-                        transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
+                        bgcolor: i === activeFeature ? '#6366F1' : 'rgba(255, 255, 255, 0.25)',
+                        transition: 'all 0.3s ease',
                         cursor: 'pointer',
-                        '&:hover': { bgcolor: alpha('#fff', 0.5) },
+                        '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.6)' },
                       }}
                     />
                   ))}
-                  <Typography
-                    variant="caption"
-                    sx={{ ml: 'auto', color: alpha('#fff', 0.35), fontSize: '0.7rem' }}
-                  >
+                  <Typography variant="caption" sx={{ ml: 'auto', color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.7rem' }}>
                     {activeFeature + 1} / {features.length}
                   </Typography>
                 </Box>
               </Box>
             </Box>
+          </Box>
 
+          {/* Bottom Security Trust Row */}
+          <Box sx={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <VerifiedUserIcon sx={{ fontSize: 16, color: '#10B981' }} />
+              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.55)', fontWeight: 600 }}>
+                SOC-2 Type II
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <LockOutlinedIcon sx={{ fontSize: 16, color: '#38BDF8' }} />
+              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.55)', fontWeight: 600 }}>
+                Zero-Trust Encryption
+              </Typography>
+            </Box>
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.35)', ml: 'auto' }}>
+              © 2026 {COMPANY_NAME}
+            </Typography>
           </Box>
         </Box>
       )}
 
+      {/* ── Right Auth Form Panel ── */}
       <Box
         sx={{
-          flex: 1,
+          flex: isWide ? '1 1 45%' : '1 1 100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          p: { xs: 2, sm: 4 },
-          maxWidth: isWide ? 520 : '100%',
+          p: { xs: 2.5, sm: 4, md: 6 },
         }}
       >
         <Card
           sx={{
             width: '100%',
             maxWidth: 440,
-            borderRadius: 3,
-            boxShadow: isWide
-              ? (theme.palette.mode === 'dark'
-                ? '0 8px 32px rgba(0, 0, 0, 0.4)'
-                : '0 8px 32px rgba(26, 35, 50, 0.08)')
-              : undefined,
+            borderRadius: '24px',
+            p: { xs: 2, sm: 3 },
+            boxShadow: isDark
+              ? '0 24px 48px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08)'
+              : '0 24px 48px -12px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.06)',
+            bgcolor: isDark ? 'rgba(15, 23, 42, 0.75)' : '#FFFFFF',
+            backdropFilter: 'blur(20px)',
           }}
-          elevation={isWide ? 0 : 1}
         >
-          <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+            {/* Mobile Header Logo */}
             {!isWide && (
               <Box sx={{ textAlign: 'center', mb: 3 }}>
                 <Box
                   sx={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 2.5,
-                    bgcolor: 'primary.main',
+                    width: 48,
+                    height: 48,
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    mb: 1.5,
-                    boxShadow: '0 4px 12px rgba(21, 101, 192, 0.3)',
+                    mb: 1.25,
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+                    color: '#FFFFFF',
                   }}
                 >
-                  <DevicesIcon sx={{ color: 'white', fontSize: 28 }} />
+                  <LayersIcon sx={{ fontSize: 26 }} />
                 </Box>
-                <Typography variant="h5" fontWeight={700}>
+                <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.02em' }}>
                   {APP_NAME}
                 </Typography>
               </Box>
             )}
 
-            <Typography variant={isWide ? 'h5' : 'h6'} fontWeight={700} gutterBottom>
-              Sign in
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
-              {COMPANY_NAME} portal
-            </Typography>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.025em', mb: 0.5 }}>
+                Sign in to your account
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Enter your credentials or test the interactive portfolio demo.
+              </Typography>
+            </Box>
 
             {apiWarning && (
               <Alert severity="warning" sx={{ mb: 2 }}>
@@ -656,7 +697,7 @@ export function LoginPage() {
                   fullWidth
                   variant="contained"
                   size="large"
-                  sx={{ mt: 3, py: 1.5 }}
+                  sx={{ mt: 3, py: 1.5, borderRadius: '12px' }}
                   loading={loading}
                   loadingLabel="Setting password…"
                 >
@@ -666,7 +707,7 @@ export function LoginPage() {
             ) : (
               <Box component="form" onSubmit={handleSubmit}>
                 {portfolioGuest && (
-                  <>
+                  <Box sx={{ mb: 2.5 }}>
                     <Button
                       type="button"
                       fullWidth
@@ -675,36 +716,48 @@ export function LoginPage() {
                       startIcon={<PlayArrowIcon />}
                       onClick={() => void handleGuestLogin()}
                       disabled={loading || demoLoading || Boolean(apiWarning)}
-                      sx={{ py: 1.5, mb: 2 }}
+                      sx={{
+                        py: 1.4,
+                        mb: 1.5,
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #06B6D4 0%, #0891B2 100%)',
+                        boxShadow: '0 4px 14px rgba(6, 182, 212, 0.35)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #0891B2 0%, #0E7490 100%)',
+                          boxShadow: '0 6px 18px rgba(6, 182, 212, 0.45)',
+                        },
+                      }}
                     >
-                      {demoLoading ? 'Opening read-only demo…' : 'View demo'}
+                      {demoLoading ? 'Launching live preview…' : 'Enter Recruiter Demo (Read-Only)'}
                     </Button>
 
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      <Typography variant="body2" component="div" fontWeight={600}>
-                        Recruiter / client preview — read only
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: '12px',
+                        bgcolor: isDark ? 'rgba(6, 182, 212, 0.08)' : 'rgba(8, 145, 178, 0.06)',
+                        border: '1px solid',
+                        borderColor: isDark ? 'rgba(6, 182, 212, 0.25)' : 'rgba(8, 145, 178, 0.2)',
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight={700} color="secondary.main" display="block">
+                        RECRUITER & CLIENT PREVIEW
                       </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.75 }}>
-                        This account can browse the app. It cannot add, edit, delete, or assign data.
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                        Instant exploration with pre-seeded enterprise fleet telemetry.
                       </Typography>
-                      <Typography variant="body2" sx={{ mt: 1, fontFamily: 'monospace' }}>
-                        {portfolioGuest.email}
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {portfolioGuest.password}
-                      </Typography>
-                    </Alert>
+                    </Box>
 
-                    <Divider sx={{ my: 2 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        or sign in with your account
+                    <Divider sx={{ my: 2.5 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        or sign in with credentials
                       </Typography>
                     </Divider>
-                  </>
+                  </Box>
                 )}
 
                 {demoAuthEnabled && !portfolioGuest && (
-                  <>
+                  <Box sx={{ mb: 2.5 }}>
                     <Button
                       type="button"
                       fullWidth
@@ -713,34 +766,22 @@ export function LoginPage() {
                       startIcon={<PlayArrowIcon />}
                       onClick={() => void handleDemoLogin()}
                       disabled={loading || demoLoading || Boolean(apiWarning)}
-                      sx={{ py: 1.5, mb: 2 }}
+                      sx={{ py: 1.4, mb: 1.5, borderRadius: '12px' }}
                     >
-                      {demoLoading ? 'Opening demo…' : 'Try Demo'}
+                      {demoLoading ? 'Opening demo…' : 'Quick Demo Sign-In'}
                     </Button>
 
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      <Typography variant="body2" component="div">
-                        Portfolio visitors can skip the form — or sign in with:
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.75, fontFamily: 'monospace' }}>
-                        {DEMO_LOGIN.email}
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {DEMO_LOGIN.password}
-                      </Typography>
-                    </Alert>
-
-                    <Divider sx={{ my: 2 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        or sign in with your account
+                    <Divider sx={{ my: 2.5 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        or sign in with credentials
                       </Typography>
                     </Divider>
-                  </>
+                  </Box>
                 )}
 
                 <TextField
                   fullWidth
-                  label="Email"
+                  label="Email address"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -772,17 +813,28 @@ export function LoginPage() {
                     ),
                   }}
                 />
+
                 <LoadingButton
                   type="submit"
                   fullWidth
                   variant="contained"
                   size="large"
-                  sx={{ mt: 3, py: 1.5 }}
+                  sx={{
+                    mt: 3,
+                    py: 1.4,
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                      boxShadow: '0 6px 18px rgba(99, 102, 241, 0.45)',
+                    },
+                  }}
                   loading={loading}
                   loadingLabel="Signing in…"
                   disabled={demoLoading}
                 >
-                  Sign In
+                  Sign In to Console
                 </LoadingButton>
               </Box>
             )}

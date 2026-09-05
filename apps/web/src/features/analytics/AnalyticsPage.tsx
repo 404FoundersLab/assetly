@@ -23,7 +23,7 @@ import { CATEGORY_LABELS, STATUS_LABELS } from '../../data/demoData';
 import { daysUntil } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
 
-const CHART_COLORS = ['#1565C0', '#2E7D32', '#ED6C02', '#757575', '#D32F2F', '#8E24AA', '#00ACC1', '#F4511E'];
+const CHART_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#06B6D4', '#EC4899', '#8B5CF6', '#3B82F6', '#14B8A6'];
 
 export function AnalyticsPage() {
   const assets = useAppSelector((s) => s.assets.items);
@@ -178,7 +178,7 @@ export function AnalyticsPage() {
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#1565C0" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                    <Bar dataKey="count" fill="#6366F1" radius={[6, 6, 0, 0]} maxBarSize={48} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>

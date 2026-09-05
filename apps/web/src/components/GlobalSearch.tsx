@@ -6,6 +6,9 @@ import {
   InputAdornment,
   TextField,
   Typography,
+  Chip,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import InventoryIcon from '@mui/icons-material/Inventory2';
@@ -28,10 +31,17 @@ type SearchOption =
   | { type: 'vendor'; id: string; label: string; sub: string; path: string };
 
 const typeIcons = {
-  asset: <InventoryIcon fontSize="small" />,
-  employee: <PeopleIcon fontSize="small" />,
-  department: <BusinessIcon fontSize="small" />,
-  vendor: <StoreIcon fontSize="small" />,
+  asset: <InventoryIcon sx={{ fontSize: 16 }} />,
+  employee: <PeopleIcon sx={{ fontSize: 16 }} />,
+  department: <BusinessIcon sx={{ fontSize: 16 }} />,
+  vendor: <StoreIcon sx={{ fontSize: 16 }} />,
+};
+
+const typeColors = {
+  asset: '#6366F1',
+  employee: '#10B981',
+  department: '#F59E0B',
+  vendor: '#06B6D4',
 };
 
 function localSearch(
@@ -98,6 +108,9 @@ function localSearch(
 
 export function GlobalSearch() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const assets = useAppSelector((s) => s.assets.items);
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
@@ -168,7 +181,7 @@ export function GlobalSearch() {
 
   return (
     <Autocomplete
-      sx={{ width: { xs: '100%', sm: 280, md: 340 }, mr: 1 }}
+      sx={{ width: { xs: '100%', sm: 300, md: 380 } }}
       size="small"
       open={open}
       onOpen={() => {
@@ -190,13 +203,57 @@ export function GlobalSearch() {
           setOpen(false);
         }
       }}
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: '16px',
+            mt: 1,
+            boxShadow: isDark
+              ? '0 20px 40px -10px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08)'
+              : '0 20px 40px -10px rgba(15,23,42,0.12), 0 0 0 1px rgba(15,23,42,0.08)',
+            backdropFilter: 'blur(16px)',
+          },
+        },
+      }}
       renderOption={(props, option) => (
-        <Box component="li" {...props} key={`${option.type}-${option.id}`}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-            {typeIcons[option.type]}
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body2" noWrap>{option.label}</Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>{option.sub}</Typography>
+        <Box
+          component="li"
+          {...props}
+          key={`${option.type}-${option.id}`}
+          sx={{
+            py: 1,
+            px: 1.5,
+            borderRadius: '10px',
+            mx: 0.5,
+            my: 0.25,
+            '&:hover': {
+              bgcolor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(79, 70, 229, 0.06)',
+            },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, width: '100%' }}>
+            <Box
+              sx={{
+                width: 28,
+                height: 28,
+                borderRadius: '8px',
+                bgcolor: alpha(typeColors[option.type], 0.12),
+                color: typeColors[option.type],
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {typeIcons[option.type]}
+            </Box>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: '0.825rem' }}>
+                {option.label}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.72rem' }}>
+                {option.sub}
+              </Typography>
             </Box>
           </Box>
         </Box>
@@ -204,24 +261,50 @@ export function GlobalSearch() {
       renderInput={(params) => (
         <TextField
           {...params}
-          placeholder="Search assets, people…"
+          placeholder="Search fleet, people, tags…"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '12px',
+              bgcolor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(15, 23, 42, 0.03)',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                bgcolor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(15, 23, 42, 0.05)',
+              },
+              '&.Mui-focused': {
+                bgcolor: isDark ? 'rgba(15, 23, 42, 0.9)' : '#FFFFFF',
+              },
+            },
+          }}
           InputProps={{
             ...params.InputProps,
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon fontSize="small" color="action" />
+                <SearchIcon sx={{ fontSize: 18, color: 'text.secondary', ml: 0.5 }} />
               </InputAdornment>
             ),
             endAdornment: (
               <>
                 {loading ? <CircularProgress size={16} /> : null}
+                <Chip
+                  label="⌘K"
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    bgcolor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)',
+                    color: 'text.secondary',
+                    mr: 0.5,
+                  }}
+                />
                 {params.InputProps.endAdornment}
               </>
             ),
           }}
         />
       )}
-      noOptionsText={input.length < 2 ? 'Type 2+ characters' : 'No results'}
+      noOptionsText={input.length < 2 ? 'Type 2+ characters to search' : 'No matching results found'}
     />
   );
 }
