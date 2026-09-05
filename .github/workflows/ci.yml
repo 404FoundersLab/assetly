@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: platform
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: itasset_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Validate SQL schema
+        run: |
+          PGPASSWORD=test psql -h localhost -U platform -d itasset_test -f database/schema/001_core_tenant.sql
+          PGPASSWORD=test psql -h localhost -U platform -d itasset_test -f database/schema/002_asset_management.sql
+          PGPASSWORD=test psql -h localhost -U platform -d itasset_test -f database/schema/003_audit.sql
