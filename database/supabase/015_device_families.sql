@@ -36,7 +36,7 @@ CROSS JOIN (
     ('monitor', 'Monitor', 110, true, true, 'peripheral'),
     ('keyboard', 'Keyboard', 120, true, true, 'peripheral'),
     ('mouse', 'Mouse', 130, true, true, 'peripheral'),
-    ('webcam', 'Webcam', 140, true, true, 'peripheral'),
+    ('webcam', 'Webcam', 140, false, true, 'peripheral'),
     ('headset', 'Headset', 150, true, true, 'peripheral'),
     ('peripheral', 'Other accessory', 160, true, true, 'peripheral'),
     ('cctv', 'CCTV', 210, false, false, 'network'),

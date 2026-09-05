@@ -372,7 +372,6 @@ export const REQUEST_CATEGORIES: AssetCategory[] = [
   'monitor',
   'keyboard',
   'mouse',
-  'webcam',
   'headset',
   'peripheral',
   'other',

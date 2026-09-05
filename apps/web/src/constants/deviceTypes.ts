@@ -12,7 +12,7 @@ export const DEFAULT_DEVICE_TYPES: AssetDeviceType[] = [
   { id: 'default-monitor', slug: 'monitor', label: 'Monitor', sortOrder: 110, isActive: true, showInRequests: true, isPeripheral: true, family: 'peripheral' },
   { id: 'default-keyboard', slug: 'keyboard', label: 'Keyboard', sortOrder: 120, isActive: true, showInRequests: true, isPeripheral: true, family: 'peripheral' },
   { id: 'default-mouse', slug: 'mouse', label: 'Mouse', sortOrder: 130, isActive: true, showInRequests: true, isPeripheral: true, family: 'peripheral' },
-  { id: 'default-webcam', slug: 'webcam', label: 'Webcam', sortOrder: 140, isActive: true, showInRequests: true, isPeripheral: true, family: 'peripheral' },
+  { id: 'default-webcam', slug: 'webcam', label: 'Webcam', sortOrder: 140, isActive: true, showInRequests: false, isPeripheral: true, family: 'peripheral' },
   { id: 'default-headset', slug: 'headset', label: 'Headset', sortOrder: 150, isActive: true, showInRequests: true, isPeripheral: true, family: 'peripheral' },
   { id: 'default-peripheral', slug: 'peripheral', label: 'Other accessory', sortOrder: 160, isActive: true, showInRequests: true, isPeripheral: true, family: 'peripheral' },
 
