@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -19,17 +19,20 @@ import AddIcon from '@mui/icons-material/Add';
 import BusinessIcon from '@mui/icons-material/Business';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import { useAppSelector, useAppDispatch } from '../../hooks/storeHooks';
 import { fetchTenants, deleteTenantThunk } from '../../store/tenantsSlice';
 import { PageHeader } from '../../components/PageHeader';
-
+import { ResetTenantPasswordDialog } from './ResetTenantPasswordDialog';
 import { DEFAULT_ENABLED_MODULES, SYSTEM_MODULES } from '../../constants/modules';
+import type { Tenant } from '../../types';
 
 export function OrganizationsPage() {
   const tenants = useAppSelector((state) => state.tenants.items);
   const loading = useAppSelector((state) => state.tenants.loading);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const [selectedTenantForReset, setSelectedTenantForReset] = useState<Tenant | null>(null);
 
   useEffect(() => {
     dispatch(fetchTenants());
@@ -135,6 +138,15 @@ export function OrganizationsPage() {
                       {tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : '—'}
                     </TableCell>
                     <TableCell align="right">
+                      <Tooltip title="Reset Admin Password">
+                        <IconButton
+                          size="small"
+                          color="secondary"
+                          onClick={() => setSelectedTenantForReset(tenant)}
+                        >
+                          <LockResetIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Edit">
                         <IconButton
                           size="small"
@@ -178,6 +190,12 @@ export function OrganizationsPage() {
           </Table>
         </TableContainer>
       </Card>
+
+      <ResetTenantPasswordDialog
+        open={Boolean(selectedTenantForReset)}
+        onClose={() => setSelectedTenantForReset(null)}
+        tenant={selectedTenantForReset}
+      />
     </Box>
   );
 }

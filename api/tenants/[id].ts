@@ -25,28 +25,58 @@ export default async function handler(req: Request) {
   try {
     if (req.method === 'PATCH') {
       const body = await parseBody<Record<string, unknown>>(req);
-      const enabledModules = body.enabledModules !== undefined
+
+      // Auto-ensure enabled_modules column exists in tenants table
+      try {
+        await sql`
+          ALTER TABLE tenants 
+          ADD COLUMN IF NOT EXISTS enabled_modules JSONB DEFAULT '["module:assets", "module:hr", "module:docs", "module:finance"]'::jsonb
+        `;
+      } catch {
+        /* column may already exist or table is managed */
+      }
+
+      const hasModules = body.enabledModules !== undefined;
+      const enabledModulesJson = hasModules
         ? JSON.stringify(Array.isArray(body.enabledModules) ? body.enabledModules : [])
         : null;
 
       let rows: DbTenant[] = [];
-      try {
-        rows = await sql`
-          UPDATE tenants
-          SET 
-            name = COALESCE(${body.name ? String(body.name) : null}, name),
-            slug = COALESCE(${body.slug ? String(body.slug) : null}, slug),
-            plan = COALESCE(${body.plan ? String(body.plan) : null}, plan),
-            domain = COALESCE(${body.domain ? String(body.domain) : null}, domain),
-            infrastructure_strategy = COALESCE(${body.infrastructureStrategy ? String(body.infrastructureStrategy) : null}, infrastructure_strategy),
-            admin_email = COALESCE(${body.adminEmail ? String(body.adminEmail) : null}, admin_email),
-            admin_name = COALESCE(${body.adminName ? String(body.adminName) : null}, admin_name),
-            billing_region = COALESCE(${body.billingRegion ? (String(body.billingRegion).toUpperCase() === 'GLOBAL' ? 'GLOBAL' : 'IN') : null}, billing_region),
-            enabled_modules = COALESCE(${enabledModules}, enabled_modules)
-          WHERE id = ${id}
-          RETURNING *
-        ` as DbTenant[];
-      } catch {
+      if (hasModules && enabledModulesJson !== null) {
+        try {
+          rows = await sql`
+            UPDATE tenants
+            SET 
+              name = COALESCE(${body.name ? String(body.name) : null}, name),
+              slug = COALESCE(${body.slug ? String(body.slug) : null}, slug),
+              plan = COALESCE(${body.plan ? String(body.plan) : null}, plan),
+              domain = COALESCE(${body.domain ? String(body.domain) : null}, domain),
+              infrastructure_strategy = COALESCE(${body.infrastructureStrategy ? String(body.infrastructureStrategy) : null}, infrastructure_strategy),
+              admin_email = COALESCE(${body.adminEmail ? String(body.adminEmail) : null}, admin_email),
+              admin_name = COALESCE(${body.adminName ? String(body.adminName) : null}, admin_name),
+              billing_region = COALESCE(${body.billingRegion ? (String(body.billingRegion).toUpperCase() === 'GLOBAL' ? 'GLOBAL' : 'IN') : null}, billing_region),
+              enabled_modules = ${enabledModulesJson}::jsonb
+            WHERE id = ${id}
+            RETURNING *
+          ` as DbTenant[];
+        } catch {
+          rows = await sql`
+            UPDATE tenants
+            SET 
+              name = COALESCE(${body.name ? String(body.name) : null}, name),
+              slug = COALESCE(${body.slug ? String(body.slug) : null}, slug),
+              plan = COALESCE(${body.plan ? String(body.plan) : null}, plan),
+              domain = COALESCE(${body.domain ? String(body.domain) : null}, domain),
+              infrastructure_strategy = COALESCE(${body.infrastructureStrategy ? String(body.infrastructureStrategy) : null}, infrastructure_strategy),
+              admin_email = COALESCE(${body.adminEmail ? String(body.adminEmail) : null}, admin_email),
+              admin_name = COALESCE(${body.adminName ? String(body.adminName) : null}, admin_name),
+              billing_region = COALESCE(${body.billingRegion ? (String(body.billingRegion).toUpperCase() === 'GLOBAL' ? 'GLOBAL' : 'IN') : null}, billing_region),
+              enabled_modules = ${enabledModulesJson}
+            WHERE id = ${id}
+            RETURNING *
+          ` as DbTenant[];
+        }
+      } else {
         rows = await sql`
           UPDATE tenants
           SET 

@@ -213,13 +213,13 @@ export default async function handler(req: Request) {
           role: u.role,
         };
 
-        // Our schema uses 'companies' — try that first, fall back to 'tenants'
+        // Query 'tenants' table first, fall back to legacy 'companies'
         let tenants: DbTenant[] = [];
         try {
-          tenants = await sql`SELECT * FROM companies WHERE id = ${u.tenant_id}` as DbTenant[];
+          tenants = await sql`SELECT * FROM tenants WHERE id = ${u.tenant_id}` as DbTenant[];
         } catch {
           try {
-            tenants = await sql`SELECT * FROM tenants WHERE id = ${u.tenant_id}` as DbTenant[];
+            tenants = await sql`SELECT * FROM companies WHERE id = ${u.tenant_id}` as DbTenant[];
           } catch { /* ignore */ }
         }
         tenantRecord = tenants.length > 0 ? mapTenant(tenants[0]) : null;
@@ -233,6 +233,19 @@ export default async function handler(req: Request) {
       const cred = DEMO_USERS[email];
       if (!cred) return error('Invalid email or password', 401);
       userRecord = cred.user;
+    }
+
+    // If tenantRecord not yet loaded (e.g. demo user), query organization from tenants table
+    if (!tenantRecord && userRecord?.tenantId && userRecord.tenantId !== 'system') {
+      try {
+        const sql = getSql();
+        const tRows = await sql`SELECT * FROM tenants WHERE id = ${userRecord.tenantId}` as DbTenant[];
+        if (tRows.length > 0) {
+          tenantRecord = mapTenant(tRows[0]);
+        }
+      } catch {
+        /* ignore */
+      }
     }
 
     const valid = await verifyPassword(email, password);

@@ -76,6 +76,16 @@ export default async function handler(req: Request) {
         ? JSON.stringify(body.enabledModules)
         : JSON.stringify(['module:assets', 'module:hr', 'module:docs', 'module:finance']);
 
+      // Auto-ensure enabled_modules column exists in tenants table
+      try {
+        await sql`
+          ALTER TABLE tenants 
+          ADD COLUMN IF NOT EXISTS enabled_modules JSONB DEFAULT '["module:assets", "module:hr", "module:docs", "module:finance"]'::jsonb
+        `;
+      } catch {
+        /* column may already exist */
+      }
+
       let rows: DbTenant[] = [];
       try {
         rows = await sql`
@@ -89,14 +99,14 @@ export default async function handler(req: Request) {
             ${adminName},
             ${dedicatedDbUrl},
             ${billingRegion},
-            ${enabledModules}
+            ${enabledModules}::jsonb
           )
           RETURNING *
         ` as DbTenant[];
       } catch {
         rows = await sql`
           INSERT INTO tenants (
-            id, name, slug, plan, domain, infrastructure_strategy, admin_email, admin_name, database_url, billing_region
+            id, name, slug, plan, domain, infrastructure_strategy, admin_email, admin_name, database_url, billing_region, enabled_modules
           ) VALUES (
             ${id}, ${name}, ${slug}, ${plan},
             ${body.domain ? String(body.domain) : null},
@@ -104,7 +114,8 @@ export default async function handler(req: Request) {
             ${adminEmail},
             ${adminName},
             ${dedicatedDbUrl},
-            ${billingRegion}
+            ${billingRegion},
+            ${enabledModules}
           )
           RETURNING *
         ` as DbTenant[];

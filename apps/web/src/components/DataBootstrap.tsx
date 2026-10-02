@@ -14,10 +14,13 @@ import { replaceAllAuditLogs } from '../store/auditSlice';
 import { replaceAllRequests } from '../store/requestsSlice';
 import { fetchAssetRequests } from '../services/api/requests';
 import { setBootstrapReady, startLoading, stopLoading } from '../store/uiSlice';
-import { logout } from '../store/authSlice';
+import { logout, updateTenantSession } from '../store/authSlice';
 import type { AppDispatch } from '../store';
 
 function hydrateFromSync(dispatch: AppDispatch, data: Awaited<ReturnType<typeof fetchSync>>) {
+  if (data.tenant) {
+    dispatch(updateTenantSession(data.tenant));
+  }
   dispatch(
     setInventory({
       items: data.assets,

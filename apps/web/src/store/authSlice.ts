@@ -88,8 +88,14 @@ const authSlice = createSlice({
         sessionStorage.setItem('assetly_auth_state', JSON.stringify(state));
       }
     },
+    updateTenantSession: (state, action: PayloadAction<Tenant>) => {
+      if (state.tenant) {
+        state.tenant = action.payload;
+        sessionStorage.setItem('assetly_auth_state', JSON.stringify(state));
+      }
+    },
   },
 });
 
-export const { setSession, setPendingSession, logout, clearError, setLoginError, updateTenantPlan } = authSlice.actions;
+export const { setSession, setPendingSession, logout, clearError, setLoginError, updateTenantPlan, updateTenantSession } = authSlice.actions;
 export default authSlice.reducer;

@@ -1,4 +1,4 @@
-import { getTenantSql, json, error, corsPreflight } from './_lib/db';
+import { getTenantSql, getSql, json, error, corsPreflight } from './_lib/db';
 import {
   mapAsset,
   mapEmployee,
@@ -7,6 +7,7 @@ import {
   mapAssignment,
   mapOwnershipEvent,
   mapAuditLog,
+  mapTenant,
   type DbAsset,
   type DbEmployee,
   type DbDepartment,
@@ -14,6 +15,7 @@ import {
   type DbAssignment,
   type DbOwnershipEvent,
   type DbAuditLog,
+  type DbTenant,
 } from './_lib/mappers';
 import { requireAuth } from './_lib/auth';
 import { DEFAULT_DEVICE_TYPES, mapAssetCategory } from './_lib/asset-categories';
@@ -131,6 +133,19 @@ export default async function handler(req: Request) {
       /* table may not exist yet — keep defaults */
     }
 
+    let tenantData: ReturnType<typeof mapTenant> | undefined;
+    if (auth.tenantId && auth.tenantId !== 'system') {
+      try {
+        const mainSql = getSql();
+        const tRows = await mainSql`SELECT * FROM tenants WHERE id = ${auth.tenantId} LIMIT 1` as DbTenant[];
+        if (tRows.length > 0) {
+          tenantData = mapTenant(tRows[0]);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     return json({
       assets: assets.map(mapAsset),
       employees: employees.map(mapEmployee),
@@ -140,6 +155,7 @@ export default async function handler(req: Request) {
       ownershipHistory: ownershipHistory.map(mapOwnershipEvent),
       auditLogs: auditLogs.map(mapAuditLog),
       assetCategories,
+      tenant: tenantData,
     });
   } catch (e) {
     return error(e instanceof Error ? e.message : 'Sync failed', 500);

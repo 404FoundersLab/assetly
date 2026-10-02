@@ -9,12 +9,16 @@ import {
   Stack,
   Alert,
   Divider,
+  Typography,
 } from '@mui/material';
+import KeyIcon from '@mui/icons-material/Key';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 import { updateTenantThunk } from '../../store/tenantsSlice';
 import { PageHeader } from '../../components/PageHeader';
 import { ModuleAccessSelector } from './ModuleAccessSelector';
+import { ResetTenantPasswordDialog } from './ResetTenantPasswordDialog';
 import { DEFAULT_ENABLED_MODULES } from '../../constants/modules';
 import type { Tenant } from '../../types';
 
@@ -35,6 +39,7 @@ export function EditOrganizationPage() {
     enabledModules: [...DEFAULT_ENABLED_MODULES],
   });
   const [error, setError] = useState<string | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   useEffect(() => {
     const tenant = tenants.find((t) => t.id === id);
@@ -155,9 +160,21 @@ export function EditOrganizationPage() {
               <Divider sx={{ my: 1 }} />
 
               <Box sx={{ pt: 1 }}>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Primary Admin contact details
-                </Alert>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Primary Admin & Access Credentials
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    size="small"
+                    startIcon={<LockResetIcon />}
+                    onClick={() => setResetDialogOpen(true)}
+                    sx={{ textTransform: 'none', fontWeight: 600 }}
+                  >
+                    Reset Admin Password
+                  </Button>
+                </Box>
                 
                 <Stack spacing={2} direction={{ xs: 'column', sm: 'row' }}>
                   <TextField
@@ -188,6 +205,12 @@ export function EditOrganizationPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ResetTenantPasswordDialog
+        open={resetDialogOpen}
+        onClose={() => setResetDialogOpen(false)}
+        tenant={form as Tenant}
+      />
     </Box>
   );
 }

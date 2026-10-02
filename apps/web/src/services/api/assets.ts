@@ -7,6 +7,7 @@ import type {
   Employee,
   OwnershipEvent,
   Vendor,
+  Tenant,
 } from '../../types';
 import { apiFetch } from './client';
 
@@ -19,6 +20,7 @@ export interface SyncPayload {
   ownershipHistory: OwnershipEvent[];
   auditLogs: AuditLog[];
   assetCategories?: AssetDeviceType[];
+  tenant?: Tenant;
 }
 
 export async function fetchSync(): Promise<SyncPayload> {

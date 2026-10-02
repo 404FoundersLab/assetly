@@ -28,6 +28,7 @@ import requestsIndex from '../api/requests/index';
 import requestsById from '../api/requests/[id]';
 import tenantsIndex from '../api/tenants/index';
 import tenantsById from '../api/tenants/[id]';
+import tenantsResetPassword from '../api/tenants/[id]/reset-password';
 import usersIndex from '../api/users/index';
 import usersById from '../api/users/[id]';
 import agentDownload from '../api/agent/download';
@@ -109,6 +110,7 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (/^\/api\/requests\/[^/]+$/.test(pathname)) return requestsById;
 
   if (pathname === '/api/tenants') return tenantsIndex;
+  if (/^\/api\/tenants\/[^/]+\/reset-password$/.test(pathname)) return tenantsResetPassword;
   if (/^\/api\/tenants\/[^/]+$/.test(pathname)) return tenantsById;
   if (pathname === '/api/users') return usersIndex;
   if (/^\/api\/users\/[^/]+$/.test(pathname)) return usersById;
