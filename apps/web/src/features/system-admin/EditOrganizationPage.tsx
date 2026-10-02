@@ -8,11 +8,14 @@ import {
   MenuItem,
   Stack,
   Alert,
+  Divider,
 } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 import { updateTenantThunk } from '../../store/tenantsSlice';
 import { PageHeader } from '../../components/PageHeader';
+import { ModuleAccessSelector } from './ModuleAccessSelector';
+import { DEFAULT_ENABLED_MODULES } from '../../constants/modules';
 import type { Tenant } from '../../types';
 
 export function EditOrganizationPage() {
@@ -29,13 +32,19 @@ export function EditOrganizationPage() {
     infrastructureStrategy: 'shared',
     adminEmail: '',
     adminName: '',
+    enabledModules: [...DEFAULT_ENABLED_MODULES],
   });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const tenant = tenants.find((t) => t.id === id);
     if (tenant) {
-      setForm(tenant);
+      setForm({
+        ...tenant,
+        enabledModules: tenant.enabledModules && Array.isArray(tenant.enabledModules)
+          ? tenant.enabledModules
+          : [...DEFAULT_ENABLED_MODULES],
+      });
     } else {
       navigate('/system-admin/organizations');
     }
@@ -136,7 +145,16 @@ export function EditOrganizationPage() {
                 <MenuItem value="dedicated">Dedicated (Isolated Database)</MenuItem>
               </TextField>
 
-              <Box sx={{ pt: 2 }}>
+              <Divider sx={{ my: 1 }} />
+
+              <ModuleAccessSelector
+                selectedModules={form.enabledModules || []}
+                onChange={(enabledModules) => setForm({ ...form, enabledModules })}
+              />
+
+              <Divider sx={{ my: 1 }} />
+
+              <Box sx={{ pt: 1 }}>
                 <Alert severity="info" sx={{ mb: 2 }}>
                   Primary Admin contact details
                 </Alert>

@@ -17,6 +17,7 @@ import {
   ListItemIcon,
   Chip,
   Button,
+  Alert,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
@@ -464,6 +465,23 @@ export function LandingPage() {
               <ModuleCard {...mod} />
             </Grid>
           ))}
+          {modules.length === 0 && (
+            <Grid item xs={12}>
+              <Alert
+                severity="info"
+                variant="outlined"
+                sx={{
+                  maxWidth: 640,
+                  mx: 'auto',
+                  borderRadius: '14px',
+                  p: 2.5,
+                  fontSize: '0.95rem',
+                }}
+              >
+                No active modules are provisioned for this organization. Please contact your platform administrator to configure and enable module access.
+              </Alert>
+            </Grid>
+          )}
         </Grid>
       </Box>
     </Box>

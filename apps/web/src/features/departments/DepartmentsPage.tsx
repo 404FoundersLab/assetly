@@ -14,6 +14,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import BusinessIcon from '@mui/icons-material/Business';
+import { useLocation } from 'react-router-dom';
 import { useAppSelector } from '../../hooks/storeHooks';
 import { usePermissions } from '../../hooks/storeHooks';
 import { PageHeader } from '../../components/PageHeader';
@@ -21,6 +22,8 @@ import { DepartmentFormDialog } from './DepartmentFormDialog';
 import type { Department } from '../../types';
 
 export function DepartmentsPage() {
+  const location = useLocation();
+  const isHR = location.pathname.startsWith('/hr');
   const departments = useAppSelector((s) => s.departments.items);
   const employees = useAppSelector((s) => s.employees.items);
   const { can } = usePermissions();
@@ -47,7 +50,7 @@ export function DepartmentsPage() {
       <PageHeader
         title="Departments"
         subtitle="Organizational structure and cost centers"
-        breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Departments' }]}
+        breadcrumbs={isHR ? [{ label: 'HR Portal', to: '/hr' }, { label: 'Departments' }] : [{ label: 'Dashboard', to: '/' }, { label: 'Departments' }]}
         actions={
           can('employee:write') ? (
             <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate}>

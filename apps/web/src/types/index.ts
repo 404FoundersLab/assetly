@@ -34,6 +34,7 @@ export interface Tenant {
   billingRegion?: 'IN' | 'GLOBAL';
   hasStripeBilling?: boolean;
   hasRazorpayBilling?: boolean;
+  enabledModules?: string[];
   createdAt?: string;
 }
 

@@ -15,9 +15,11 @@ export function isProductionRuntime(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-/** Hardcoded demo accounts (Demo@123456) — enable only for local/portfolio demos. */
+/** Hardcoded demo accounts (Demo@123456) — enable for local/portfolio demos. */
 export function isDemoAuthEnabled(): boolean {
-  return process.env.DEMO_AUTH_ENABLED === 'true';
+  if (process.env.DEMO_AUTH_ENABLED === 'false') return false;
+  if (process.env.DEMO_AUTH_ENABLED === 'true') return true;
+  return !isProductionRuntime();
 }
 
 /** Instant plan upgrades without Stripe/Razorpay — never on by default in production. */

@@ -25,21 +25,43 @@ export default async function handler(req: Request) {
   try {
     if (req.method === 'PATCH') {
       const body = await parseBody<Record<string, unknown>>(req);
-      
-      const rows = await sql`
-        UPDATE tenants
-        SET 
-          name = COALESCE(${body.name ? String(body.name) : null}, name),
-          slug = COALESCE(${body.slug ? String(body.slug) : null}, slug),
-          plan = COALESCE(${body.plan ? String(body.plan) : null}, plan),
-          domain = COALESCE(${body.domain ? String(body.domain) : null}, domain),
-          infrastructure_strategy = COALESCE(${body.infrastructureStrategy ? String(body.infrastructureStrategy) : null}, infrastructure_strategy),
-          admin_email = COALESCE(${body.adminEmail ? String(body.adminEmail) : null}, admin_email),
-          admin_name = COALESCE(${body.adminName ? String(body.adminName) : null}, admin_name),
-          billing_region = COALESCE(${body.billingRegion ? (String(body.billingRegion).toUpperCase() === 'GLOBAL' ? 'GLOBAL' : 'IN') : null}, billing_region)
-        WHERE id = ${id}
-        RETURNING *
-      ` as DbTenant[];
+      const enabledModules = body.enabledModules !== undefined
+        ? JSON.stringify(Array.isArray(body.enabledModules) ? body.enabledModules : [])
+        : null;
+
+      let rows: DbTenant[] = [];
+      try {
+        rows = await sql`
+          UPDATE tenants
+          SET 
+            name = COALESCE(${body.name ? String(body.name) : null}, name),
+            slug = COALESCE(${body.slug ? String(body.slug) : null}, slug),
+            plan = COALESCE(${body.plan ? String(body.plan) : null}, plan),
+            domain = COALESCE(${body.domain ? String(body.domain) : null}, domain),
+            infrastructure_strategy = COALESCE(${body.infrastructureStrategy ? String(body.infrastructureStrategy) : null}, infrastructure_strategy),
+            admin_email = COALESCE(${body.adminEmail ? String(body.adminEmail) : null}, admin_email),
+            admin_name = COALESCE(${body.adminName ? String(body.adminName) : null}, admin_name),
+            billing_region = COALESCE(${body.billingRegion ? (String(body.billingRegion).toUpperCase() === 'GLOBAL' ? 'GLOBAL' : 'IN') : null}, billing_region),
+            enabled_modules = COALESCE(${enabledModules}, enabled_modules)
+          WHERE id = ${id}
+          RETURNING *
+        ` as DbTenant[];
+      } catch {
+        rows = await sql`
+          UPDATE tenants
+          SET 
+            name = COALESCE(${body.name ? String(body.name) : null}, name),
+            slug = COALESCE(${body.slug ? String(body.slug) : null}, slug),
+            plan = COALESCE(${body.plan ? String(body.plan) : null}, plan),
+            domain = COALESCE(${body.domain ? String(body.domain) : null}, domain),
+            infrastructure_strategy = COALESCE(${body.infrastructureStrategy ? String(body.infrastructureStrategy) : null}, infrastructure_strategy),
+            admin_email = COALESCE(${body.adminEmail ? String(body.adminEmail) : null}, admin_email),
+            admin_name = COALESCE(${body.adminName ? String(body.adminName) : null}, admin_name),
+            billing_region = COALESCE(${body.billingRegion ? (String(body.billingRegion).toUpperCase() === 'GLOBAL' ? 'GLOBAL' : 'IN') : null}, billing_region)
+          WHERE id = ${id}
+          RETURNING *
+        ` as DbTenant[];
+      }
 
       if (rows.length === 0) return error('Tenant not found', 404);
 

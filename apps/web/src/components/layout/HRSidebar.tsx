@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Box,
   Chip,
@@ -6,10 +7,10 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Toolbar,
   Typography,
   Avatar,
   Divider,
+  Collapse,
   useMediaQuery,
   useTheme,
   alpha,
@@ -17,66 +18,139 @@ import {
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import BusinessIcon from '@mui/icons-material/Business';
-import HomeIcon from '@mui/icons-material/Home';
-import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import GroupsIcon from '@mui/icons-material/Groups';
+import BadgeIcon from '@mui/icons-material/Badge';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import PersonIcon from '@mui/icons-material/Person';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import PolicyIcon from '@mui/icons-material/Policy';
+import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import GavelIcon from '@mui/icons-material/Gavel';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import FolderIcon from '@mui/icons-material/Folder';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import SettingsIcon from '@mui/icons-material/Settings';
+import HomeIcon from '@mui/icons-material/Home';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
-import type { Permission } from '../../types';
 
-const DRAWER_WIDTH = 276;
+const DRAWER_WIDTH = 280;
 
-type NavItem = {
+interface NavItemSingle {
+  type: 'single';
   to: string;
   label: string;
   icon: React.ReactNode;
-  permission?: Permission;
-};
+}
 
-const navGroups: { label: string; items: NavItem[] }[] = [
+interface NavItemDropdown {
+  type: 'group';
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  children: {
+    to: string;
+    label: string;
+    icon: React.ReactNode;
+  }[];
+}
+
+type HRNavItem = NavItemSingle | NavItemDropdown;
+
+const HR_NAVIGATION: HRNavItem[] = [
   {
-    label: 'Overview',
-    items: [
-      { to: '/hr', label: 'HR Dashboard', icon: <DashboardIcon sx={{ fontSize: 19 }} /> },
+    type: 'single',
+    to: '/hr',
+    label: 'Dashboard',
+    icon: <DashboardIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'group',
+    id: 'employees',
+    label: 'Employees',
+    icon: <PeopleIcon sx={{ fontSize: 20 }} />,
+    children: [
+      { to: '/hr/employees', label: 'All Employees', icon: <PeopleIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/departments', label: 'Departments', icon: <BusinessIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/teams', label: 'Teams', icon: <GroupsIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/designations', label: 'Designations', icon: <BadgeIcon sx={{ fontSize: 18 }} /> },
     ],
   },
   {
-    label: 'People',
-    items: [
-      { to: '/hr/employees', label: 'Employees', icon: <PeopleIcon sx={{ fontSize: 19 }} /> },
-      { to: '/hr/departments', label: 'Departments', icon: <BusinessIcon sx={{ fontSize: 19 }} /> },
+    type: 'group',
+    id: 'attendance',
+    label: 'Attendance',
+    icon: <AccessTimeIcon sx={{ fontSize: 20 }} />,
+    children: [
+      { to: '/hr/attendance/my', label: 'My Attendance', icon: <PersonIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/attendance/team', label: 'Team Attendance', icon: <GroupsIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/attendance/reports', label: 'Attendance Reports', icon: <AssessmentIcon sx={{ fontSize: 18 }} /> },
     ],
   },
   {
-    label: 'Leave & Attendance',
-    items: [
-      { to: '/hr/leaves', label: 'Leave Management', icon: <EventAvailableIcon sx={{ fontSize: 19 }} /> },
-      { to: '/hr/attendance', label: 'Attendance', icon: <AccessTimeIcon sx={{ fontSize: 19 }} /> },
+    type: 'group',
+    id: 'leave',
+    label: 'Leave',
+    icon: <BeachAccessIcon sx={{ fontSize: 20 }} />,
+    children: [
+      { to: '/hr/leaves/my', label: 'My Leaves', icon: <PersonIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/leaves/requests', label: 'Leave Requests', icon: <PendingActionsIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/leaves/balance', label: 'Leave Balance', icon: <AccountBalanceWalletIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/leaves/types', label: 'Leave Types', icon: <PolicyIcon sx={{ fontSize: 18 }} /> },
     ],
   },
   {
-    label: 'Lifecycle & Growth',
-    items: [
-      { to: '/hr/onboarding', label: 'Onboarding', icon: <RocketLaunchIcon sx={{ fontSize: 19 }} /> },
-      { to: '/hr/performance', label: 'Performance Reviews', icon: <EmojiEventsIcon sx={{ fontSize: 19 }} /> },
+    type: 'single',
+    to: '/hr/wfh',
+    label: 'Work From Home',
+    icon: <HomeWorkIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'single',
+    to: '/hr/holidays',
+    label: 'Holidays',
+    icon: <CalendarMonthIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'group',
+    id: 'hr_ops',
+    label: 'HR',
+    icon: <DescriptionIcon sx={{ fontSize: 20 }} />,
+    children: [
+      { to: '/hr/requests', label: 'HR Requests', icon: <AssignmentIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/onboarding', label: 'Onboarding', icon: <RocketLaunchIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/offboarding', label: 'Offboarding', icon: <ExitToAppIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hr/documents', label: 'Documents', icon: <FolderIcon sx={{ fontSize: 18 }} /> },
     ],
   },
   {
-    label: 'Policy & Governance',
-    items: [
-      { to: '/hr/policies', label: 'Company Policies', icon: <GavelIcon sx={{ fontSize: 19 }} /> },
-    ],
+    type: 'single',
+    to: '/hr/announcements',
+    label: 'Announcements',
+    icon: <CampaignIcon sx={{ fontSize: 20 }} />,
   },
   {
-    label: 'Navigation',
-    items: [
-      { to: '/', label: 'Back to Portal', icon: <HomeIcon sx={{ fontSize: 19 }} /> },
-    ],
+    type: 'single',
+    to: '/hr/reports',
+    label: 'Reports',
+    icon: <BarChartIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'single',
+    to: '/hr/settings',
+    label: 'Settings',
+    icon: <SettingsIcon sx={{ fontSize: 20 }} />,
   },
 ];
 
@@ -85,20 +159,43 @@ interface HRSidebarProps {
   onClose: () => void;
 }
 
-function isNavActive(pathname: string, to: string): boolean {
-  if (to === '/') return pathname === '/';
-  if (to === '/hr') return pathname === '/hr';
-  return pathname === to || pathname.startsWith(`${to}/`);
-}
-
 export function HRSidebar({ mobileOpen, onClose }: HRSidebarProps) {
   const location = useLocation();
   const tenant = useTenant();
   const user = useAuthUser();
-  const { can } = usePermissions();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isDark = theme.palette.mode === 'dark';
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    employees: true,
+    attendance: true,
+    leave: true,
+    hr_ops: true,
+  });
+
+  // Auto-expand group if on a child route
+  useEffect(() => {
+    HR_NAVIGATION.forEach((item) => {
+      if (item.type === 'group') {
+        const isChildActive = item.children.some((c) =>
+          location.pathname === c.to || location.pathname.startsWith(`${c.to}/`)
+        );
+        if (isChildActive) {
+          setOpenGroups((prev) => ({ ...prev, [item.id]: true }));
+        }
+      }
+    });
+  }, [location.pathname]);
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const isNavActive = (to: string): boolean => {
+    if (to === '/hr') return location.pathname === '/hr';
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
+  };
 
   const initials = getUserInitials(user);
   const displayName = getUserDisplayName(user);
@@ -110,10 +207,10 @@ export function HRSidebar({ mobileOpen, onClose }: HRSidebarProps) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mb: 1.5 }}>
           <Box
             sx={{
-              width: 40,
-              height: 40,
+              width: 42,
+              height: 42,
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #10B981 0%, #06B6D4 100%)',
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -122,7 +219,7 @@ export function HRSidebar({ mobileOpen, onClose }: HRSidebarProps) {
               flexShrink: 0,
             }}
           >
-            <Diversity3Icon sx={{ fontSize: 22 }} />
+            <Diversity3Icon sx={{ fontSize: 24 }} />
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography
@@ -148,7 +245,7 @@ export function HRSidebar({ mobileOpen, onClose }: HRSidebarProps) {
               display="block"
               sx={{ fontSize: '0.72rem', fontWeight: 600 }}
             >
-              {tenant?.name || 'Workspace People'}
+              {tenant?.name || 'People & Culture'}
             </Typography>
           </Box>
         </Box>
@@ -173,105 +270,220 @@ export function HRSidebar({ mobileOpen, onClose }: HRSidebarProps) {
       <Divider sx={{ mx: 2, borderColor: theme.palette.divider }} />
 
       {/* Nav List */}
-      <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 1.5 }}>
-        {navGroups.map((group) => (
-          <Box key={group.label} sx={{ mb: 1.75 }}>
-            <Typography
-              variant="caption"
-              sx={{
-                px: 1.5,
-                pb: 0.75,
-                display: 'block',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                fontSize: '0.65rem',
-                color: isDark ? 'rgba(148, 163, 184, 0.7)' : 'rgba(100, 116, 139, 0.8)',
-              }}
-            >
-              {group.label}
-            </Typography>
-            <List disablePadding>
-              {group.items
-                .filter((item) => !item.permission || can(item.permission))
-                .map((item) => {
-                  const active = isNavActive(location.pathname, item.to);
-                  return (
-                    <ListItemButton
-                      key={item.to}
-                      component={NavLink}
-                      to={item.to}
-                      onClick={isMobile ? onClose : undefined}
-                      selected={active}
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          px: 1.5,
+          py: 1.5,
+          '&::-webkit-scrollbar': { width: '4px' },
+          '&::-webkit-scrollbar-thumb': {
+            bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            borderRadius: '10px',
+          },
+        }}
+      >
+        <List disablePadding>
+          {HR_NAVIGATION.map((item) => {
+            if (item.type === 'single') {
+              const active = isNavActive(item.to);
+              return (
+                <ListItemButton
+                  key={item.to}
+                  component={NavLink}
+                  to={item.to}
+                  onClick={isMobile ? onClose : undefined}
+                  selected={active}
+                  sx={{
+                    borderRadius: '10px',
+                    mb: 0.4,
+                    py: 0.85,
+                    px: 1.5,
+                    position: 'relative',
+                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                    bgcolor: active
+                      ? isDark
+                        ? 'rgba(16, 185, 129, 0.16)'
+                        : 'rgba(16, 185, 129, 0.08)'
+                      : 'transparent',
+                    color: active ? '#10B981' : 'text.secondary',
+                    boxShadow: active
+                      ? isDark
+                        ? 'inset 0 0 0 1px rgba(16, 185, 129, 0.25)'
+                        : 'inset 0 0 0 1px rgba(16, 185, 129, 0.2)'
+                      : 'none',
+                    '&:hover': {
+                      bgcolor: active
+                        ? isDark
+                          ? 'rgba(16, 185, 129, 0.22)'
+                          : 'rgba(16, 185, 129, 0.12)'
+                        : isDark
+                        ? 'rgba(255, 255, 255, 0.04)'
+                        : 'rgba(15, 23, 42, 0.04)',
+                      color: active ? '#10B981' : 'text.primary',
+                      transform: 'translateX(2px)',
+                    },
+                  }}
+                >
+                  {active && (
+                    <Box
                       sx={{
-                        borderRadius: '10px',
-                        mb: 0.35,
-                        py: 0.9,
-                        px: 1.5,
-                        position: 'relative',
-                        transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                        bgcolor: active
-                          ? isDark
-                            ? 'rgba(16, 185, 129, 0.14)'
-                            : 'rgba(16, 185, 129, 0.08)'
-                          : 'transparent',
-                        color: active ? '#10B981' : 'text.secondary',
-                        boxShadow: active
-                          ? isDark
-                            ? 'inset 0 0 0 1px rgba(16, 185, 129, 0.25)'
-                            : 'inset 0 0 0 1px rgba(16, 185, 129, 0.2)'
-                          : 'none',
-                        '&:hover': {
-                          bgcolor: active
-                            ? isDark
-                              ? 'rgba(16, 185, 129, 0.2)'
-                              : 'rgba(16, 185, 129, 0.12)'
-                            : isDark
-                            ? 'rgba(255, 255, 255, 0.04)'
-                            : 'rgba(15, 23, 42, 0.04)',
-                          color: active ? '#10B981' : 'text.primary',
-                          transform: 'translateX(2px)',
-                        },
+                        position: 'absolute',
+                        left: 0,
+                        top: '20%',
+                        bottom: '20%',
+                        width: 3.5,
+                        bgcolor: '#10B981',
+                        borderRadius: '0 4px 4px 0',
+                        boxShadow: '0 0 8px rgba(16, 185, 129, 0.7)',
                       }}
-                    >
-                      {active && (
-                        <Box
+                    />
+                  )}
+                  <ListItemIcon sx={{ minWidth: 32, color: active ? '#10B981' : 'inherit' }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontWeight: active ? 700 : 500,
+                      fontSize: '0.85rem',
+                      letterSpacing: '-0.01em',
+                    }}
+                  />
+                </ListItemButton>
+              );
+            }
+
+            // Group / Accordion item
+            const isOpen = Boolean(openGroups[item.id]);
+            const isGroupActive = item.children.some((c) => isNavActive(c.to));
+
+            return (
+              <Box key={item.id} sx={{ mb: 0.5 }}>
+                <ListItemButton
+                  onClick={() => toggleGroup(item.id)}
+                  sx={{
+                    borderRadius: '10px',
+                    py: 0.85,
+                    px: 1.5,
+                    color: isGroupActive ? '#10B981' : 'text.primary',
+                    '&:hover': {
+                      bgcolor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 32, color: isGroupActive ? '#10B981' : 'inherit' }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontWeight: isGroupActive ? 700 : 600,
+                      fontSize: '0.85rem',
+                      letterSpacing: '-0.01em',
+                    }}
+                  />
+                  {isOpen ? <ExpandLess sx={{ fontSize: 18, color: 'text.secondary' }} /> : <ExpandMore sx={{ fontSize: 18, color: 'text.secondary' }} />}
+                </ListItemButton>
+
+                <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                  <List disablePadding sx={{ pl: 2, pt: 0.25 }}>
+                    {item.children.map((child) => {
+                      const childActive = isNavActive(child.to);
+                      return (
+                        <ListItemButton
+                          key={child.to}
+                          component={NavLink}
+                          to={child.to}
+                          onClick={isMobile ? onClose : undefined}
+                          selected={childActive}
                           sx={{
-                            position: 'absolute',
-                            left: 0,
-                            top: '20%',
-                            bottom: '20%',
-                            width: 3.5,
-                            bgcolor: '#10B981',
-                            borderRadius: '0 4px 4px 0',
-                            boxShadow: '0 0 8px rgba(16, 185, 129, 0.7)',
+                            borderRadius: '8px',
+                            mb: 0.25,
+                            py: 0.65,
+                            px: 1.5,
+                            position: 'relative',
+                            transition: 'all 0.15s ease',
+                            bgcolor: childActive
+                              ? isDark
+                                ? 'rgba(16, 185, 129, 0.14)'
+                                : 'rgba(16, 185, 129, 0.08)'
+                              : 'transparent',
+                            color: childActive ? '#10B981' : 'text.secondary',
+                            '&:hover': {
+                              bgcolor: childActive
+                                ? isDark
+                                  ? 'rgba(16, 185, 129, 0.2)'
+                                  : 'rgba(16, 185, 129, 0.12)'
+                                : isDark
+                                ? 'rgba(255, 255, 255, 0.03)'
+                                : 'rgba(15, 23, 42, 0.03)',
+                              color: childActive ? '#10B981' : 'text.primary',
+                              transform: 'translateX(2px)',
+                            },
                           }}
-                        />
-                      )}
-                      <ListItemIcon
-                        sx={{
-                          minWidth: 32,
-                          color: active ? '#10B981' : 'inherit',
-                        }}
-                      >
-                        {item.icon}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={item.label}
-                        primaryTypographyProps={{
-                          fontWeight: active ? 700 : 500,
-                          fontSize: '0.85rem',
-                        }}
-                      />
-                    </ListItemButton>
-                  );
-                })}
-            </List>
-          </Box>
-        ))}
+                        >
+                          {childActive && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                left: 0,
+                                top: '25%',
+                                bottom: '25%',
+                                width: 3,
+                                bgcolor: '#10B981',
+                                borderRadius: '0 4px 4px 0',
+                              }}
+                            />
+                          )}
+                          <ListItemIcon sx={{ minWidth: 28, color: childActive ? '#10B981' : 'inherit' }}>
+                            {child.icon}
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={child.label}
+                            primaryTypographyProps={{
+                              fontWeight: childActive ? 700 : 500,
+                              fontSize: '0.8rem',
+                            }}
+                          />
+                        </ListItemButton>
+                      );
+                    })}
+                  </List>
+                </Collapse>
+              </Box>
+            );
+          })}
+
+          <Divider sx={{ my: 1.5, mx: 1, borderColor: theme.palette.divider }} />
+
+          <ListItemButton
+            component={NavLink}
+            to="/"
+            onClick={isMobile ? onClose : undefined}
+            sx={{
+              borderRadius: '10px',
+              py: 0.85,
+              px: 1.5,
+              color: 'text.secondary',
+              '&:hover': {
+                bgcolor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)',
+                color: 'text.primary',
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
+              <HomeIcon sx={{ fontSize: 20 }} />
+            </ListItemIcon>
+            <ListItemText
+              primary="Back to Workspace"
+              primaryTypographyProps={{ fontWeight: 600, fontSize: '0.85rem' }}
+            />
+          </ListItemButton>
+        </List>
       </Box>
 
-      {/* User Capsule */}
+      {/* User Capsule Footer */}
       <Box sx={{ p: 1.75, borderTop: `1px solid ${theme.palette.divider}` }}>
         <Box
           sx={{
@@ -289,7 +501,7 @@ export function HRSidebar({ mobileOpen, onClose }: HRSidebarProps) {
             sx={{
               width: 36,
               height: 36,
-              background: 'linear-gradient(135deg, #10B981 0%, #06B6D4 100%)',
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
               fontSize: '0.8125rem',
               fontWeight: 700,
             }}

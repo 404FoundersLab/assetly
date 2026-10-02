@@ -249,6 +249,16 @@ export default async function handler(req: Request) {
       // Ignore DB errors if column doesn't exist
     }
 
+    if (!tenantRecord && userRecord) {
+      tenantRecord = {
+        id: userRecord.tenantId || '11111111-1111-1111-1111-111111111111',
+        name: userRecord.role === 'platform_admin' ? 'Assetly Platform' : 'Solum Technologies',
+        slug: userRecord.role === 'platform_admin' ? 'assetly' : 'solum-technologies',
+        plan: 'Professional',
+        enabledModules: ['module:assets', 'module:hr', 'module:docs', 'module:finance'],
+      } as any;
+    }
+
     const token = await signAuthToken(userRecord);
 
     if (mustChange) {

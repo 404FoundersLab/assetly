@@ -8,11 +8,14 @@ import {
   MenuItem,
   Stack,
   Alert,
+  Divider,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../hooks/storeHooks';
 import { createTenant } from '../../store/tenantsSlice';
 import { PageHeader } from '../../components/PageHeader';
+import { ModuleAccessSelector } from './ModuleAccessSelector';
+import { DEFAULT_ENABLED_MODULES } from '../../constants/modules';
 import type { Tenant } from '../../types';
 
 export function CreateOrganizationPage() {
@@ -28,6 +31,7 @@ export function CreateOrganizationPage() {
     infrastructureStrategy: 'shared',
     adminEmail: '',
     adminName: '',
+    enabledModules: [...DEFAULT_ENABLED_MODULES],
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -137,7 +141,16 @@ export function CreateOrganizationPage() {
                 <MenuItem value="dedicated">Dedicated (Isolated Database)</MenuItem>
               </TextField>
 
-              <Box sx={{ pt: 2 }}>
+              <Divider sx={{ my: 1 }} />
+
+              <ModuleAccessSelector
+                selectedModules={form.enabledModules || []}
+                onChange={(enabledModules) => setForm({ ...form, enabledModules })}
+              />
+
+              <Divider sx={{ my: 1 }} />
+
+              <Box sx={{ pt: 1 }}>
                 <Alert severity="info" sx={{ mb: 2 }}>
                   You can optionally assign an initial Primary Admin account. They will receive a welcome email with temporary credentials.
                 </Alert>

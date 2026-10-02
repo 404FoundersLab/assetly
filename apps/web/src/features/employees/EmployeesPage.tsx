@@ -17,7 +17,7 @@ import AddIcon from '@mui/icons-material/Add';
 import InventoryIcon from '@mui/icons-material/Inventory2';
 import PeopleIcon from '@mui/icons-material/People';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector } from '../../hooks/storeHooks';
 import { usePermissions } from '../../hooks/storeHooks';
 import { PageHeader } from '../../components/PageHeader';
@@ -29,6 +29,8 @@ import { EmployeeFormDialog } from './EmployeeFormDialog';
 
 export function EmployeesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHR = location.pathname.startsWith('/hr');
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
   const assets = useAppSelector((s) => s.assets.items);
@@ -59,12 +61,14 @@ export function EmployeesPage() {
     return map;
   }, [assets]);
 
+  const getDetailRoute = (empId: string) => (isHR ? `/hr/employees/${empId}` : `/employees/${empId}`);
+
   return (
     <Box>
       <PageHeader
         title="Employees"
         subtitle={`${filteredEmployees.length} employees · asset allocation tracking`}
-        breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Employees' }]}
+        breadcrumbs={isHR ? [{ label: 'HR Portal', to: '/hr' }, { label: 'Employees' }] : [{ label: 'Dashboard', to: '/' }, { label: 'Employees' }]}
         actions={
           can('employee:write') ? (
             <Button startIcon={<AddIcon />} variant="contained" onClick={() => setFormOpen(true)}>
@@ -118,7 +122,7 @@ export function EmployeesPage() {
                     key={emp.id}
                     hover
                     sx={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/employees/${emp.id}`)}
+                    onClick={() => navigate(getDetailRoute(emp.id))}
                   >
                     <TableCell>{emp.employeeNumber}</TableCell>
                     <TableCell>
@@ -150,7 +154,7 @@ export function EmployeesPage() {
                       <Tooltip title="View assigned assets">
                         <IconButton
                           size="small"
-                          onClick={() => navigate(`/employees/${emp.id}`)}
+                          onClick={() => navigate(getDetailRoute(emp.id))}
                         >
                           <InventoryIcon fontSize="small" />
                         </IconButton>

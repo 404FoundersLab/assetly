@@ -9,9 +9,26 @@ import { ProtectedRoute, PublicRoute, AdminRoute, EmployeeRoute, SystemAdminRout
 import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { HRPage } from './features/hr/HRPage';
-import { LeavesPage } from './features/hr/leaves/LeavesPage';
+import { TeamsPage } from './features/hr/teams/TeamsPage';
+import { DesignationsPage } from './features/hr/designations/DesignationsPage';
 import { AttendancePage } from './features/hr/attendance/AttendancePage';
+import { MyAttendancePage } from './features/hr/attendance/MyAttendancePage';
+import { TeamAttendancePage } from './features/hr/attendance/TeamAttendancePage';
+import { AttendanceReportsPage } from './features/hr/attendance/AttendanceReportsPage';
+import { LeavesPage } from './features/hr/leaves/LeavesPage';
+import { MyLeavesPage } from './features/hr/leaves/MyLeavesPage';
+import { LeaveRequestsPage } from './features/hr/leaves/LeaveRequestsPage';
+import { LeaveBalancePage } from './features/hr/leaves/LeaveBalancePage';
+import { LeaveTypesPage } from './features/hr/leaves/LeaveTypesPage';
+import { WFHPage } from './features/hr/wfh/WFHPage';
+import { HolidaysPage } from './features/hr/holidays/HolidaysPage';
+import { HRRequestsPage } from './features/hr/requests/HRRequestsPage';
 import { OnboardingPage } from './features/hr/onboarding/OnboardingPage';
+import { OffboardingPage } from './features/hr/offboarding/OffboardingPage';
+import { HRDocumentsPage } from './features/hr/documents/HRDocumentsPage';
+import { AnnouncementsPage } from './features/hr/announcements/AnnouncementsPage';
+import { HRReportsPage } from './features/hr/reports/HRReportsPage';
+import { HRSettingsPage } from './features/hr/settings/HRSettingsPage';
 import { PerformancePage } from './features/hr/performance/PerformancePage';
 import { HRPoliciesPage } from './features/hr/policies/HRPoliciesPage';
 import { LandingPage } from './features/portal/LandingPage';
@@ -97,12 +114,41 @@ export default function App() {
         }
       >
         <Route index element={<HRPage />} />
+        
+        {/* Employees */}
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="employees/:id" element={<EmployeeDetailPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
-        <Route path="leaves" element={<LeavesPage />} />
+        <Route path="teams" element={<TeamsPage />} />
+        <Route path="designations" element={<DesignationsPage />} />
+
+        {/* Attendance */}
         <Route path="attendance" element={<AttendancePage />} />
+        <Route path="attendance/my" element={<MyAttendancePage />} />
+        <Route path="attendance/team" element={<TeamAttendancePage />} />
+        <Route path="attendance/reports" element={<AttendanceReportsPage />} />
+
+        {/* Leaves */}
+        <Route path="leaves" element={<LeavesPage />} />
+        <Route path="leaves/my" element={<MyLeavesPage />} />
+        <Route path="leaves/requests" element={<LeaveRequestsPage />} />
+        <Route path="leaves/balance" element={<LeaveBalancePage />} />
+        <Route path="leaves/types" element={<LeaveTypesPage />} />
+
+        {/* Work From Home & Holidays */}
+        <Route path="wfh" element={<WFHPage />} />
+        <Route path="holidays" element={<HolidaysPage />} />
+
+        {/* HR Operations */}
+        <Route path="requests" element={<HRRequestsPage />} />
         <Route path="onboarding" element={<OnboardingPage />} />
+        <Route path="offboarding" element={<OffboardingPage />} />
+        <Route path="documents" element={<HRDocumentsPage />} />
+
+        {/* Announcements, Reports, Settings & Legacy */}
+        <Route path="announcements" element={<AnnouncementsPage />} />
+        <Route path="reports" element={<HRReportsPage />} />
+        <Route path="settings" element={<HRSettingsPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="policies" element={<HRPoliciesPage />} />
       </Route>

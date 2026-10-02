@@ -21,6 +21,7 @@ export interface DbTenant {
   razorpay_subscription_id?: string | null;
   billing_region?: string | null;
   trial_ends_at?: string | null;
+  enabled_modules?: any;
   created_at: string;
 }
 
@@ -177,6 +178,26 @@ export function mapAsset(row: DbAsset) {
   };
 }
 
+function parseEnabledModules(val: unknown): string[] {
+  const defaultModules = ['module:assets', 'module:hr', 'module:docs', 'module:finance'];
+  if (val === null || val === undefined) {
+    return defaultModules;
+  }
+  if (Array.isArray(val)) {
+    return val.map(String);
+  }
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      const split = val.split(',').map((s) => s.trim()).filter(Boolean);
+      if (split.length > 0) return split;
+    }
+  }
+  return defaultModules;
+}
+
 export function mapTenant(row: DbTenant) {
   return {
     id: row.id,
@@ -192,6 +213,7 @@ export function mapTenant(row: DbTenant) {
     billingRegion: (row as any).billing_region === 'GLOBAL' ? 'GLOBAL' : 'IN',
     hasStripeBilling: Boolean((row as any).stripe_customer_id),
     hasRazorpayBilling: Boolean((row as any).razorpay_subscription_id),
+    enabledModules: parseEnabledModules((row as any).enabled_modules),
     createdAt: row.created_at,
   };
 }

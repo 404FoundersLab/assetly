@@ -8,12 +8,13 @@ const webDir = resolve(root, 'apps/web');
 
 function readUseApiFlag() {
   const webEnv = resolve(webDir, '.env');
-  if (!existsSync(webEnv)) return false;
+  if (!existsSync(webEnv)) return true;
   try {
     const line = readFileSync(webEnv, 'utf8').split('\n').find((l) => l.startsWith('VITE_USE_API='));
-    return line?.split('=')[1]?.trim() === 'true';
+    if (!line) return true;
+    return line.split('=')[1]?.trim() !== 'false';
   } catch {
-    return false;
+    return true;
   }
 }
 
