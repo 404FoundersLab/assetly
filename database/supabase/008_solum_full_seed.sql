@@ -30,7 +30,7 @@ INSERT INTO departments (id, tenant_id, name, cost_center) VALUES
   ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111111', 'Sales',             'CC-300'),
   ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111111', 'Finance',           'CC-400'),
   ('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111111', 'Operations',        'CC-500')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (tenant_id, name) DO UPDATE SET cost_center = EXCLUDED.cost_center;
 
 -- ── Vendors ──────────────────────────────────────────────────────────────────
 INSERT INTO vendors (id, tenant_id, name, contact_email, website) VALUES
@@ -41,7 +41,7 @@ INSERT INTO vendors (id, tenant_id, name, contact_email, website) VALUES
   ('33333333-3333-3333-3333-333333333305', '11111111-1111-1111-1111-111111111111', 'Cisco Systems',     'sales@cisco.com',      'https://cisco.com'),
   ('33333333-3333-3333-3333-333333333306', '11111111-1111-1111-1111-111111111111', 'Ubiquiti',          'sales@ubnt.com',       'https://ui.com'),
   ('33333333-3333-3333-3333-333333333307', '11111111-1111-1111-1111-111111111111', 'Hikvision',         'sales@hikvision.com',  'https://hikvision.com')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (tenant_id, name) DO UPDATE SET contact_email = EXCLUDED.contact_email, website = EXCLUDED.website;
 
 -- ── Employees ────────────────────────────────────────────────────────────────
 INSERT INTO employees (id, tenant_id, employee_number, first_name, last_name, email, job_title, department_id, status, hire_date) VALUES
