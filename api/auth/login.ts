@@ -192,16 +192,26 @@ export default async function handler(req: Request) {
 
     try {
       const sql = getSql();
-      // Fetch user + derive role from user_roles JOIN (our schema uses a join table)
-      const users = await sql`
-        SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name,
-               COALESCE(r.name, u.role, 'viewer') AS role
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id
-        LEFT JOIN roles r ON r.id = ur.role_id
-        WHERE lower(u.email) = ${email}
-        LIMIT 1
-      ` as DbUser[];
+      // Fetch user: try join if user_roles exists, otherwise query users directly
+      let users: DbUser[] = [];
+      try {
+        users = await sql`
+          SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name,
+                 COALESCE(r.name, u.role, 'viewer') AS role
+          FROM users u
+          LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN roles r ON r.id = ur.role_id
+          WHERE lower(u.email) = ${email}
+          LIMIT 1
+        ` as DbUser[];
+      } catch {
+        users = await sql`
+          SELECT id, tenant_id, email, first_name, last_name, role
+          FROM users
+          WHERE lower(email) = ${email}
+          LIMIT 1
+        ` as DbUser[];
+      }
       if (users.length > 0) {
         const u = users[0];
         userRecord = {

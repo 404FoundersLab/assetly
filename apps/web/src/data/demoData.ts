@@ -33,28 +33,6 @@ export const DEMO_USERS: Record<string, { password: string; user: User }> = {
       role: 'platform_admin',
     },
   },
-  'pramod.sv@solum-group.com': {
-    password: 'PRamod@123',
-    user: {
-      id: '11111111-1111-1111-1111-111111111199',
-      tenantId: '11111111-1111-1111-1111-111111111111',
-      email: 'pramod.sv@solum-group.com',
-      firstName: 'Pramod',
-      lastName: 'Admin',
-      role: 'platform_admin',
-    },
-  },
-  'itadmin.sti@solum-group.com': {
-    password: 'PAvan@123',
-    user: {
-      id: '11111111-1111-1111-1111-111111111198',
-      tenantId: '11111111-1111-1111-1111-111111111111',
-      email: 'itadmin.sti@solum-group.com',
-      firstName: 'Pavan',
-      lastName: 'Admin',
-      role: 'tenant_admin',
-    },
-  },
   'admin@solumtechnologies.com': {
     password: 'Demo@123456',
     user: {
