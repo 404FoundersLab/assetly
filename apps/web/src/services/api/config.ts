@@ -8,5 +8,8 @@ export function isApiEnabled(): boolean {
 export function apiUrl(path: string): string {
   const base = API_BASE.replace(/\/$/, '');
   const p = path.startsWith('/') ? path : `/${path}`;
+  if (base && (p === base || p.startsWith(`${base}/`))) {
+    return p;
+  }
   return `${base}${p}`;
 }

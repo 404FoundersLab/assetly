@@ -21,7 +21,7 @@ COPY apps/web/vite.config.ts ./apps/web/
 
 # Set production frontend build environment
 ENV VITE_USE_API=true
-ENV VITE_API_URL=/api
+ENV VITE_API_URL=
 
 # Build production bundle
 RUN npm run build --prefix apps/web
