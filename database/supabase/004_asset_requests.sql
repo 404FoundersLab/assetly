@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS asset_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   employee_id UUID NOT NULL REFERENCES employees(id),
   request_type VARCHAR(20) NOT NULL CHECK (request_type IN ('new', 'replacement', 'accessory')),
   category VARCHAR(50) NOT NULL,
