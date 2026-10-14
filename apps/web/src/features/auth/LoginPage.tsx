@@ -289,7 +289,7 @@ export function LoginPage() {
         const user = (window as any).__pendingUser;
         const tenant = (window as any).__pendingTenant;
 
-        await changePassword(token, password);
+        await changePassword('', password);
         delete (window as any).__pendingUser;
         delete (window as any).__pendingTenant;
         delete (window as any).__pendingToken;

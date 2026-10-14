@@ -39,7 +39,7 @@ export function ResetTenantPasswordDialog({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(true);
-  const [mustChange, setMustChange] = useState(true);
+  const [mustChange, setMustChange] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function ResetTenantPasswordDialog({
     if (tenant) {
       setEmail(tenant.adminEmail || '');
       generatePassword();
-      setMustChange(true);
+      setMustChange(false);
       setError(null);
       setSuccess(null);
       setCopied(false);

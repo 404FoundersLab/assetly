@@ -78,9 +78,6 @@ export function SystemAdminUsersPage() {
                         <Typography variant="body2" fontWeight={600}>
                           {user.firstName} {user.lastName}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {user.id}
-                        </Typography>
                       </Box>
                     </Box>
                   </TableCell>
