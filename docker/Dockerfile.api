@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy root workspace manifests
+COPY package.json package-lock.json tsconfig.json ./
+
+# Install dependencies needed by the API server
+RUN npm install
+
+# Copy API route definitions, development runner, and client artifacts
+COPY api ./api
+COPY scripts ./scripts
+COPY apps/client ./apps/client
+
+ENV NODE_ENV=production
+ENV API_PORT=3000
+ENV API_HOST=0.0.0.0
+
+EXPOSE 3000
+
+CMD ["npx", "tsx", "scripts/local-api.ts"]

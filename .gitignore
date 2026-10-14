@@ -12,6 +12,7 @@ apps/web/public/downloads/build-output/
 .env
 .env.*
 !.env.example
+!.env.solum.example
 
 # Logs
 *.log

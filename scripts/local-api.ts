@@ -20,8 +20,10 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
-server.listen(port, '127.0.0.1', () => {
+const host = process.env.API_HOST ?? '0.0.0.0';
+
+server.listen(port, host, () => {
   const hasDb = Boolean(process.env.DATABASE_URL);
-  console.log(`Local API listening on http://127.0.0.1:${port}`);
+  console.log(`API listening on http://${host}:${port}`);
   console.log(`DATABASE_URL: ${hasDb ? 'configured' : 'MISSING — add to .env'}`);
 });

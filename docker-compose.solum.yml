@@ -1,0 +1,64 @@
+services:
+  assetly-postgres:
+    image: postgres:16-alpine
+    container_name: assetly-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-solum_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-SolumSecurePass2026!}
+      POSTGRES_DB: ${POSTGRES_DB:-assetly_solum}
+    volumes:
+      - assetly_pgdata:/var/lib/postgresql/data
+      - ./database/supabase:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-solum_admin} -d ${POSTGRES_DB:-assetly_solum}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  assetly-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    image: assetly-api
+    container_name: assetly-api
+    restart: unless-stopped
+    depends_on:
+      assetly-postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      API_HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solum_admin}:${POSTGRES_PASSWORD:-SolumSecurePass2026!}@assetly-postgres:5432/${POSTGRES_DB:-assetly_solum}
+      JWT_SECRET: ${JWT_SECRET:-solum-secret-jwt-key-change-in-production}
+      AGENT_SECRET: ${AGENT_SECRET:-solum-secret-agent-key-change-in-production}
+      ALLOWED_ORIGIN: "*"
+      DEMO_AUTH_ENABLED: ${DEMO_AUTH_ENABLED:-false}
+      PORTFOLIO_GUEST_ENABLED: ${PORTFOLIO_GUEST_ENABLED:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  assetly-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    image: assetly-web
+    container_name: assetly-web
+    restart: unless-stopped
+    depends_on:
+      assetly-api:
+        condition: service_healthy
+    ports:
+      - "${SOLUM_PORT:-80}:80"
+
+volumes:
+  assetly_pgdata:
