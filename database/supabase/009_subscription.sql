@@ -15,8 +15,17 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
 
 ALTER TABLE subscription_plans
   ADD COLUMN IF NOT EXISTS max_assets INT NOT NULL DEFAULT 100,
-  ADD COLUMN IF NOT EXISTS price_per_unit DECIMAL(10,2) NOT NULL DEFAULT 2.00,
-  ALTER COLUMN price_per_endpoint DROP NOT NULL;
+  ADD COLUMN IF NOT EXISTS price_per_unit DECIMAL(10,2) NOT NULL DEFAULT 2.00;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'subscription_plans' AND column_name = 'price_per_endpoint'
+  ) THEN
+    ALTER TABLE subscription_plans ALTER COLUMN price_per_endpoint DROP NOT NULL;
+  END IF;
+END $$;
 
 INSERT INTO subscription_plans (id, name, tier, max_assets, max_admins, max_endpoints, price_per_unit, features)
 VALUES
