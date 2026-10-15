@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS assets (
   purchase_date DATE,
   purchase_cost NUMERIC(12, 2) DEFAULT 0,
   current_value NUMERIC(12, 2) DEFAULT 0,
+  repair_cost NUMERIC(12, 2) DEFAULT 0,
   location VARCHAR(255),
   department VARCHAR(255),
   specs TEXT,

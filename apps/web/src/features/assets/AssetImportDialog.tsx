@@ -314,8 +314,11 @@ export function AssetImportDialog({ open, onClose }: Props) {
       });
       await reloadFromApi(dispatch);
       handleClose();
-    } catch {
-      setParseError('Import failed. Check backend connection and try again.');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'Import failed. Check backend connection and try again.';
+      setParseError(msg);
     }
     } finally {
       setIsImporting(false);
@@ -608,11 +611,11 @@ export function AssetImportDialog({ open, onClose }: Props) {
         {step === 3 && (
           <Box>
             <Alert severity="success" sx={{ mb: 2 }}>
-              Ready to import <strong>{validRows.length}</strong> asset(s) and create{' '}
+              Ready to import <strong>{validRows.length}</strong> asset(s) and create/assign{' '}
               <strong>
                 {new Set(validRows.filter((r) => r.assignedEmployeeName).map((r) => r.assignedEmployeeName)).size}
               </strong>{' '}
-              employee(s) from <strong>{fileName}</strong>. This will replace all current assets and employees.
+              employee(s) from <strong>{fileName}</strong>. Existing assets and employees with matching tags/emails will be updated.
             </Alert>
             <TableContainer>
               <Table size="small">
