@@ -15,16 +15,25 @@ import {
   Tooltip,
   Chip,
   TextField,
+  Checkbox,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Typography,
+  Paper,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import InventoryIcon from '@mui/icons-material/Inventory2';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAppSelector } from '../../hooks/storeHooks';
-import { usePermissions } from '../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, usePermissions } from '../../hooks/storeHooks';
 import { StatusChip } from '../../components/StatusChip';
 import { PageHeader } from '../../components/PageHeader';
 import { SearchField } from '../../components/SearchField';
@@ -34,11 +43,15 @@ import { assetMatchesSearch } from '../../utils/search';
 import { STATUS_LABELS } from '../../data/demoData';
 import { DEVICE_FAMILY_META } from '../../constants/deviceFamilies';
 import { useAssetCategories } from '../../hooks/useAssetCategories';
-import type { DeviceFamily } from '../../types';
+import { deleteAsset, deleteAssets } from '../../services/api/assets';
+import { reloadFromApi } from '../../components/DataBootstrap';
+import type { Asset, DeviceFamily } from '../../types';
 import { AssetImportDialog } from './AssetImportDialog';
+import { AssetEditDialog } from './AssetEditDialog';
 
 export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [searchParams] = useSearchParams();
   const warrantyFilter = searchParams.get('warranty');
   const assets = useAppSelector((s) => s.assets.items);
@@ -55,6 +68,14 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [importOpen, setImportOpen] = useState(false);
+
+  // Selection & bulk action state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [assetToEdit, setAssetToEdit] = useState<Asset | null>(null);
 
   const employeeMap = useMemo(
     () => Object.fromEntries(employees.map((e) => [e.id, e])),
@@ -90,6 +111,41 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
 
   const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const hasActiveFilters = Boolean(search || statusFilter !== 'all' || categoryFilter !== 'all' || warrantyFilter);
+
+  const isAllPageSelected = paginated.length > 0 && paginated.every((a) => selectedIds.has(a.id));
+  const isSomePageSelected = paginated.some((a) => selectedIds.has(a.id)) && !isAllPageSelected;
+
+  const handleToggleSelectAllPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isAllPageSelected) {
+        paginated.forEach((a) => next.delete(a.id));
+      } else {
+        paginated.forEach((a) => next.add(a.id));
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedIds(new Set(filtered.map((a) => a.id)));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+  };
 
   const clearFilters = () => {
     setSearch('');
@@ -208,6 +264,58 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
         </Box>
       </Card>
 
+      {/* Selected Action Toolbar */}
+      {selectedIds.size > 0 && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 1.5,
+            mb: 2,
+            bgcolor: 'primary.50',
+            border: 1,
+            borderColor: 'primary.200',
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1.5,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              label={`${selectedIds.size} asset(s) selected`}
+              color="primary"
+              size="small"
+              sx={{ fontWeight: 700 }}
+            />
+            {selectedIds.size < filtered.length && (
+              <Button size="small" onClick={handleSelectAllFiltered}>
+                Select all {filtered.length} {meta.title.toLowerCase()}
+              </Button>
+            )}
+            <Button size="small" color="inherit" onClick={handleClearSelection}>
+              Clear selection
+            </Button>
+          </Box>
+
+          {can('asset:write') && (
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              startIcon={<DeleteSweepIcon />}
+              onClick={() => {
+                setAssetToDelete(null);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              Delete {selectedIds.size} Selected
+            </Button>
+          )}
+        </Paper>
+      )}
+
       <Card>
         {scoped.length === 0 ? (
           <EmptyState
@@ -237,6 +345,16 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
+                    {can('asset:write') && (
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          indeterminate={isSomePageSelected}
+                          checked={isAllPageSelected}
+                          onChange={handleToggleSelectAllPage}
+                          inputProps={{ 'aria-label': 'Select all assets on page' }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>Asset Tag</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Category</TableCell>
@@ -251,13 +369,24 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
                   {paginated.map((asset) => {
                     const emp = asset.assignedEmployeeId ? employeeMap[asset.assignedEmployeeId] : null;
                     const warrantyDays = daysUntil(asset.warrantyExpiresAt);
+                    const isSelected = selectedIds.has(asset.id);
                     return (
                       <TableRow
                         key={asset.id}
                         hover
+                        selected={isSelected}
                         sx={{ cursor: 'pointer' }}
                         onClick={() => navigate(`/assets/${asset.id}`)}
                       >
+                        {can('asset:write') && (
+                          <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => handleToggleSelect(asset.id)}
+                              inputProps={{ 'aria-label': `Select asset ${asset.assetTag}` }}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Box component="span" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                             {asset.assetTag}
@@ -297,11 +426,41 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
                         </TableCell>
                         <TableCell align="right">{formatCurrency(asset.currentValue)}</TableCell>
                         <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                          <Tooltip title="View details">
-                            <IconButton size="small" onClick={() => navigate(`/assets/${asset.id}`)}>
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                            <Tooltip title="View details">
+                              <IconButton size="small" onClick={() => navigate(`/assets/${asset.id}`)}>
+                                <VisibilityIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            {can('asset:write') && (
+                              <>
+                                <Tooltip title="Edit asset">
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => {
+                                      setAssetToEdit(asset);
+                                      setEditDialogOpen(true);
+                                    }}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete asset">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
+                                      setAssetToDelete(asset);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                  >
+                                    <DeleteOutlineIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
@@ -316,13 +475,118 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
               onPageChange={(_, p) => setPage(p)}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-              rowsPerPageOptions={[10, 25, 50]}
+              rowsPerPageOptions={[10, 25, 50, 100]}
             />
           </>
         )}
       </Card>
 
       <AssetImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
+
+      {/* Inline Edit Asset Dialog */}
+      {assetToEdit && (
+        <AssetEditDialog
+          open={editDialogOpen}
+          asset={assetToEdit}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setAssetToEdit(null);
+          }}
+          onDeleted={() => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              next.delete(assetToEdit.id);
+              return next;
+            });
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog (Single or Bulk) */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => !isDeleting && setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteOutlineIcon />
+          {assetToDelete ? 'Delete Asset' : `Delete ${selectedIds.size} Selected Asset(s)`}
+        </DialogTitle>
+        <DialogContent>
+          {assetToDelete ? (
+            <Typography variant="body2">
+              Are you sure you want to delete asset <strong>{assetToDelete.assetTag}</strong> ({assetToDelete.name})?
+            </Typography>
+          ) : (
+            <>
+              <Typography variant="body2" sx={{ mb: 1.5 }}>
+                Are you sure you want to permanently delete <strong>{selectedIds.size}</strong> selected asset(s)?
+              </Typography>
+              <Box
+                sx={{
+                  maxHeight: 140,
+                  overflowY: 'auto',
+                  p: 1.5,
+                  bgcolor: 'action.hover',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: 'divider',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 0.5,
+                }}
+              >
+                {assets
+                  .filter((a) => selectedIds.has(a.id))
+                  .slice(0, 30)
+                  .map((a) => (
+                    <Chip key={a.id} label={a.assetTag} size="small" variant="outlined" />
+                  ))}
+                {selectedIds.size > 30 && (
+                  <Chip label={`+${selectedIds.size - 30} more`} size="small" color="primary" />
+                )}
+              </Box>
+            </>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+            This will remove associated assignments and ownership history. This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={isDeleting}
+            onClick={async () => {
+              setIsDeleting(true);
+              try {
+                if (assetToDelete) {
+                  await deleteAsset(assetToDelete.id);
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(assetToDelete.id);
+                    return next;
+                  });
+                } else {
+                  await deleteAssets(Array.from(selectedIds));
+                  setSelectedIds(new Set());
+                }
+                await reloadFromApi(dispatch);
+                setDeleteDialogOpen(false);
+                setAssetToDelete(null);
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+          >
+            {isDeleting ? 'Deleting…' : assetToDelete ? 'Delete Asset' : `Delete ${selectedIds.size} Assets`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

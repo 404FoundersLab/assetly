@@ -12,24 +12,34 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import InventoryIcon from '@mui/icons-material/Inventory2';
 import PeopleIcon from '@mui/icons-material/People';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAppSelector } from '../../hooks/storeHooks';
-import { usePermissions } from '../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, usePermissions } from '../../hooks/storeHooks';
 import { PageHeader } from '../../components/PageHeader';
 import { SearchField } from '../../components/SearchField';
 import { EmptyState } from '../../components/EmptyState';
 import { getEmployeeName } from '../../utils/format';
 import { employeeMatchesSearch } from '../../utils/search';
 import { EmployeeFormDialog } from './EmployeeFormDialog';
+import { deleteEmployee } from '../../services/api/entities';
+import { reloadFromApi } from '../../components/DataBootstrap';
+import type { Employee } from '../../types';
 
 export function EmployeesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const isHR = location.pathname.startsWith('/hr');
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
@@ -37,6 +47,10 @@ export function EmployeesPage() {
   const { can } = usePermissions();
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | undefined>(undefined);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const deptMap = useMemo(
     () => Object.fromEntries(departments.map((d) => [d.id, d.name])),
@@ -71,7 +85,14 @@ export function EmployeesPage() {
         breadcrumbs={isHR ? [{ label: 'HR Portal', to: '/hr' }, { label: 'Employees' }] : [{ label: 'Dashboard', to: '/' }, { label: 'Employees' }]}
         actions={
           can('employee:write') ? (
-            <Button startIcon={<AddIcon />} variant="contained" onClick={() => setFormOpen(true)}>
+            <Button
+              startIcon={<AddIcon />}
+              variant="contained"
+              onClick={() => {
+                setEditingEmployee(undefined);
+                setFormOpen(true);
+              }}
+            >
               Add Employee
             </Button>
           ) : undefined
@@ -151,14 +172,44 @@ export function EmployeesPage() {
                       />
                     </TableCell>
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <Tooltip title="View assigned assets">
-                        <IconButton
-                          size="small"
-                          onClick={() => navigate(getDetailRoute(emp.id))}
-                        >
-                          <InventoryIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                        <Tooltip title="View assigned assets">
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(getDetailRoute(emp.id))}
+                          >
+                            <InventoryIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {can('employee:write') && (
+                          <>
+                            <Tooltip title="Edit employee">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => {
+                                  setEditingEmployee(emp);
+                                  setFormOpen(true);
+                                }}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete employee">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => {
+                                  setEmployeeToDelete(emp);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -168,7 +219,63 @@ export function EmployeesPage() {
         )}
       </Card>
 
-      <EmployeeFormDialog open={formOpen} onClose={() => setFormOpen(false)} />
+      <EmployeeFormDialog
+        open={formOpen}
+        employee={editingEmployee}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingEmployee(undefined);
+        }}
+      />
+
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => !isDeleting && setDeleteConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Employee</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete{' '}
+            <strong>
+              {employeeToDelete
+                ? getEmployeeName(employeeToDelete.firstName, employeeToDelete.lastName)
+                : 'this employee'}
+            </strong>
+            ?
+          </Typography>
+          {employeeToDelete && (assetCountByEmployee[employeeToDelete.id] ?? 0) > 0 && (
+            <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 1 }}>
+              Warning: This employee currently has {assetCountByEmployee[employeeToDelete.id]} assigned asset(s). Those assets will become unassigned.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={isDeleting}
+            onClick={async () => {
+              if (!employeeToDelete) return;
+              setIsDeleting(true);
+              try {
+                await deleteEmployee(employeeToDelete.id);
+                await reloadFromApi(dispatch);
+                setDeleteConfirmOpen(false);
+                setEmployeeToDelete(null);
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

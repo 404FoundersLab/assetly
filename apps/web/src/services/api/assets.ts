@@ -94,6 +94,18 @@ export async function deleteAsset(id: string): Promise<void> {
   await apiFetch(`/api/assets/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteAssets(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  if (ids.length === 1) {
+    await deleteAsset(ids[0]);
+    return;
+  }
+  await apiFetch('/api/assets/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
+
 export async function assignAssetApi(payload: {
   assetId: string;
   employeeId: string;

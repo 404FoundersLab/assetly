@@ -51,10 +51,15 @@ export default async function handler(req: Request) {
         officialEmail = raw || null;
       }
 
-      const joiningEmail = (current.joining_email ?? current.email ?? '').trim().toLowerCase();
+      let joiningEmail = (current.joining_email ?? current.email ?? '').trim().toLowerCase();
+      if (body.joiningEmail !== undefined) {
+        const raw = String(body.joiningEmail ?? '').trim().toLowerCase();
+        if (raw) joiningEmail = raw;
+      }
+
       const nextLoginEmail = officialEmail ?? joiningEmail;
 
-      if (officialEmail && nextLoginEmail !== previousLoginEmail) {
+      if (nextLoginEmail && nextLoginEmail !== previousLoginEmail) {
         const migration = await migrateEmployeeLoginEmail(
           sql,
           auth.tenantId!,
@@ -65,7 +70,6 @@ export default async function handler(req: Request) {
         );
         if (!migration.ok) return error(migration.message, 409);
       } else if (
-        !officialEmail &&
         (body.firstName || body.lastName !== undefined) &&
         previousLoginEmail
       ) {

@@ -80,6 +80,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           employeeNumber: form.employeeNumber,
           firstName: form.firstName,
           lastName: form.lastName,
+          joiningEmail: form.joiningEmail.trim().toLowerCase(),
           officialEmail: form.officialEmail.trim() || undefined,
           jobTitle: form.jobTitle,
           departmentId: form.departmentId,
@@ -126,14 +127,13 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
             <TextField
               fullWidth
               required
-              label="Joining email"
+              label="Primary / Joining email"
               type="email"
               value={form.joiningEmail}
               onChange={(e) => setForm({ ...form, joiningEmail: e.target.value })}
-              disabled={Boolean(employee)}
               helperText={
                 employee
-                  ? 'Email provided when the employee joined. Sign-in moves to official email once assigned.'
+                  ? 'Main contact or joining email. Sign-in uses this unless an official email is set below.'
                   : 'Use the email the employee provided when joining. They sign in with this until an official company email is assigned.'
               }
             />
