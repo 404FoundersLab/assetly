@@ -32,6 +32,25 @@ export async function deleteEmployee(id: string): Promise<void> {
   await apiFetch(`/api/employees/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteEmployees(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  if (ids.length === 1) {
+    await deleteEmployee(ids[0]);
+    return;
+  }
+  await apiFetch('/api/employees/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export async function deleteAllEmployees(): Promise<void> {
+  await apiFetch('/api/employees/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ all: true }),
+  });
+}
+
 // Departments
 export async function createDepartment(dept: Omit<Department, 'id' | 'tenantId'> & { id?: string }): Promise<Department> {
   return apiFetch('/api/departments', { method: 'POST', body: JSON.stringify(dept) });
