@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import {
   Alert,
   Box,
@@ -88,6 +88,12 @@ export function AssetImportDialog({ open, onClose }: Props) {
   const [, startTransition] = useTransition();
 
   const existingTagSet = useMemo(() => new Set(existingTags), [existingTags]);
+
+  useEffect(() => {
+    if (open) {
+      void reloadFromApi(dispatch);
+    }
+  }, [open, dispatch]);
 
   const paginatedRows = useMemo(() => {
     const start = reviewPage * reviewRowsPerPage;
@@ -221,16 +227,23 @@ export function AssetImportDialog({ open, onClose }: Props) {
 
     setIsImporting(true);
     try {
-    const registry = new ImportEmployeeRegistry([], user!.tenantId);
+    const registry = new ImportEmployeeRegistry(employees, user!.tenantId);
     const resolvedRows = validRows.map((row) => {
-      if (!row.userRaw.trim()) return row;
-      const parsed = parseUserField(row.userRaw, registry.getNewEmployees(), registry);
+      const rawUser = (row.userRaw || row.assignedEmployeeName || '').trim();
+      if (!rawUser) {
+        return {
+          ...row,
+          assignedEmployeeId: undefined,
+          assignedEmployeeName: undefined,
+        };
+      }
+      const parsed = parseUserField(rawUser, employees, registry);
       return {
         ...row,
         location: row.location || parsed.location,
-        status: parsed.assignedEmployeeId ? 'deployed' as const : row.status,
-        assignedEmployeeId: row.assignedEmployeeId ?? parsed.assignedEmployeeId,
-        assignedEmployeeName: row.assignedEmployeeName ?? parsed.assignedEmployeeName,
+        status: parsed.assignedEmployeeId ? ('deployed' as const) : row.status,
+        assignedEmployeeId: parsed.assignedEmployeeId ?? row.assignedEmployeeId,
+        assignedEmployeeName: parsed.assignedEmployeeName ?? row.assignedEmployeeName,
         notes: row.notes ?? parsed.notes,
       };
     });
@@ -264,6 +277,7 @@ export function AssetImportDialog({ open, onClose }: Props) {
         location: row.location || 'HQ',
         vendorId: guessVendorId(manufacturer, vendors),
         assignedEmployeeId: row.assignedEmployeeId,
+        assignedEmployeeName: row.assignedEmployeeName,
         warrantyExpiresAt: warrantyDate,
         notes: row.notes,
         createdAt: now,

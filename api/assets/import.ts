@@ -25,7 +25,6 @@ export default async function handler(req: Request) {
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
   if (!auth.tenantId! && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
 
   try {
     const sql = await getTenantSql(auth.tenantId!);
@@ -50,41 +49,129 @@ export default async function handler(req: Request) {
       await sql`DELETE FROM employees WHERE tenant_id = ${auth.tenantId!}`;
     }
 
+    // 1. Fetch valid reference data to safeguard foreign key constraints
+    const existingEmps = await sql`
+      SELECT id, email, employee_number, LOWER(TRIM(first_name || ' ' || last_name)) as full_name
+      FROM employees
+      WHERE tenant_id = ${auth.tenantId!}
+    ` as { id: string; email: string; employee_number: string | null; full_name: string }[];
+
+    const validEmployeeIds = new Set<string>(existingEmps.map((e) => e.id));
+    const empIdByEmail = new Map<string, string>();
+    const empIdByNumber = new Map<string, string>();
+    const empIdByName = new Map<string, string>();
+
+    for (const e of existingEmps) {
+      if (e.email) empIdByEmail.set(e.email.toLowerCase().trim(), e.id);
+      if (e.employee_number) empIdByNumber.set(e.employee_number.trim(), e.id);
+      if (e.full_name) empIdByName.set(e.full_name, e.id);
+    }
+
+    const existingDepts = await sql`
+      SELECT id FROM departments WHERE tenant_id = ${auth.tenantId!}
+    ` as { id: string }[];
+    const validDeptIds = new Set<string>(existingDepts.map((d) => d.id));
+
+    const existingVendors = await sql`
+      SELECT id FROM vendors WHERE tenant_id = ${auth.tenantId!}
+    ` as { id: string }[];
+    const validVendorIds = new Set<string>(existingVendors.map((v) => v.id));
+
+    // 2. Import or match employees safely
     const empIdMap = new Map<string, string>();
 
     for (const emp of employees) {
-      const oldId = String(emp.id ?? '');
-      const id = isUuid(oldId) ? oldId : crypto.randomUUID();
+      const oldId = String(emp.id ?? '').trim();
       let departmentId = emp.departmentId ? String(emp.departmentId) : null;
-      if (departmentId && !isUuid(departmentId)) departmentId = null;
+      if (departmentId && (!isUuid(departmentId) || !validDeptIds.has(departmentId))) {
+        departmentId = null;
+      }
 
       const firstName = String(emp.firstName ?? '').trim() || 'Employee';
       const lastName = String(emp.lastName ?? '').trim() || 'Staff';
-      const fallbackTag = id.slice(0, 8);
-      const email = String(emp.email ?? '').trim().toLowerCase() || `${firstName.toLowerCase().replace(/[^a-z0-9]/g, '')}.${fallbackTag}@solum-group.com`;
+      const fullName = `${firstName} ${lastName}`.toLowerCase().trim();
+      const fallbackTag = (isUuid(oldId) ? oldId : crypto.randomUUID()).slice(0, 8);
+      const email =
+        String(emp.email ?? '').trim().toLowerCase() ||
+        `${firstName.toLowerCase().replace(/[^a-z0-9]/g, '')}.${fallbackTag}@solum-group.com`;
+      let empNum = emp.employeeNumber ? String(emp.employeeNumber).trim() || null : null;
 
-      try {
-        const empRows = await sql`
-          INSERT INTO employees (
-            id, tenant_id, employee_number, first_name, last_name, email,
-            job_title, department_id, status, hire_date
-          ) VALUES (
-            ${id}, ${auth.tenantId!}, ${String(emp.employeeNumber ?? '')},
-            ${firstName}, ${lastName},
-            ${email}, ${String(emp.jobTitle ?? 'Staff')},
-            ${departmentId}, ${String(emp.status ?? 'active')},
-            ${emp.hireDate ? String(emp.hireDate) : null}
-          )
-          ON CONFLICT (tenant_id, email) DO UPDATE SET
-            first_name = EXCLUDED.first_name,
-            last_name = EXCLUDED.last_name
-          RETURNING id
-        ` as { id: string }[];
+      let effectiveId: string | null = null;
 
-        const effectiveId = empRows[0]?.id || id;
+      // Check if employee already exists in DB
+      if (empIdByEmail.has(email)) {
+        effectiveId = empIdByEmail.get(email)!;
+      } else if (empNum && empIdByNumber.has(empNum)) {
+        effectiveId = empIdByNumber.get(empNum)!;
+      } else if (empIdByName.has(fullName)) {
+        effectiveId = empIdByName.get(fullName)!;
+      } else if (isUuid(oldId) && validEmployeeIds.has(oldId)) {
+        effectiveId = oldId;
+      }
+
+      if (effectiveId) {
+        // Update employee details
+        try {
+          await sql`
+            UPDATE employees SET
+              first_name = ${firstName},
+              last_name = ${lastName},
+              job_title = COALESCE(NULLIF(${String(emp.jobTitle ?? '')}, ''), job_title),
+              status = COALESCE(NULLIF(${String(emp.status ?? '')}, ''), status)
+            WHERE id = ${effectiveId} AND tenant_id = ${auth.tenantId!}
+          `;
+        } catch (updErr) {
+          console.warn('Could not update employee details:', updErr);
+        }
+      } else {
+        // Avoid duplicate employee_number collision
+        if (empNum && empIdByNumber.has(empNum)) {
+          empNum = null;
+        }
+
+        const newId = isUuid(oldId) && !validEmployeeIds.has(oldId) ? oldId : crypto.randomUUID();
+
+        try {
+          const empRows = await sql`
+            INSERT INTO employees (
+              id, tenant_id, employee_number, first_name, last_name, email,
+              job_title, department_id, status, hire_date
+            ) VALUES (
+              ${newId}, ${auth.tenantId!}, ${empNum},
+              ${firstName}, ${lastName},
+              ${email}, ${String(emp.jobTitle ?? 'Staff')},
+              ${departmentId}, ${String(emp.status ?? 'active')},
+              ${emp.hireDate ? String(emp.hireDate) : null}
+            )
+            ON CONFLICT (tenant_id, email) DO UPDATE SET
+              first_name = EXCLUDED.first_name,
+              last_name = EXCLUDED.last_name
+            RETURNING id
+          ` as { id: string }[];
+
+          effectiveId = empRows[0]?.id || newId;
+        } catch (empErr) {
+          console.warn('Could not insert employee:', empErr);
+          try {
+            const fallback = await sql`
+              SELECT id FROM employees WHERE tenant_id = ${auth.tenantId!} AND email = ${email} LIMIT 1
+            ` as { id: string }[];
+            if (fallback.length > 0) {
+              effectiveId = fallback[0].id;
+            }
+          } catch {
+            /* ignore fallback error */
+          }
+        }
+      }
+
+      if (effectiveId) {
+        validEmployeeIds.add(effectiveId);
         if (oldId) empIdMap.set(oldId, effectiveId);
-      } catch (empErr) {
-        console.warn('Could not insert employee:', empErr);
+        empIdMap.set(effectiveId, effectiveId);
+        empIdByEmail.set(email, effectiveId);
+        if (empNum) empIdByNumber.set(empNum, effectiveId);
+        empIdByName.set(fullName, effectiveId);
       }
     }
 
@@ -92,16 +179,48 @@ export default async function handler(req: Request) {
 
     for (const item of items) {
       const itemCopy: Record<string, unknown> = { ...item, qrOrigin: body.qrOrigin };
-      if (item.assignedEmployeeId) {
-        const mapped = empIdMap.get(String(item.assignedEmployeeId));
-        if (mapped) itemCopy.assignedEmployeeId = mapped;
+      let resolvedEmployeeId: string | null = null;
+      const rawAssigned = item.assignedEmployeeId ? String(item.assignedEmployeeId).trim() : null;
+
+      if (rawAssigned) {
+        if (empIdMap.has(rawAssigned)) {
+          resolvedEmployeeId = empIdMap.get(rawAssigned)!;
+        } else if (validEmployeeIds.has(rawAssigned)) {
+          resolvedEmployeeId = rawAssigned;
+        } else if (empIdByEmail.has(rawAssigned.toLowerCase())) {
+          resolvedEmployeeId = empIdByEmail.get(rawAssigned.toLowerCase())!;
+        } else if (empIdByNumber.has(rawAssigned)) {
+          resolvedEmployeeId = empIdByNumber.get(rawAssigned)!;
+        } else if (empIdByName.has(rawAssigned.toLowerCase())) {
+          resolvedEmployeeId = empIdByName.get(rawAssigned.toLowerCase())!;
+        }
       }
+
+      // Check name fallback if not resolved yet
+      if (!resolvedEmployeeId && item.assignedEmployeeName) {
+        const nameKey = String(item.assignedEmployeeName).trim().toLowerCase();
+        if (empIdByName.has(nameKey)) {
+          resolvedEmployeeId = empIdByName.get(nameKey)!;
+        }
+      }
+
+      // CRITICAL GUARANTEE: Never insert an assignedEmployeeId that is not present in PostgreSQL employees table
+      if (resolvedEmployeeId && !validEmployeeIds.has(resolvedEmployeeId)) {
+        console.warn(`Asset tag "${item.assetTag}": assigned employee "${rawAssigned}" not in DB. Setting to null.`);
+        resolvedEmployeeId = null;
+      }
+
+      itemCopy.assignedEmployeeId = resolvedEmployeeId;
       itemCopy.id = crypto.randomUUID();
 
       const payload = assetInsertPayload(itemCopy, auth.tenantId!);
 
-      if (payload.vendorId && !isUuid(payload.vendorId)) payload.vendorId = null;
-      if (payload.assignedEmployeeId && !isUuid(payload.assignedEmployeeId)) {
+      // Guard vendor_id against foreign key failure
+      if (payload.vendorId && !validVendorIds.has(payload.vendorId)) {
+        payload.vendorId = null;
+      }
+      // Re-guard assignedEmployeeId against foreign key failure
+      if (payload.assignedEmployeeId && !validEmployeeIds.has(payload.assignedEmployeeId)) {
         payload.assignedEmployeeId = null;
       }
 
@@ -139,7 +258,7 @@ export default async function handler(req: Request) {
         const asset = mapAsset(rows[0]);
         created.push(asset);
 
-        if (payload.assignedEmployeeId && body.assignedBy) {
+        if (payload.assignedEmployeeId && validEmployeeIds.has(payload.assignedEmployeeId) && body.assignedBy) {
           try {
             await sql`
               INSERT INTO asset_assignments (tenant_id, asset_id, employee_id, assigned_by, notes)
