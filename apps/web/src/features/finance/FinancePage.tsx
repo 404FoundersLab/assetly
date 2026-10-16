@@ -26,8 +26,16 @@ import {
   Chip,
   Button,
   Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import BuildIcon from '@mui/icons-material/Build';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -44,8 +52,16 @@ import { PageHeader } from '../../components/PageHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { formatCurrency, formatDate, getEmployeeName } from '../../utils/format';
 import { CATEGORY_LABELS } from '../../data/demoData';
-import { updateExpenseStatus } from '../../store/expensesSlice';
+import {
+  updateExpenseStatus,
+  addExpenseClaim,
+  deleteExpenseClaim,
+  type ExpenseCategory,
+  type ExpenseStatus,
+} from '../../store/expensesSlice';
 import { IT_SPEND_TABS, type ItSpendTab } from '../../constants/routes';
+import { AssetEditDialog } from '../assets/AssetEditDialog';
+import type { Asset } from '../../types';
 import {
   BarChart,
   Bar,
@@ -79,6 +95,47 @@ export function FinancePage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [expenseFilter, setExpenseFilter] = useState<string>('all');
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [addClaimOpen, setAddClaimOpen] = useState(false);
+  const [newClaim, setNewClaim] = useState({
+    employeeId: '',
+    title: '',
+    category: 'equipment' as ExpenseCategory,
+    amount: '',
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    status: 'submitted' as ExpenseStatus,
+  });
+
+  const handleCreateClaim = () => {
+    if (!newClaim.title.trim() || !newClaim.amount) return;
+    dispatch(
+      addExpenseClaim({
+        employeeId: newClaim.employeeId || employees[0]?.id || 'emp-direct',
+        title: newClaim.title.trim(),
+        category: newClaim.category,
+        amount: Number(newClaim.amount) || 0,
+        currency: 'INR',
+        date: newClaim.date,
+        description: newClaim.description.trim(),
+        receiptUrl: null,
+        status: newClaim.status,
+        approvedBy: newClaim.status === 'approved' ? 'finance-admin' : null,
+        rejectionReason: null,
+        paidAt: newClaim.status === 'paid' ? new Date().toISOString() : null,
+      }),
+    );
+    setAddClaimOpen(false);
+    setNewClaim({
+      employeeId: employees[0]?.id || '',
+      title: '',
+      category: 'equipment',
+      amount: '',
+      date: new Date().toISOString().split('T')[0],
+      description: '',
+      status: 'submitted',
+    });
+  };
 
   useEffect(() => {
     const tab = searchParams.get('tab') as ItSpendTab | null;
@@ -354,11 +411,18 @@ export function FinancePage() {
                             <TableCell align="right">{formatCurrency(asset.purchaseCost)}</TableCell>
                             <TableCell align="right">{formatCurrency(asset.repairCost ?? 0)}</TableCell>
                             <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                              <Tooltip title="View asset">
-                                <IconButton size="small" onClick={() => navigate(`/assets/${asset.id}`)}>
-                                  <VisibilityIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
+                              <Stack direction="row" spacing={0.5} justifyContent="center">
+                                <Tooltip title="View asset">
+                                  <IconButton size="small" onClick={() => navigate(`/assets/${asset.id}`)}>
+                                    <VisibilityIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Edit asset costs">
+                                  <IconButton size="small" color="primary" onClick={() => setEditingAsset(asset)}>
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
                             </TableCell>
                           </TableRow>
                       ))}
@@ -696,17 +760,33 @@ export function FinancePage() {
               </Grid>
               <Card>
                 <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }} flexWrap="wrap" gap={2}>
                     <Typography variant="h6" fontWeight={700}>Expense Claims</Typography>
-                    <FormControl size="small" sx={{ minWidth: 160 }}>
-                      <Select value={expenseFilter} onChange={e => setExpenseFilter(e.target.value)} displayEmpty>
-                        <MenuItem value="all">All Statuses</MenuItem>
-                        <MenuItem value="submitted">Pending</MenuItem>
-                        <MenuItem value="approved">Approved</MenuItem>
-                        <MenuItem value="paid">Paid</MenuItem>
-                        <MenuItem value="rejected">Rejected</MenuItem>
-                      </Select>
-                    </FormControl>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <FormControl size="small" sx={{ minWidth: 150 }}>
+                        <Select value={expenseFilter} onChange={e => setExpenseFilter(e.target.value)} displayEmpty>
+                          <MenuItem value="all">All Statuses</MenuItem>
+                          <MenuItem value="submitted">Pending</MenuItem>
+                          <MenuItem value="approved">Approved</MenuItem>
+                          <MenuItem value="paid">Paid</MenuItem>
+                          <MenuItem value="rejected">Rejected</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() => {
+                          setNewClaim((prev) => ({
+                            ...prev,
+                            employeeId: prev.employeeId || employees[0]?.id || '',
+                          }));
+                          setAddClaimOpen(true);
+                        }}
+                      >
+                        Add Expense Claim
+                      </Button>
+                    </Stack>
                   </Stack>
                   <TableContainer>
                     <Table size="small">
@@ -722,51 +802,84 @@ export function FinancePage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {expenses.filter(e => expenseFilter === 'all' || e.status === expenseFilter).map(exp => {
-                          const emp = employeeMap[exp.employeeId];
-                          return (
-                            <TableRow key={exp.id} hover>
-                              <TableCell>
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                  <Avatar sx={{ width: 28, height: 28, bgcolor: 'primary.main', fontSize: '0.7rem' }}>
-                                    {emp ? `${emp.firstName[0]}${emp.lastName[0]}` : '?'}
-                                  </Avatar>
-                                  <Typography variant="body2" fontWeight={600} sx={{ cursor: 'pointer', color: 'primary.main' }} onClick={() => navigate(`/hr/employees/${exp.employeeId}`)}>
-                                    {emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown'}
-                                  </Typography>
-                                </Stack>
-                              </TableCell>
-                              <TableCell><Typography variant="body2" noWrap sx={{ maxWidth: 160 }}>{exp.title}</Typography></TableCell>
-                              <TableCell><Chip label={exp.category.replace('_', ' ')} size="small" variant="outlined" sx={{ textTransform: 'capitalize' }} /></TableCell>
-                              <TableCell>{exp.date}</TableCell>
-                              <TableCell align="right"><Typography variant="body2" fontWeight={700}>{formatCurrency(exp.amount)}</Typography></TableCell>
-                              <TableCell>
-                                <Chip label={exp.status} size="small"
-                                  color={exp.status === 'paid' ? 'success' : exp.status === 'approved' ? 'primary' : exp.status === 'submitted' ? 'warning' : exp.status === 'rejected' ? 'error' : 'default'}
-                                  sx={{ textTransform: 'capitalize', fontWeight: 600 }} />
-                              </TableCell>
-                              <TableCell align="right">
-                                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                                  {exp.status === 'submitted' && (
-                                    <>
-                                      <Tooltip title="Approve">
-                                        <IconButton size="small" color="success" onClick={() => dispatch(updateExpenseStatus({ id: exp.id, status: 'approved', approvedBy: 'finance-admin' }))}><ThumbUpIcon fontSize="small" /></IconButton>
+                        {expenses.filter(e => expenseFilter === 'all' || e.status === expenseFilter).length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                              <ReceiptIcon sx={{ fontSize: 44, color: 'text.disabled', mb: 1, display: 'block', mx: 'auto' }} />
+                              <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+                                No expense claims found
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                {expenses.length === 0
+                                  ? 'Record employee expense claims, reimbursements, or equipment allowances.'
+                                  : 'No claims match the selected filter.'}
+                              </Typography>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={() => {
+                                  setNewClaim((prev) => ({
+                                    ...prev,
+                                    employeeId: prev.employeeId || employees[0]?.id || '',
+                                  }));
+                                  setAddClaimOpen(true);
+                                }}
+                              >
+                                Record First Claim
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          expenses.filter(e => expenseFilter === 'all' || e.status === expenseFilter).map(exp => {
+                            const emp = employeeMap[exp.employeeId];
+                            return (
+                              <TableRow key={exp.id} hover>
+                                <TableCell>
+                                  <Stack direction="row" spacing={1} alignItems="center">
+                                    <Avatar sx={{ width: 28, height: 28, bgcolor: 'primary.main', fontSize: '0.7rem' }}>
+                                      {emp ? `${emp.firstName[0] || ''}${emp.lastName[0] || ''}` : '?'}
+                                    </Avatar>
+                                    <Typography variant="body2" fontWeight={600} sx={{ cursor: 'pointer', color: 'primary.main' }} onClick={() => emp && navigate(`/hr/employees/${exp.employeeId}`)}>
+                                      {emp ? `${emp.firstName} ${emp.lastName}` : 'Unassigned / Direct'}
+                                    </Typography>
+                                  </Stack>
+                                </TableCell>
+                                <TableCell><Typography variant="body2" noWrap sx={{ maxWidth: 160 }}>{exp.title}</Typography></TableCell>
+                                <TableCell><Chip label={exp.category.replace('_', ' ')} size="small" variant="outlined" sx={{ textTransform: 'capitalize' }} /></TableCell>
+                                <TableCell>{exp.date}</TableCell>
+                                <TableCell align="right"><Typography variant="body2" fontWeight={700}>{formatCurrency(exp.amount)}</Typography></TableCell>
+                                <TableCell>
+                                  <Chip label={exp.status} size="small"
+                                    color={exp.status === 'paid' ? 'success' : exp.status === 'approved' ? 'primary' : exp.status === 'submitted' ? 'warning' : exp.status === 'rejected' ? 'error' : 'default'}
+                                    sx={{ textTransform: 'capitalize', fontWeight: 600 }} />
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                    {exp.status === 'submitted' && (
+                                      <>
+                                        <Tooltip title="Approve">
+                                          <IconButton size="small" color="success" onClick={() => dispatch(updateExpenseStatus({ id: exp.id, status: 'approved', approvedBy: 'finance-admin' }))}><ThumbUpIcon fontSize="small" /></IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Reject">
+                                          <IconButton size="small" color="error" onClick={() => dispatch(updateExpenseStatus({ id: exp.id, status: 'rejected', rejectionReason: 'Not approved.' }))}><ThumbDownIcon fontSize="small" /></IconButton>
+                                        </Tooltip>
+                                      </>
+                                    )}
+                                    {exp.status === 'approved' && (
+                                      <Tooltip title="Mark as Paid">
+                                        <IconButton size="small" color="primary" onClick={() => dispatch(updateExpenseStatus({ id: exp.id, status: 'paid' }))}><PaidIcon fontSize="small" /></IconButton>
                                       </Tooltip>
-                                      <Tooltip title="Reject">
-                                        <IconButton size="small" color="error" onClick={() => dispatch(updateExpenseStatus({ id: exp.id, status: 'rejected', rejectionReason: 'Not approved.' }))}><ThumbDownIcon fontSize="small" /></IconButton>
-                                      </Tooltip>
-                                    </>
-                                  )}
-                                  {exp.status === 'approved' && (
-                                    <Tooltip title="Mark as Paid">
-                                      <IconButton size="small" color="primary" onClick={() => dispatch(updateExpenseStatus({ id: exp.id, status: 'paid' }))}><PaidIcon fontSize="small" /></IconButton>
+                                    )}
+                                    <Tooltip title="Delete claim">
+                                      <IconButton size="small" color="default" onClick={() => dispatch(deleteExpenseClaim(exp.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
                                     </Tooltip>
-                                  )}
-                                </Stack>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                                  </Stack>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -776,6 +889,125 @@ export function FinancePage() {
           )}
         </>
       )}
+      {/* Quick Edit Asset Dialog from Asset Valuation */}
+      {editingAsset && (
+        <AssetEditDialog
+          open={Boolean(editingAsset)}
+          asset={editingAsset}
+          onClose={() => setEditingAsset(null)}
+        />
+      )}
+
+      {/* Add Expense Claim Dialog */}
+      <Dialog open={addClaimOpen} onClose={() => setAddClaimOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Expense Claim</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12}>
+              <TextField
+                select
+                fullWidth
+                label="Employee"
+                value={newClaim.employeeId}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, employeeId: e.target.value }))}
+                SelectProps={{ displayEmpty: true }}
+              >
+                {employees.map((emp) => (
+                  <MenuItem key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName} ({emp.employeeNumber || emp.jobTitle || emp.email})
+                  </MenuItem>
+                ))}
+                {employees.length === 0 && (
+                  <MenuItem value="emp-direct">Direct / General Company Expense</MenuItem>
+                )}
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Claim Title"
+                placeholder="e.g. Ergonomic chair, client travel cab fare"
+                value={newClaim.title}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, title: e.target.value }))}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Category"
+                value={newClaim.category}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, category: e.target.value as ExpenseCategory }))}
+              >
+                <MenuItem value="equipment">Equipment</MenuItem>
+                <MenuItem value="travel">Travel</MenuItem>
+                <MenuItem value="meals">Meals</MenuItem>
+                <MenuItem value="training">Training</MenuItem>
+                <MenuItem value="accommodation">Accommodation</MenuItem>
+                <MenuItem value="communication">Communication</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Amount (₹)"
+                value={newClaim.amount}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, amount: e.target.value }))}
+                inputProps={{ min: 0 }}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="date"
+                label="Date"
+                InputLabelProps={{ shrink: true }}
+                value={newClaim.date}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, date: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Initial Status"
+                value={newClaim.status}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, status: e.target.value as ExpenseStatus }))}
+              >
+                <MenuItem value="submitted">Submitted (Pending)</MenuItem>
+                <MenuItem value="draft">Draft</MenuItem>
+                <MenuItem value="approved">Approved</MenuItem>
+                <MenuItem value="paid">Paid</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Description & Notes"
+                placeholder="Business justification or receipts detail"
+                value={newClaim.description}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, description: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddClaimOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateClaim}
+            disabled={!newClaim.title.trim() || !newClaim.amount}
+          >
+            Create Claim
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

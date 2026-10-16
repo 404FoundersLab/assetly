@@ -230,16 +230,39 @@ export function AssetFormDialog({ open, onClose }: Props) {
             <TextField
               fullWidth
               type="number"
-              label="Purchase Cost"
+              label="Purchase Cost (₹)"
               value={form.purchaseCost}
               onChange={(e) => {
                 const cost = Number(e.target.value);
                 handleChange('purchaseCost', cost);
-                handleChange('currentValue', cost);
+                if (!form.currentValue || form.currentValue === form.purchaseCost) {
+                  handleChange('currentValue', cost);
+                }
               }}
+              inputProps={{ min: 0 }}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              type="number"
+              label="Current Value (₹)"
+              value={form.currentValue}
+              onChange={(e) => handleChange('currentValue', Number(e.target.value))}
+              inputProps={{ min: 0 }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              type="number"
+              label="Repair Cost (₹)"
+              value={form.repairCost}
+              onChange={(e) => handleChange('repairCost', Number(e.target.value))}
+              inputProps={{ min: 0 }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
               type="date"
@@ -249,7 +272,7 @@ export function AssetFormDialog({ open, onClose }: Props) {
               onChange={(e) => handleChange('purchaseDate', e.target.value)}
             />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
               type="date"

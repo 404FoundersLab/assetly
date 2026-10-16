@@ -193,11 +193,14 @@ export function AssetEditDialog({ open, onClose, asset, onDeleted }: Props) {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth type="number" label="Purchase Cost" value={form.purchaseCost} onChange={(e) => set('purchaseCost', Number(e.target.value))} />
+          <Grid item xs={12} sm={4}>
+            <TextField fullWidth type="number" label="Purchase Cost (₹)" value={form.purchaseCost ?? 0} onChange={(e) => set('purchaseCost', Number(e.target.value))} inputProps={{ min: 0 }} />
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth type="number" label="Current Value" value={form.currentValue} onChange={(e) => set('currentValue', Number(e.target.value))} />
+          <Grid item xs={12} sm={4}>
+            <TextField fullWidth type="number" label="Current Value (₹)" value={form.currentValue ?? 0} onChange={(e) => set('currentValue', Number(e.target.value))} inputProps={{ min: 0 }} />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField fullWidth type="number" label="Repair Cost (₹)" value={form.repairCost ?? 0} onChange={(e) => set('repairCost', Number(e.target.value))} inputProps={{ min: 0 }} />
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
