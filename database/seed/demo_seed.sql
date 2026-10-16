@@ -33,7 +33,7 @@ BEGIN
         'active',
         v_plan_id,
         NOW() + INTERVAL '365 days',
-        '{"timezone": "America/New_York", "locale": "en-US"}'::JSONB
+        '{"timezone": "Asia/Kolkata", "locale": "en-IN"}'::JSONB
     )
     RETURNING id INTO v_tenant_id;
 

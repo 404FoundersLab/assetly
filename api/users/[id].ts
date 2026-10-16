@@ -31,6 +31,12 @@ export default async function handler(req: Request) {
     const existingTenantId = await getUserTenantId(sql, id);
     if (!existingTenantId) return error('User not found', 404);
 
+    const targetUser = await sql`SELECT role FROM users WHERE id = ${id}` as { role: string }[];
+    if (targetUser.length === 0) return error('User not found', 404);
+    if (auth.role !== PLATFORM_ADMIN_ROLE && targetUser[0].role === PLATFORM_ADMIN_ROLE) {
+      return error('Forbidden: Platform admin accounts cannot be modified or deleted by tenant administrators', 403);
+    }
+
     const tenantDenied = assertTenantAccess(auth, existingTenantId);
     if (tenantDenied) return tenantDenied;
 

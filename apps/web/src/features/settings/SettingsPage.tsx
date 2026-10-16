@@ -98,7 +98,7 @@ export function SettingsPage() {
                 label="Subscription Plan"
                 value={<Chip label={tenant?.plan ?? '—'} color="primary" size="small" />}
               />
-              <SettingRow label="Timezone" value="America/New_York" />
+              <SettingRow label="Timezone" value="Asia/Kolkata (IST)" />
             </Box>
           </SettingsCard>
         </SettingsCardGridItem>

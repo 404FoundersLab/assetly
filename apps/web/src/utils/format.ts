@@ -6,7 +6,8 @@ export function formatDate(date: string | null | undefined): string {
   if (!date) return '—';
   const d = new Date(date);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -17,7 +18,8 @@ export function formatDateTime(date: string | null | undefined): string {
   if (!date) return '—';
   const d = new Date(date);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-US', {
+  return d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     year: 'numeric',
     month: 'short',
     day: 'numeric',

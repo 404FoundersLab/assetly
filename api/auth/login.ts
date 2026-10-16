@@ -294,16 +294,18 @@ export default async function handler(req: Request) {
     }
 
     try {
-      await insertAuditLog({
-        tenantId: userRecord.tenantId,
-        userId: userRecord.id,
-        userName: `${userRecord.firstName} ${userRecord.lastName}`,
-        action: 'LOGIN',
-        entityType: 'user',
-        entityId: userRecord.id,
-        entityLabel: userRecord.email,
-        details: 'User signed in',
-      });
+      if (userRecord.role !== 'platform_admin') {
+        await insertAuditLog({
+          tenantId: userRecord.tenantId,
+          userId: userRecord.id,
+          userName: `${userRecord.firstName} ${userRecord.lastName}`,
+          action: 'LOGIN',
+          entityType: 'user',
+          entityId: userRecord.id,
+          entityLabel: userRecord.email,
+          details: 'User signed in',
+        });
+      }
     } catch {
       /* login should succeed even if audit log table is unavailable */
     }

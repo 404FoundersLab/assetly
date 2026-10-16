@@ -29,7 +29,7 @@ import { useAppDispatch, useAppSelector, useAuthUser, usePermissions } from '../
 import { createUser, deleteUserThunk, fetchUsers } from '../../store/usersSlice';
 import { PageHeader } from '../../components/PageHeader';
 import { getRoleLabel } from '../../utils/userDisplay';
-import { assignableRolesFor, ROLE_DESCRIPTIONS } from '../../constants/roles';
+import { ROLE_DESCRIPTIONS, TENANT_ASSIGNABLE_ROLES } from '../../constants/roles';
 import type { UserRole } from '../../types';
 import { LoadingButton } from '../../components/Loader';
 
@@ -46,8 +46,10 @@ export function TenantUsersPage() {
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const tenantUsers = allUsers.filter((u) => u.tenantId === user?.tenantId);
-  const roleOptions = assignableRolesFor(user?.role);
+  const tenantUsers = allUsers.filter(
+    (u) => u.tenantId === user?.tenantId && u.role !== 'platform_admin',
+  );
+  const roleOptions = TENANT_ASSIGNABLE_ROLES;
 
   useEffect(() => {
     if (can('user:manage')) {

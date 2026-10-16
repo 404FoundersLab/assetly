@@ -28,10 +28,18 @@ const actionColors: Record<string, 'success' | 'info' | 'warning' | 'error' | 'd
 
 export function AuditPage() {
   const logs = useAppSelector((s) => s.audit.items);
+  const users = useAppSelector((s) => s.users.items);
   const [actionFilter, setActionFilter] = useState('all');
   const [entityFilter, setEntityFilter] = useState('all');
 
+  const platformAdminIds = new Set(
+    users.filter((u) => u.role === 'platform_admin').map((u) => u.id),
+  );
+
   const filtered = logs.filter((log) => {
+    if (log.userId && platformAdminIds.has(log.userId)) return false;
+    const lowerUser = (log.userName ?? '').toLowerCase();
+    if (lowerUser.includes('platform admin') || lowerUser.includes('assetly admin')) return false;
     const matchAction = actionFilter === 'all' || log.action === actionFilter;
     const matchEntity = entityFilter === 'all' || log.entityType === entityFilter;
     return matchAction && matchEntity;

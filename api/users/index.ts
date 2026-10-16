@@ -28,9 +28,23 @@ export default async function handler(req: Request) {
     if (req.method === 'GET') {
       let rows;
       if (auth.role === PLATFORM_ADMIN_ROLE) {
-        rows = await sql`SELECT * FROM users ORDER BY created_at DESC` as DbUser[];
+        const url = new URL(req.url);
+        const tenantIdParam = url.searchParams.get('tenantId');
+        if (tenantIdParam) {
+          rows = await sql`
+            SELECT * FROM users 
+            WHERE tenant_id = ${tenantIdParam} AND role != 'platform_admin' 
+            ORDER BY created_at DESC
+          ` as DbUser[];
+        } else {
+          rows = await sql`SELECT * FROM users ORDER BY created_at DESC` as DbUser[];
+        }
       } else {
-        rows = await sql`SELECT * FROM users WHERE tenant_id = ${auth.tenantId || ''} ORDER BY created_at DESC` as DbUser[];
+        rows = await sql`
+          SELECT * FROM users 
+          WHERE tenant_id = ${auth.tenantId || ''} AND role != 'platform_admin' 
+          ORDER BY created_at DESC
+        ` as DbUser[];
       }
       return json(rows.map(mapUser));
     }

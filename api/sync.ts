@@ -75,7 +75,34 @@ export default async function handler(req: Request) {
 
     const auditLogsQuery = (auth.role === 'employee')
       ? sql`SELECT * FROM audit_logs WHERE FALSE`
-      : sql`SELECT * FROM audit_logs WHERE tenant_id = ${auth.tenantId!} ORDER BY created_at DESC LIMIT 200`;
+      : sql`
+          SELECT al.* 
+          FROM audit_logs al
+          WHERE al.tenant_id = ${auth.tenantId!}
+            AND (
+              al.user_id IS NULL OR al.user_id::text NOT IN (
+                SELECT id::text FROM users WHERE role = 'platform_admin' AND id IS NOT NULL
+              )
+            )
+            AND NOT (
+              al.entity_type = 'user' AND al.entity_id::text IN (
+                SELECT id::text FROM users WHERE role = 'platform_admin' AND id IS NOT NULL
+              )
+            )
+            AND (
+              al.entity_label IS NULL OR lower(al.entity_label) NOT IN (
+                SELECT lower(email) FROM users WHERE role = 'platform_admin' AND email IS NOT NULL
+              )
+            )
+            AND (
+              al.user_name IS NULL OR (
+                lower(al.user_name) NOT LIKE '%platform admin%' 
+                AND lower(al.user_name) NOT LIKE '%assetly admin%'
+              )
+            )
+          ORDER BY al.created_at DESC 
+          LIMIT 200
+        `;
 
     const [assets, employees, departments, vendors, assignments, ownershipHistory, auditLogs] =
       (await Promise.all([
