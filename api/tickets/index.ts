@@ -50,6 +50,32 @@ export function mapTicket(row: DbTicket) {
 const VALID_CATEGORIES = ['hardware', 'software', 'access', 'network', 'other'];
 const VALID_PRIORITIES  = ['low', 'medium', 'high', 'critical'];
 
+export async function ensureSupportTicketsTable(sql: any): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      employee_id   UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      title         TEXT NOT NULL,
+      description   TEXT NOT NULL,
+      category      TEXT NOT NULL CHECK (category IN ('hardware','software','access','network','other')),
+      priority      TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high','critical')),
+      status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','resolved','closed')),
+      assigned_to   UUID REFERENCES users(id) ON DELETE SET NULL,
+      resolution_notes TEXT,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+  try {
+    await sql`CREATE INDEX IF NOT EXISTS support_tickets_tenant_idx    ON support_tickets(tenant_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS support_tickets_employee_idx  ON support_tickets(employee_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS support_tickets_status_idx    ON support_tickets(status);`;
+  } catch (err) {
+    console.warn('[support_tickets] Warning ensuring indexes:', err);
+  }
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return corsPreflight();
 
@@ -64,18 +90,28 @@ export default async function handler(req: Request) {
     if (req.method === 'GET') {
       if (canReviewRequests(auth.role)) {
         // Admins see all tickets for the tenant
-        const rows = await sql`
-          SELECT t.*,
-            e.first_name AS employee_first_name,
-            e.last_name  AS employee_last_name,
-            e.email      AS employee_email,
-            d.name       AS department_name
-          FROM support_tickets t
-          JOIN employees e ON e.id = t.employee_id
-          LEFT JOIN departments d ON d.id = e.department_id
-          WHERE t.tenant_id = ${auth.tenantId!}
-          ORDER BY t.created_at DESC
-        ` as DbTicket[];
+        let rows: DbTicket[] = [];
+        try {
+          rows = await sql`
+            SELECT t.*,
+              e.first_name AS employee_first_name,
+              e.last_name  AS employee_last_name,
+              e.email      AS employee_email,
+              d.name       AS department_name
+            FROM support_tickets t
+            JOIN employees e ON e.id = t.employee_id
+            LEFT JOIN departments d ON d.id = e.department_id
+            WHERE t.tenant_id = ${auth.tenantId!}
+            ORDER BY t.created_at DESC
+          ` as DbTicket[];
+        } catch (queryErr: any) {
+          if (String(queryErr?.message || queryErr).includes('support_tickets') && String(queryErr?.message || queryErr).includes('does not exist')) {
+            await ensureSupportTicketsTable(sql);
+            rows = [];
+          } else {
+            throw queryErr;
+          }
+        }
         return json(rows.map(mapTicket));
       }
 
@@ -87,18 +123,28 @@ export default async function handler(req: Request) {
           if (!resolved) return error('Employee record not found', 403);
           employeeId = resolved;
         }
-        const rows = await sql`
-          SELECT t.*,
-            e.first_name AS employee_first_name,
-            e.last_name  AS employee_last_name,
-            e.email      AS employee_email,
-            d.name       AS department_name
-          FROM support_tickets t
-          JOIN employees e ON e.id = t.employee_id
-          LEFT JOIN departments d ON d.id = e.department_id
-          WHERE t.tenant_id = ${auth.tenantId!} AND t.employee_id = ${employeeId}
-          ORDER BY t.created_at DESC
-        ` as DbTicket[];
+        let rows: DbTicket[] = [];
+        try {
+          rows = await sql`
+            SELECT t.*,
+              e.first_name AS employee_first_name,
+              e.last_name  AS employee_last_name,
+              e.email      AS employee_email,
+              d.name       AS department_name
+            FROM support_tickets t
+            JOIN employees e ON e.id = t.employee_id
+            LEFT JOIN departments d ON d.id = e.department_id
+            WHERE t.tenant_id = ${auth.tenantId!} AND t.employee_id = ${employeeId}
+            ORDER BY t.created_at DESC
+          ` as DbTicket[];
+        } catch (queryErr: any) {
+          if (String(queryErr?.message || queryErr).includes('support_tickets') && String(queryErr?.message || queryErr).includes('does not exist')) {
+            await ensureSupportTicketsTable(sql);
+            rows = [];
+          } else {
+            throw queryErr;
+          }
+        }
         return json(rows.map(mapTicket));
       }
 
@@ -130,11 +176,25 @@ export default async function handler(req: Request) {
       if (!VALID_CATEGORIES.includes(category)) return error('Invalid category', 400);
       if (!VALID_PRIORITIES.includes(priority))  return error('Invalid priority', 400);
 
-      const rows = await sql`
-        INSERT INTO support_tickets (tenant_id, employee_id, title, description, category, priority)
-        VALUES (${auth.tenantId!}, ${employeeId}, ${title}, ${description}, ${category}, ${priority})
-        RETURNING *
-      ` as DbTicket[];
+      let rows: DbTicket[] = [];
+      try {
+        rows = await sql`
+          INSERT INTO support_tickets (tenant_id, employee_id, title, description, category, priority)
+          VALUES (${auth.tenantId!}, ${employeeId}, ${title}, ${description}, ${category}, ${priority})
+          RETURNING *
+        ` as DbTicket[];
+      } catch (insertErr: any) {
+        if (String(insertErr?.message || insertErr).includes('support_tickets') && String(insertErr?.message || insertErr).includes('does not exist')) {
+          await ensureSupportTicketsTable(sql);
+          rows = await sql`
+            INSERT INTO support_tickets (tenant_id, employee_id, title, description, category, priority)
+            VALUES (${auth.tenantId!}, ${employeeId}, ${title}, ${description}, ${category}, ${priority})
+            RETURNING *
+          ` as DbTicket[];
+        } else {
+          throw insertErr;
+        }
+      }
 
       const ticket = rows[0];
 
@@ -171,9 +231,6 @@ export default async function handler(req: Request) {
     return error('Method not allowed', 405);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Request failed';
-    if (message.includes('support_tickets') && message.includes('does not exist')) {
-      return error('Database migration needed. Run database/schema/011_support_tickets.sql', 500);
-    }
     return error(message, 500);
   }
 }

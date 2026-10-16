@@ -28,6 +28,8 @@ import assetCategoriesIndex from '../api/asset-categories/index';
 import assetCategoriesById from '../api/asset-categories/[id]';
 import requestsIndex from '../api/requests/index';
 import requestsById from '../api/requests/[id]';
+import ticketsIndex from '../api/tickets/index';
+import ticketsById from '../api/tickets/[id]';
 import tenantsIndex from '../api/tenants/index';
 import tenantsById from '../api/tenants/[id]';
 import tenantsResetPassword from '../api/tenants/[id]/reset-password';
@@ -102,6 +104,9 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/asset-categories') return assetCategoriesIndex;
   if (/^\/api\/asset-categories\/[^/]+$/.test(pathname)) return assetCategoriesById;
   if (pathname === '/api/requests') return requestsIndex;
+  if (/^\/api\/requests\/[^/]+$/.test(pathname)) return requestsById;
+  if (pathname === '/api/tickets') return ticketsIndex;
+  if (/^\/api\/tickets\/[^/]+$/.test(pathname)) return ticketsById;
   if (pathname === '/api/hr/leave') return hrLeave;
   if (/^\/api\/hr\/leave\/[^/]+$/.test(pathname)) return hrLeaveById;
   if (pathname === '/api/endpoints') return endpointsIndex;
@@ -111,7 +116,6 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (/^\/api\/employees\/[^/]+$/.test(pathname)) return employeesById;
   if (/^\/api\/departments\/[^/]+$/.test(pathname)) return departmentsById;
   if (/^\/api\/vendors\/[^/]+$/.test(pathname)) return vendorsById;
-  if (/^\/api\/requests\/[^/]+$/.test(pathname)) return requestsById;
 
   if (pathname === '/api/tenants') return tenantsIndex;
   if (/^\/api\/tenants\/[^/]+\/reset-password$/.test(pathname)) return tenantsResetPassword;

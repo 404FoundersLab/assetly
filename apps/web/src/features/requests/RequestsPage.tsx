@@ -172,7 +172,6 @@ export function RequestsPage() {
 
   const handleReviewSubmit = async () => {
     if (!reviewTarget || !reviewAction) return;
-    if (reviewAction === 'fulfilled' && reviewTarget.requestType !== 'return' && !selectedAsset) return;
     
     setSubmitting(true);
     setError(null);
@@ -412,9 +411,9 @@ export function RequestsPage() {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Select Asset (searchable by Tag or Name)"
-                        required
-                        placeholder="Search asset tag or name..."
+                        label="Assign Asset from Inventory (Optional)"
+                        placeholder="Search in-stock asset tag or name..."
+                        helperText={availableAssets.length === 0 ? "No in-stock assets in inventory. You can still fulfill with notes below." : "Optional: Select an in-stock asset to automatically deploy and assign it to the employee."}
                       />
                     )}
                     fullWidth
@@ -438,7 +437,6 @@ export function RequestsPage() {
               variant="contained"
               color={reviewAction === 'rejected' ? 'error' : 'primary'}
               loading={submitting}
-              disabled={reviewAction === 'fulfilled' && reviewTarget?.requestType !== 'return' && !selectedAsset}
               onClick={handleReviewSubmit}
             >
               Confirm

@@ -1,6 +1,7 @@
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapAssetRequest, type DbAssetRequest } from '../_lib/mappers';
 import { requireAuth, canReviewRequests, insertAuditLog } from '../_lib/auth';
+import { ensureAssetRequestsTable } from './index';
 
 export const config = { runtime: 'edge' };
 
@@ -10,7 +11,6 @@ export default async function handler(req: Request) {
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
   if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
 
   if (!canReviewRequests(auth.role)) {
     return error('Forbidden', 403);
@@ -34,18 +34,27 @@ export default async function handler(req: Request) {
         return error('status must be approved, rejected, or fulfilled', 400);
       }
 
-      const existing = (await sql`
-        SELECT
-          r.*,
-          e.first_name AS employee_first_name,
-          e.last_name AS employee_last_name,
-          e.email AS employee_email,
-          d.name AS department_name
-        FROM asset_requests r
-        JOIN employees e ON e.id = r.employee_id
-        LEFT JOIN departments d ON d.id = e.department_id
-        WHERE r.tenant_id = ${auth.tenantId!} AND r.id = ${id}
-      `) as DbAssetRequest[];
+      let existing: DbAssetRequest[] = [];
+      try {
+        existing = (await sql`
+          SELECT
+            r.*,
+            e.first_name AS employee_first_name,
+            e.last_name AS employee_last_name,
+            e.email AS employee_email,
+            d.name AS department_name
+          FROM asset_requests r
+          JOIN employees e ON e.id = r.employee_id
+          LEFT JOIN departments d ON d.id = e.department_id
+          WHERE r.tenant_id = ${auth.tenantId!} AND r.id = ${id}
+        `) as DbAssetRequest[];
+      } catch (queryErr: any) {
+        if (String(queryErr?.message || queryErr).includes('asset_requests') && String(queryErr?.message || queryErr).includes('does not exist')) {
+          await ensureAssetRequestsTable(sql);
+          return error('Request not found', 404);
+        }
+        throw queryErr;
+      }
 
       if (existing.length === 0) return error('Request not found', 404);
 

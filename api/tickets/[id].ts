@@ -1,20 +1,20 @@
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, canReviewRequests, insertAuditLog } from '../_lib/auth';
 import { sendEmail, ticketStatusChangedEmail } from '../_lib/email';
-import { mapTicket, type DbTicket } from './index';
+import { mapTicket, ensureSupportTicketsTable, type DbTicket } from './index';
 
 export const config = { runtime: 'edge' };
 
 const VALID_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
 
-export default async function handler(req: Request, { params }: { params: { id: string } }) {
+export default async function handler(req: Request, context?: { params?: { id?: string } }) {
   if (req.method === 'OPTIONS') return corsPreflight();
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
   if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
 
-  const ticketId = params?.id ?? new URL(req.url).pathname.split('/').pop() ?? '';
+  const ticketId = context?.params?.id ?? new URL(req.url).pathname.split('/').filter(Boolean).pop() ?? '';
   if (!ticketId) return error('Ticket ID is required', 400);
 
   const sql = await getTenantSql(auth.tenantId!);
@@ -27,14 +27,23 @@ export default async function handler(req: Request, { params }: { params: { id: 
       }
 
       // Verify ticket belongs to tenant
-      const existing = await sql`
-        SELECT t.*, e.email AS employee_email,
-          e.first_name AS employee_first_name, e.last_name AS employee_last_name
-        FROM support_tickets t
-        JOIN employees e ON e.id = t.employee_id
-        WHERE t.id = ${ticketId} AND t.tenant_id = ${auth.tenantId!}
-        LIMIT 1
-      ` as (DbTicket & { employee_email: string; employee_first_name: string; employee_last_name: string })[];
+      let existing: (DbTicket & { employee_email: string; employee_first_name: string; employee_last_name: string })[] = [];
+      try {
+        existing = await sql`
+          SELECT t.*, e.email AS employee_email,
+            e.first_name AS employee_first_name, e.last_name AS employee_last_name
+          FROM support_tickets t
+          JOIN employees e ON e.id = t.employee_id
+          WHERE t.id = ${ticketId} AND t.tenant_id = ${auth.tenantId!}
+          LIMIT 1
+        ` as (DbTicket & { employee_email: string; employee_first_name: string; employee_last_name: string })[];
+      } catch (queryErr: any) {
+        if (String(queryErr?.message || queryErr).includes('support_tickets') && String(queryErr?.message || queryErr).includes('does not exist')) {
+          await ensureSupportTicketsTable(sql);
+          return error('Ticket not found', 404);
+        }
+        throw queryErr;
+      }
 
       if (!existing.length) return error('Ticket not found', 404);
 
