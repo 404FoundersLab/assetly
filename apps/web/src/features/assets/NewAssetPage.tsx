@@ -10,11 +10,15 @@ import {
   Typography,
   alpha,
   Autocomplete,
+  Stack,
+  Alert,
 } from '@mui/material';
 import { createFilterOptions } from '@mui/material/Autocomplete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SyncIcon from '@mui/icons-material/Sync';
+import LaunchIcon from '@mui/icons-material/Launch';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 
@@ -22,6 +26,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { AssetQrPanel } from '../../components/AssetQrPanel';
 import { LoadingButton } from '../../components/Loader';
 import { reloadFromApi } from '../../components/DataBootstrap';
+import { lookupWarranty } from '../../services/api/warranty';
 
 import { createAsset as createAssetApi } from '../../services/api/assets';
 import { uploadImage } from '../../services/api/entities';
@@ -112,6 +117,52 @@ export function NewAssetPage() {
   const [loading, setLoading] = useState(false);
   const [createdItem, setCreatedItem] = useState<CreatedAsset | null>(null);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [syncingWarranty, setSyncingWarranty] = useState(false);
+  const [warrantyMsg, setWarrantyMsg] = useState<{ text: string; severity: 'success' | 'info' | 'error' } | null>(null);
+
+  const isLaptop = form.category?.toLowerCase() === 'laptop';
+  const mfg = (form.manufacturer || '').toLowerCase();
+  const isLenovo = isLaptop && (mfg.includes('lenovo') || form.model?.toLowerCase().includes('thinkpad') || form.serialNumber?.startsWith('1S') || !form.manufacturer);
+  const isDell = isLaptop && (mfg.includes('dell') || (form.serialNumber?.length === 7 && /^[A-Z0-9]{7}$/i.test(form.serialNumber ?? '')) || !form.manufacturer);
+
+  const handleFetchLenovo = async () => {
+    if (!form.serialNumber?.trim()) {
+      setWarrantyMsg({ text: 'Please enter a Serial Number first in Hardware Details', severity: 'error' });
+      return;
+    }
+    setSyncingWarranty(true);
+    setWarrantyMsg(null);
+    try {
+      const data = await lookupWarranty(form.serialNumber, 'lenovo');
+      if (data.endDate) {
+        set('warrantyExpiresAt', data.endDate);
+        if (data.productName && !form.model) {
+          set('model', data.productName);
+        }
+        setWarrantyMsg({
+          text: `Fetched! Warranty: ${data.endDate} (${data.planName || 'Active'}). You can still edit this date manually.`,
+          severity: 'success',
+        });
+      } else {
+        setWarrantyMsg({ text: 'Lenovo responded but no expiration date found.', severity: 'info' });
+      }
+    } catch (err: any) {
+      setWarrantyMsg({ text: err?.message || 'Failed to fetch Lenovo warranty', severity: 'error' });
+    } finally {
+      setSyncingWarranty(false);
+    }
+  };
+
+  const handleOpenDell = () => {
+    if (form.serialNumber?.trim()) {
+      navigator.clipboard.writeText(form.serialNumber.trim());
+      setWarrantyMsg({
+        text: `Service Tag "${form.serialNumber.trim()}" copied to clipboard! Paste it into Dell Support Services.`,
+        severity: 'info',
+      });
+    }
+    window.open('https://www.dell.com/support/contractservices/en-in', '_blank', 'noopener,noreferrer');
+  };
 
   const set = (field: keyof AssetFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -472,6 +523,38 @@ export function NewAssetPage() {
                 onChange={(e) => set('warrantyExpiresAt', e.target.value)}
               />
             </Grid>
+            {isLaptop && (isLenovo || isDell) && (
+              <Grid item xs={12}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {isLenovo && (
+                    <LoadingButton
+                      size="small"
+                      variant="outlined"
+                      startIcon={<SyncIcon />}
+                      loading={syncingWarranty}
+                      onClick={handleFetchLenovo}
+                    >
+                      Fetch Lenovo Warranty
+                    </LoadingButton>
+                  )}
+                  {isDell && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<LaunchIcon />}
+                      onClick={handleOpenDell}
+                    >
+                      Check Dell Support ↗
+                    </Button>
+                  )}
+                </Stack>
+                {warrantyMsg && (
+                  <Alert severity={warrantyMsg.severity} sx={{ mt: 1, py: 0 }} onClose={() => setWarrantyMsg(null)}>
+                    {warrantyMsg.text}
+                  </Alert>
+                )}
+              </Grid>
+            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 select

@@ -8,12 +8,17 @@ import {
   TextField,
   Grid,
   MenuItem,
+  Stack,
+  Alert,
 } from '@mui/material';
+import SyncIcon from '@mui/icons-material/Sync';
+import LaunchIcon from '@mui/icons-material/Launch';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 
 import { LoadingButton } from '../../components/Loader';
 import { reloadFromApi } from '../../components/DataBootstrap';
 import { createAsset as createAssetApi } from '../../services/api/assets';
+import { lookupWarranty } from '../../services/api/warranty';
 import type { AssetCategory, AssetStatus, LifecycleStage } from '../../types';
 import { useAssetCategories } from '../../hooks/useAssetCategories';
 import { safeRandomUUID } from '../../utils/uuid';
@@ -49,6 +54,52 @@ export function AssetFormDialog({ open, onClose }: Props) {
   const { slugs, labelOf } = useAssetCategories();
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(false);
+  const [syncingWarranty, setSyncingWarranty] = useState(false);
+  const [warrantyMsg, setWarrantyMsg] = useState<{ text: string; severity: 'success' | 'info' | 'error' } | null>(null);
+
+  const isLaptop = form.category?.toLowerCase() === 'laptop';
+  const mfg = (form.manufacturer || '').toLowerCase();
+  const isLenovo = isLaptop && (mfg.includes('lenovo') || form.model?.toLowerCase().includes('thinkpad') || form.serialNumber?.startsWith('1S') || !form.manufacturer);
+  const isDell = isLaptop && (mfg.includes('dell') || (form.serialNumber?.length === 7 && /^[A-Z0-9]{7}$/i.test(form.serialNumber ?? '')) || !form.manufacturer);
+
+  const handleFetchLenovo = async () => {
+    if (!form.serialNumber?.trim()) {
+      setWarrantyMsg({ text: 'Please enter a Serial Number first', severity: 'error' });
+      return;
+    }
+    setSyncingWarranty(true);
+    setWarrantyMsg(null);
+    try {
+      const data = await lookupWarranty(form.serialNumber, 'lenovo');
+      if (data.endDate) {
+        handleChange('warrantyExpiresAt', data.endDate);
+        if (data.productName && !form.model) {
+          handleChange('model', data.productName);
+        }
+        setWarrantyMsg({
+          text: `Fetched! Warranty: ${data.endDate} (${data.planName || 'Active'}). You can still edit this date manually.`,
+          severity: 'success',
+        });
+      } else {
+        setWarrantyMsg({ text: 'Lenovo responded but no expiration date found.', severity: 'info' });
+      }
+    } catch (err: any) {
+      setWarrantyMsg({ text: err?.message || 'Failed to fetch Lenovo warranty', severity: 'error' });
+    } finally {
+      setSyncingWarranty(false);
+    }
+  };
+
+  const handleOpenDell = () => {
+    if (form.serialNumber?.trim()) {
+      navigator.clipboard.writeText(form.serialNumber.trim());
+      setWarrantyMsg({
+        text: `Service Tag "${form.serialNumber.trim()}" copied to clipboard! Paste it into Dell Support Services.`,
+        severity: 'info',
+      });
+    }
+    window.open('https://www.dell.com/support/contractservices/en-in', '_blank', 'noopener,noreferrer');
+  };
 
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -208,6 +259,38 @@ export function AssetFormDialog({ open, onClose }: Props) {
               onChange={(e) => handleChange('warrantyExpiresAt', e.target.value)}
             />
           </Grid>
+          {isLaptop && (isLenovo || isDell) && (
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                {isLenovo && (
+                  <LoadingButton
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SyncIcon />}
+                    loading={syncingWarranty}
+                    onClick={handleFetchLenovo}
+                  >
+                    Fetch Lenovo Warranty
+                  </LoadingButton>
+                )}
+                {isDell && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<LaunchIcon />}
+                    onClick={handleOpenDell}
+                  >
+                    Check Dell Support ↗
+                  </Button>
+                )}
+              </Stack>
+              {warrantyMsg && (
+                <Alert severity={warrantyMsg.severity} sx={{ mt: 1, py: 0 }} onClose={() => setWarrantyMsg(null)}>
+                  {warrantyMsg.text}
+                </Alert>
+              )}
+            </Grid>
+          )}
           <Grid item xs={12}>
             <TextField
               fullWidth

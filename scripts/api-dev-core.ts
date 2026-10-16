@@ -30,6 +30,7 @@ import requestsIndex from '../api/requests/index';
 import requestsById from '../api/requests/[id]';
 import ticketsIndex from '../api/tickets/index';
 import ticketsById from '../api/tickets/[id]';
+import warrantyLookup from '../api/warranty/lookup';
 import tenantsIndex from '../api/tenants/index';
 import tenantsById from '../api/tenants/[id]';
 import tenantsResetPassword from '../api/tenants/[id]/reset-password';
@@ -107,6 +108,7 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (/^\/api\/requests\/[^/]+$/.test(pathname)) return requestsById;
   if (pathname === '/api/tickets') return ticketsIndex;
   if (/^\/api\/tickets\/[^/]+$/.test(pathname)) return ticketsById;
+  if (pathname === '/api/warranty/lookup') return warrantyLookup;
   if (pathname === '/api/hr/leave') return hrLeave;
   if (/^\/api\/hr\/leave\/[^/]+$/.test(pathname)) return hrLeaveById;
   if (pathname === '/api/endpoints') return endpointsIndex;
