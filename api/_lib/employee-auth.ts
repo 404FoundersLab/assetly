@@ -87,7 +87,7 @@ export async function migrateEmployeeLoginEmail(
     await sql`
       INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
       VALUES (${userId}, ${tenantId}, ${to}, ${firstName}, ${lastName}, 'employee')
-      ON CONFLICT (tenant_id, email) DO UPDATE
+      ON CONFLICT (email) DO UPDATE
       SET first_name = ${firstName}, last_name = ${lastName}, role = 'employee'
     `;
   }

@@ -8,6 +8,10 @@ import {
 
 export const config = { runtime: 'edge' };
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return corsPreflight();
 
@@ -80,22 +84,37 @@ export default async function handler(req: Request) {
         `;
       }
 
+      let departmentId: string | null = current.department_id;
+      if (body.departmentId !== undefined) {
+        const rawDept = String(body.departmentId ?? '').trim();
+        if (!rawDept) {
+          departmentId = null;
+        } else if (isUuid(rawDept)) {
+          const deptCheck = await sql`
+            SELECT id FROM departments WHERE id = ${rawDept} AND tenant_id = ${auth.tenantId!}
+          ` as { id: string }[];
+          departmentId = deptCheck.length > 0 ? rawDept : null;
+        } else {
+          departmentId = null;
+        }
+      }
+
+      let employeeNumber: string | null = current.employee_number;
+      if (body.employeeNumber !== undefined) {
+        const rawNum = String(body.employeeNumber ?? '').trim();
+        employeeNumber = rawNum || null;
+      }
+
       const rows = await sql`
         UPDATE employees SET
-          employee_number = COALESCE(${body.employeeNumber != null ? String(body.employeeNumber) : null}, employee_number),
+          employee_number = ${employeeNumber},
           first_name = ${firstName},
           last_name = ${lastName},
           joining_email = ${joiningEmail},
           official_email = ${officialEmail},
           email = ${nextLoginEmail},
-          job_title = COALESCE(${body.jobTitle != null ? String(body.jobTitle) : null}, job_title),
-          department_id = COALESCE(${
-            body.departmentId !== undefined
-              ? body.departmentId
-                ? String(body.departmentId)
-                : null
-              : null
-          }, department_id),
+          job_title = COALESCE(${body.jobTitle != null ? String(body.jobTitle).trim() || null : null}, job_title),
+          department_id = ${departmentId},
           status = COALESCE(${body.status ? String(body.status) : null}, status),
           hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
@@ -109,6 +128,7 @@ export default async function handler(req: Request) {
           : 'Employee updated';
 
       await insertAuditLog({
+        tenantId: auth.tenantId!,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'UPDATE',
@@ -123,6 +143,7 @@ export default async function handler(req: Request) {
     if (req.method === 'DELETE') {
       await sql`DELETE FROM employees WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
       await insertAuditLog({
+        tenantId: auth.tenantId!,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'DELETE',

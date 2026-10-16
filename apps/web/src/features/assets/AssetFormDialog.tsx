@@ -16,6 +16,7 @@ import { reloadFromApi } from '../../components/DataBootstrap';
 import { createAsset as createAssetApi } from '../../services/api/assets';
 import type { AssetCategory, AssetStatus, LifecycleStage } from '../../types';
 import { useAssetCategories } from '../../hooks/useAssetCategories';
+import { safeRandomUUID } from '../../utils/uuid';
 
 interface Props {
   open: boolean;
@@ -58,7 +59,7 @@ export function AssetFormDialog({ open, onClose }: Props) {
     setLoading(true);
     try {
       const created = await createAssetApi({
-        id: crypto.randomUUID(),
+        id: safeRandomUUID(),
         tenantId: user!.tenantId,
         assetTag: form.assetTag.trim(),
         name: form.name.trim(),

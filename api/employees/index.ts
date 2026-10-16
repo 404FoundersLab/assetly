@@ -4,6 +4,10 @@ import { requireAuth, insertAuditLog } from '../_lib/auth';
 
 export const config = { runtime: 'edge' };
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return corsPreflight();
 
@@ -30,17 +34,30 @@ export default async function handler(req: Request) {
         return error('firstName, lastName, and joiningEmail are required', 400);
       }
 
-      const id = body.id && String(body.id) ? String(body.id) : crypto.randomUUID();
+      let departmentId: string | null = null;
+      if (body.departmentId) {
+        const rawDept = String(body.departmentId).trim();
+        if (isUuid(rawDept)) {
+          const deptCheck = await sql`
+            SELECT id FROM departments WHERE id = ${rawDept} AND tenant_id = ${auth.tenantId!}
+          ` as { id: string }[];
+          if (deptCheck.length > 0) departmentId = rawDept;
+        }
+      }
+
+      const id = body.id && isUuid(String(body.id)) ? String(body.id) : crypto.randomUUID();
+      const employeeNumber = body.employeeNumber ? String(body.employeeNumber).trim() || null : null;
+
       const rows = await sql`
         INSERT INTO employees (
           id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
           job_title, department_id, status, hire_date
         ) VALUES (
           ${id}, ${auth.tenantId!},
-          ${body.employeeNumber ? String(body.employeeNumber) : null},
+          ${employeeNumber},
           ${firstName}, ${lastName}, ${joiningEmail}, ${joiningEmail}, NULL,
-          ${body.jobTitle ? String(body.jobTitle) : null},
-          ${body.departmentId ? String(body.departmentId) : null},
+          ${body.jobTitle ? String(body.jobTitle).trim() || null : null},
+          ${departmentId},
           ${body.status ? String(body.status) : 'active'},
           ${body.hireDate ? String(body.hireDate) : null}
         )
@@ -48,6 +65,7 @@ export default async function handler(req: Request) {
       ` as DbEmployee[];
 
       await insertAuditLog({
+        tenantId: auth.tenantId!,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'CREATE',
@@ -62,7 +80,7 @@ export default async function handler(req: Request) {
         await sql`
           INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
           VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
-          ON CONFLICT (tenant_id, email) DO NOTHING
+          ON CONFLICT (email) DO NOTHING
         `;
 
         await sql`

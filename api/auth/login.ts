@@ -135,7 +135,7 @@ export default async function handler(req: Request) {
           await sql`
             INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
             VALUES (${userId}, ${emp.tenant_id}, ${emp.email}, ${emp.first_name}, ${emp.last_name || ''}, 'employee')
-            ON CONFLICT (tenant_id, email) DO NOTHING
+            ON CONFLICT (email) DO NOTHING
           `;
           
           await sql`

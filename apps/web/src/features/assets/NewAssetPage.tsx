@@ -27,6 +27,7 @@ import { createAsset as createAssetApi } from '../../services/api/assets';
 import { uploadImage } from '../../services/api/entities';
 import { EmployeeFormDialog } from '../employees/EmployeeFormDialog';
 import { STATUS_LABELS } from '../../data/demoData';
+import { safeRandomUUID } from '../../utils/uuid';
 import { useAssetCategories } from '../../hooks/useAssetCategories';
 import { DEVICE_FAMILY_META, isDeviceFamily } from '../../constants/deviceFamilies';
 import {
@@ -155,7 +156,7 @@ export function NewAssetPage() {
         imageUrl = uploaded.url;
       }
       const created = await createAssetApi({
-        id: crypto.randomUUID(),
+        id: safeRandomUUID(),
         tenantId: user.tenantId,
         assetTag: form.assetTag.trim(),
         name: form.name.trim(),

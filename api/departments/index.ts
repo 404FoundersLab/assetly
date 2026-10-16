@@ -4,13 +4,16 @@ import { requireAuth, insertAuditLog } from '../_lib/auth';
 
 export const config = { runtime: 'edge' };
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return corsPreflight();
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
   if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
 
   const sql = await getTenantSql(auth.tenantId!);
 
@@ -25,21 +28,26 @@ export default async function handler(req: Request) {
     if (req.method === 'POST') {
       const body = await parseBody<Record<string, unknown>>(req);
       const name = String(body.name ?? '').trim();
-      if (!name) return error('name is required', 400);
+      if (!name) return error('Department name is required', 400);
 
-      const id = body.id ? String(body.id) : crypto.randomUUID();
+      const id = body.id && isUuid(String(body.id)) ? String(body.id) : crypto.randomUUID();
+      const costCenter = body.costCenter ? String(body.costCenter).trim() || null : null;
+
       const rows = await sql`
         INSERT INTO departments (id, tenant_id, name, cost_center)
-        VALUES (${id}, ${auth.tenantId!}, ${name}, ${body.costCenter ? String(body.costCenter) : null})
+        VALUES (${id}, ${auth.tenantId!}, ${name}, ${costCenter})
+        ON CONFLICT (tenant_id, name) DO UPDATE SET
+          cost_center = COALESCE(EXCLUDED.cost_center, departments.cost_center)
         RETURNING *
       ` as DbDepartment[];
 
       await insertAuditLog({
+        tenantId: auth.tenantId!,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'CREATE',
         entityType: 'department',
-        entityId: id,
+        entityId: rows[0].id,
         entityLabel: name,
         details: 'Department created',
       });
