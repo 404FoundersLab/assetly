@@ -5,6 +5,18 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+export function formatDateOnly(val: unknown): string {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return !isNaN(val.getTime()) ? val.toISOString().split('T')[0] : '';
+  }
+  const str = String(val).trim();
+  if (!str) return '';
+  const match = str.match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  return str.split('T')[0];
+}
+
 export interface DbTenant {
   id: string;
   name: string;
@@ -162,7 +174,7 @@ export function mapAsset(row: DbAsset) {
     serialNumber: row.serial_number ?? '',
     status: row.status,
     lifecycleStage: row.lifecycle_stage,
-    purchaseDate: row.purchase_date ?? '',
+    purchaseDate: formatDateOnly(row.purchase_date),
     purchaseCost: Number(row.purchase_cost ?? 0),
     currentValue: Number(row.current_value ?? 0),
     repairCost: Number(row.repair_cost ?? 0),
@@ -172,7 +184,7 @@ export function mapAsset(row: DbAsset) {
     imageUrl: row.image_url ?? undefined,
     vendorId: row.vendor_id ?? '',
     assignedEmployeeId: row.assigned_employee_id ?? undefined,
-    warrantyExpiresAt: row.warranty_expires_at ?? '',
+    warrantyExpiresAt: formatDateOnly(row.warranty_expires_at),
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
   };
@@ -246,7 +258,7 @@ export function mapEmployee(row: DbEmployee) {
     jobTitle: row.job_title ?? '',
     departmentId: row.department_id ?? '',
     status: row.status,
-    hireDate: row.hire_date ?? '',
+    hireDate: formatDateOnly(row.hire_date),
   };
 }
 

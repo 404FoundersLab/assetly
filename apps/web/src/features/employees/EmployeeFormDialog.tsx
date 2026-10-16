@@ -29,6 +29,23 @@ interface Props {
   employee?: Employee;
 }
 
+function toDateInputValue(val: unknown): string {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return !isNaN(val.getTime()) ? val.toISOString().split('T')[0] : '';
+  }
+  const str = String(val).trim();
+  if (!str) return '';
+  const match = str.match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  const parts = str.split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  }
+  return '';
+}
+
 export function EmployeeFormDialog({ open, onClose, employee }: Props) {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
@@ -60,7 +77,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
         jobTitle: employee.jobTitle,
         departmentId: employee.departmentId ?? '',
         status: employee.status,
-        hireDate: employee.hireDate,
+        hireDate: toDateInputValue(employee.hireDate),
       });
     } else if (open) {
       setForm({
@@ -92,7 +109,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           jobTitle: form.jobTitle.trim() || undefined,
           departmentId: form.departmentId.trim() || undefined,
           status: form.status,
-          hireDate: form.hireDate || undefined,
+          hireDate: form.hireDate ? toDateInputValue(form.hireDate) || undefined : undefined,
         });
       } else {
         await createEmployee({

@@ -105,6 +105,12 @@ export default async function handler(req: Request) {
         employeeNumber = rawNum || null;
       }
 
+      let hireDate: string | null | undefined = undefined;
+      if (body.hireDate !== undefined) {
+        const rawDate = String(body.hireDate ?? '').trim();
+        hireDate = rawDate ? rawDate.split('T')[0] : null;
+      }
+
       const rows = await sql`
         UPDATE employees SET
           employee_number = ${employeeNumber},
@@ -116,7 +122,7 @@ export default async function handler(req: Request) {
           job_title = COALESCE(${body.jobTitle != null ? String(body.jobTitle).trim() || null : null}, job_title),
           department_id = ${departmentId},
           status = COALESCE(${body.status ? String(body.status) : null}, status),
-          hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
+          hire_date = ${hireDate !== undefined ? hireDate : current.hire_date}
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
         RETURNING *
       ` as DbEmployee[];
