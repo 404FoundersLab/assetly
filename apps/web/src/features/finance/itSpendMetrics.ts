@@ -1,14 +1,8 @@
 import type { Asset } from '../../types';
 import type { ExpenseClaim } from '../../store/expensesSlice';
 
-const YEARLY_BUDGETS: Record<number, number> = {
-  2026: 80000,
-  2025: 75000,
-  2024: 60000,
-  2023: 50000,
-  2022: 45000,
-};
-const DEFAULT_BUDGET = 50000;
+const YEARLY_BUDGETS: Record<number, number> = {};
+const DEFAULT_BUDGET = 0;
 
 export interface ItSpendSummary {
   assetCount: number;

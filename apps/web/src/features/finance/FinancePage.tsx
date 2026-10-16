@@ -72,15 +72,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-// Realistic target budgets for the demo organization
-const YEARLY_BUDGETS: Record<number, number> = {
-  2026: 80000,
-  2025: 75000,
-  2024: 60000,
-  2023: 50000,
-  2022: 45000,
-};
-const DEFAULT_BUDGET = 50000;
+// Target budgets per fiscal year (0 = not set)
+const YEARLY_BUDGETS: Record<number, number> = {};
+const DEFAULT_BUDGET = 0;
 
 export function FinancePage() {
   const navigate = useNavigate();
@@ -200,13 +194,17 @@ export function FinancePage() {
     let totalPurchasesCost = 0;
     let totalRepairsCost = 0;
     let compliantYears = 0;
+    let configuredYears = 0;
 
     yearlyData.forEach((d) => {
       totalPurchased += d.count;
       totalPurchasesCost += d.purchaseCost;
       totalRepairsCost += d.repairCost;
-      if (d.totalExpenditure <= d.budget) {
-        compliantYears += 1;
+      if (d.budget > 0) {
+        configuredYears += 1;
+        if (d.totalExpenditure <= d.budget) {
+          compliantYears += 1;
+        }
       }
     });
 
@@ -220,6 +218,7 @@ export function FinancePage() {
       totalExpenditures,
       repairRatio,
       compliantYears,
+      configuredYears,
       totalYears: yearlyData.length,
     };
   }, [yearlyData]);
@@ -275,23 +274,23 @@ export function FinancePage() {
         procuredCost: cumulativeMetrics.totalPurchasesCost,
         repairCost: cumulativeMetrics.totalRepairsCost,
         ratio: cumulativeMetrics.repairRatio,
-        complianceLabel: "Compliance Rate",
-        complianceValue: `${cumulativeMetrics.compliantYears} / ${cumulativeMetrics.totalYears}`,
-        complianceSub: "Fiscal years within spending limit",
+        complianceLabel: cumulativeMetrics.configuredYears > 0 ? "Compliance Rate" : "Target Budget",
+        complianceValue: cumulativeMetrics.configuredYears > 0 ? `${cumulativeMetrics.compliantYears} / ${cumulativeMetrics.configuredYears}` : 'Not Set',
+        complianceSub: cumulativeMetrics.configuredYears > 0 ? "Fiscal years within spending limit" : "No budget limits defined",
       };
     }
 
     const yearNum = Number(selectedYear);
     const targetData = yearlyData.find(d => d.year === yearNum);
-    if (!targetData) {
+    if (!targetData || targetData.budget <= 0) {
       return {
-        totalExpenditures: 0,
-        procuredCost: 0,
-        repairCost: 0,
-        ratio: 0,
+        totalExpenditures: targetData?.totalExpenditure ?? 0,
+        procuredCost: targetData?.purchaseCost ?? 0,
+        repairCost: targetData?.repairCost ?? 0,
+        ratio: targetData && targetData.purchaseCost > 0 ? (targetData.repairCost / targetData.purchaseCost) * 100 : 0,
         complianceLabel: "Target Budget",
-        complianceValue: formatCurrency(0),
-        complianceSub: "No target set",
+        complianceValue: "Not Set",
+        complianceSub: "No budget defined for this year",
       };
     }
 
@@ -571,26 +570,30 @@ export function FinancePage() {
                                     <TableCell align="right" sx={{ fontWeight: 600 }}>
                                       {formatCurrency(row.totalExpenditure)}
                                     </TableCell>
-                                    <TableCell align="right" color="text.secondary">
-                                      {formatCurrency(row.budget)}
+                                    <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                                      {row.budget > 0 ? formatCurrency(row.budget) : '—'}
                                     </TableCell>
                                     <TableCell align="right">
-                                      <Stack spacing={0.5} alignItems="flex-end">
-                                        <Stack direction="row" spacing={0.5} alignItems="center">
-                                          {statusStyles.icon}
-                                          <Typography variant="caption" fontWeight={600} color={statusStyles.color}>
-                                            {row.utilization.toFixed(0)}%
-                                          </Typography>
+                                      {row.budget > 0 ? (
+                                        <Stack spacing={0.5} alignItems="flex-end">
+                                          <Stack direction="row" spacing={0.5} alignItems="center">
+                                            {statusStyles.icon}
+                                            <Typography variant="caption" fontWeight={600} color={statusStyles.color}>
+                                              {row.utilization.toFixed(0)}%
+                                            </Typography>
+                                          </Stack>
+                                          <Box sx={{ width: '100px' }}>
+                                            <LinearProgress
+                                              variant="determinate"
+                                              value={Math.min(row.utilization, 100)}
+                                              color={statusStyles.barColor}
+                                              sx={{ height: 6, borderRadius: 3 }}
+                                            />
+                                          </Box>
                                         </Stack>
-                                        <Box sx={{ width: '100px' }}>
-                                          <LinearProgress
-                                            variant="determinate"
-                                            value={Math.min(row.utilization, 100)}
-                                            color={statusStyles.barColor}
-                                            sx={{ height: 6, borderRadius: 3 }}
-                                          />
-                                        </Box>
-                                      </Stack>
+                                      ) : (
+                                        <Typography variant="caption" color="text.disabled">—</Typography>
+                                      )}
                                     </TableCell>
                                   </TableRow>
                                 );
