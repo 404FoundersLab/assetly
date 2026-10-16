@@ -61,8 +61,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
     jobTitle: '',
     departmentId: '',
     status: 'active' as EmployeeStatus,
-    //@ts-ignore
-    hireDate: new Date().toISOString().split('T')[0],
+    hireDate: '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -89,7 +88,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
         jobTitle: '',
         departmentId: departments[0]?.id ?? '',
         status: 'active',
-        hireDate: new Date().toISOString().split('T')[0],
+        hireDate: '',
       });
     }
     setError(null);
@@ -99,6 +98,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
     if (!user || loading || !form.firstName || !form.joiningEmail) return;
     setLoading(true);
     try {
+      const formattedHireDate = form.hireDate ? toDateInputValue(form.hireDate) || '' : '';
       if (employee) {
         await updateEmployeeApi(employee.id, {
           employeeNumber: form.employeeNumber.trim() || undefined,
@@ -109,7 +109,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           jobTitle: form.jobTitle.trim() || undefined,
           departmentId: form.departmentId.trim() || undefined,
           status: form.status,
-          hireDate: form.hireDate ? toDateInputValue(form.hireDate) || undefined : undefined,
+          hireDate: formattedHireDate,
         });
       } else {
         await createEmployee({
@@ -118,6 +118,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           email: form.joiningEmail.trim().toLowerCase(),
           departmentId: form.departmentId.trim() || '',
           id: safeRandomUUID(),
+          hireDate: formattedHireDate,
         });
       }
       await reloadFromApi(dispatch);
