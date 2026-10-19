@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, desktopCapturer, screen } = require('electron');
 const path = require('path');
 const si = require('systeminformation');
 const axios = require('axios');
@@ -400,6 +400,36 @@ async function collectTelemetry() {
   }
 }
 
+// --- Screenshot monitoring (interval is set per-device from the admin console) ---
+let screenshotIntervalSec = 0;
+let lastScreenshotAt = 0;
+async function captureScreenshot() {
+  const display = screen.getPrimaryDisplay();
+  const scale = Math.min(1, 1280 / display.size.width);
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: {
+      width: Math.round(display.size.width * scale),
+      height: Math.round(display.size.height * scale)
+    }
+  });
+  if (!sources.length) throw new Error('No screen source available');
+  const jpeg = sources[0].thumbnail.toJPEG(60);
+  return 'data:image/jpeg;base64,' + jpeg.toString('base64');
+}
+async function uploadScreenshot() {
+  const image = await captureScreenshot();
+  lastScreenshotAt = Date.now();
+  await axios.post(`${MANAGER_URL}/api/endpoints/telemetry`, {
+    endpoint_id: endpointId,
+    screenshot: { image, captured_at: new Date().toISOString() }
+  }, { timeout: 30000, maxBodyLength: Infinity });
+}
+async function maybeScheduledScreenshot() {
+  if (!endpointId || screenshotIntervalSec <= 0) return;
+  if (Date.now() - lastScreenshotAt < screenshotIntervalSec * 1000 - 1000) return;
+  try { await uploadScreenshot(); } catch (e) { console.error('Scheduled screenshot failed:', e.message); }
+}
 async function sendTelemetry(telemetry) {
   if (!telemetry) return;
   try {
@@ -449,6 +479,11 @@ async function sendTelemetry(telemetry) {
     }, { timeout: 15000 });
     console.log(`[${new Date().toISOString()}] Telemetry sent successfully for endpoint ${endpointId}`);
 
+    if (res.data && typeof res.data.screenshot_interval_seconds === 'number') {
+      screenshotIntervalSec = res.data.screenshot_interval_seconds;
+    }
+    await maybeScheduledScreenshot();
+
     // Process pending commands from response
     if (res.data && Array.isArray(res.data.pending_commands)) {
       const results = [];
@@ -461,6 +496,9 @@ async function sendTelemetry(telemetry) {
           if (cmd.command === 'start-remote') {
             await remoteDaemon.startSession();
             cmdResult = 'Remote control session active';
+          } else if (cmd.command === 'screenshot') {
+            await uploadScreenshot();
+            cmdResult = 'Screenshot captured';
           } else if (cmd.command === 'stop-remote') {
             await remoteDaemon.stopSession();
             cmdResult = 'Remote control session stopped';

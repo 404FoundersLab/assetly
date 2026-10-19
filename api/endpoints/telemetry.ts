@@ -52,6 +52,23 @@ export default async function handler(req: Request) {
       WHERE id = ${endpoint_id}
     `;
 
+    // Store screenshot uploaded by agent (JPEG data URL), keep only the latest 20
+    const screenshot = (body as Record<string, any>).screenshot as { image?: string; captured_at?: string } | undefined;
+    if (screenshot?.image && typeof screenshot.image === 'string'
+        && screenshot.image.startsWith('data:image/jpeg;base64,')
+        && screenshot.image.length < 3_000_000) {
+      await sql`
+        INSERT INTO endpoint_screenshots (endpoint_id, image_data, captured_at)
+        VALUES (${endpoint_id}, ${screenshot.image}, ${screenshot.captured_at || new Date().toISOString()})
+      `;
+      await sql`
+        DELETE FROM endpoint_screenshots WHERE endpoint_id = ${endpoint_id} AND id NOT IN (
+          SELECT id FROM endpoint_screenshots WHERE endpoint_id = ${endpoint_id}
+          ORDER BY captured_at DESC LIMIT 20
+        )
+      `;
+    }
+
     // Process threats
     if (Array.isArray(threats)) {
       await sql`DELETE FROM endpoint_threats WHERE endpoint_id = ${endpoint_id}`;

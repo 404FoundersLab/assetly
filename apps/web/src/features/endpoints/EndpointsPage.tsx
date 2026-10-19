@@ -33,6 +33,7 @@ import { ThreatPanel } from './components/ThreatPanel';
 import { InstalledApps } from './components/InstalledApps';
 import { DeviceContext } from './components/DeviceContext';
 import { ActionsBar } from './components/ActionsBar';
+import { ScreenshotPanel } from './components/ScreenshotPanel';
 import { RemoteDesktopModal } from './components/RemoteDesktopModal';
 import { EdrAnalyticsDashboard } from './components/EdrAnalyticsDashboard';
 import type { Endpoint, ActivePort } from '../../types';
