@@ -7,10 +7,18 @@ const fs = require('fs');
 const os = require('os');
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-const MANAGER_URL = process.env.MANAGER_URL || 'https://assetly-azure.vercel.app';
+// Optional per-device override: %USERPROFILE%\.assetmanager-client\agent_override.json
+// e.g. { "managerUrl": "https://assetly-web.vercel.app", "tenantId": "<tenant uuid>" }
+let OVERRIDE = {};
+try {
+  const overrideFile = path.join(os.homedir(), '.assetmanager-client', 'agent_override.json');
+  if (fs.existsSync(overrideFile)) OVERRIDE = JSON.parse(fs.readFileSync(overrideFile, 'utf8')) || {};
+} catch (e) {}
 
-// Extract Tenant ID from binary signature or fallback to active tenant
-let TENANT_ID = process.env.TENANT_ID || '96355bdb-bda1-4f3f-92d2-7a67b4a348e6';
+const MANAGER_URL = process.env.MANAGER_URL || OVERRIDE.managerUrl || 'https://assetly-web.vercel.app';
+
+// Tenant ID: env > override file > binary signature > default tenant
+let TENANT_ID = process.env.TENANT_ID || OVERRIDE.tenantId || '44dfb1d5-bc3c-4b6a-9874-d2f78ee67d87';
 try {
   const exePath = process.execPath;
   if (fs.existsSync(exePath)) {
@@ -23,7 +31,7 @@ try {
     fs.closeSync(fd);
     const content = buffer.toString('utf8');
     const signatureMatch = content.match(/___TENANT_ID___:([a-f0-9\-]{36})/i);
-    if (signatureMatch && signatureMatch[1]) {
+    if (signatureMatch && signatureMatch[1] && !process.env.TENANT_ID && !OVERRIDE.tenantId) {
       TENANT_ID = signatureMatch[1];
     }
   }
