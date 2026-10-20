@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Box, Button, FormControl, InputLabel, MenuItem, Paper, Select, Typography, Snackbar } from '@mui/material';
+import { Box, Button, FormControl, IconButton, InputLabel, MenuItem, Paper, Select, Typography, Snackbar, Tooltip } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { apiFetch } from '../../../services/api/client';
@@ -51,6 +53,27 @@ export function ScreenshotPanel({ endpointId, isOffline }: { endpointId: string;
     }
   };
 
+  const deleteShot = async (shotId: string) => {
+    try {
+      await apiFetch(`/api/endpoints/${endpointId}/screenshots?id=${encodeURIComponent(shotId)}`, { method: 'DELETE' });
+      setShots((prev) => prev.filter((s) => s.id !== shotId));
+      setToast('Screenshot deleted');
+    } catch (err: unknown) {
+      setToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const deleteAll = async () => {
+    if (!window.confirm('Delete all screenshots for this device?')) return;
+    try {
+      await apiFetch(`/api/endpoints/${endpointId}/screenshots`, { method: 'DELETE' });
+      setShots([]);
+      setToast('All screenshots deleted');
+    } catch (err: unknown) {
+      setToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   const captureNow = async () => {
     try {
       await apiFetch(`/api/endpoints/${endpointId}/screenshots`, { method: 'POST' });
@@ -79,6 +102,12 @@ export function ScreenshotPanel({ endpointId, isOffline }: { endpointId: string;
           Capture Now
         </Button>
         <Button size="small" startIcon={<RefreshIcon />} onClick={loadShots}>Refresh</Button>
+        <Button size="small" color="error" startIcon={<DeleteSweepIcon />} onClick={deleteAll} disabled={shots.length === 0}>
+          Delete all
+        </Button>
+        <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+          Stored in the database · auto-deleted after 7 days · latest 20 kept per device
+        </Typography>
       </Box>
 
       {shots.length > 0 && (
