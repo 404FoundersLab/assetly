@@ -37,6 +37,15 @@ try {
   }
 } catch (e) {}
 
+// Only one instance per device (prevents duplicate registrations)
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
+  });
+}
+
 let remoteDaemon = null;
 try {
   remoteDaemon = require('./remote-daemon');
@@ -641,6 +650,23 @@ function createWindow() {
   });
 }
 
+// Launch the Windows uninstaller (also available in Control Panel > Apps)
+function uninstallClient() {
+  try {
+    const dir = path.dirname(process.execPath);
+    const uninstaller = fs.readdirSync(dir).find((f) => /^Uninstall .*\.exe$/i.test(f));
+    if (!uninstaller) {
+      require('electron').dialog.showMessageBox({ type: 'info', message: 'Uninstaller not found. Remove the client from Windows Settings > Apps.' });
+      return;
+    }
+    require('child_process').spawn(path.join(dir, uninstaller), [], { detached: true, stdio: 'ignore' }).unref();
+    app.isQuiting = true;
+    app.quit();
+  } catch (e) {
+    console.error('Uninstall launch failed:', e.message);
+  }
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, 'assets', 'tray.png');
   const img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
@@ -649,6 +675,7 @@ function createTray() {
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Open Security Client', click: () => { mainWindow.show(); mainWindow.focus(); } },
     { type: 'separator' },
+    ...(process.platform === 'win32' ? [{ label: 'Uninstall...', click: () => uninstallClient() }] : []),
     { label: 'Quit', click: () => { app.isQuiting = true; app.quit(); } }
   ]);
   tray.setContextMenu(contextMenu);
