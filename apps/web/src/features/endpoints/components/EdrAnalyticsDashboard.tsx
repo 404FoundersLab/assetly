@@ -16,6 +16,17 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import type { Endpoint } from '../../../types';
 
+// Same rule as the Registered Devices Inventory: offline when no heartbeat for more than 5 minutes.
+// Timestamps from the API are UTC even when they have no timezone suffix.
+function endpointIsOffline(lastSeen: string | null | undefined, now: Date = new Date()): boolean {
+  if (!lastSeen) return true;
+  const s = lastSeen.replace(' ', 'T');
+  const utc = s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s}Z`;
+  const d = new Date(utc);
+  if (isNaN(d.getTime())) return true;
+  return now.getTime() - d.getTime() > 5 * 60 * 1000;
+}
+
 interface EdrAnalyticsDashboardProps {
   endpoints: Endpoint[];
   onSelectEndpoint?: (endpointId: string) => void;
@@ -55,8 +66,7 @@ export function EdrAnalyticsDashboard({ endpoints, onSelectEndpoint, onRefresh }
       else osDistribution.Windows++;
 
       // Compute endpoint security score
-      const lastSeen = ep.last_seen_at ? new Date(ep.last_seen_at.replace(' ', 'T')) : null;
-      const isOffline = !lastSeen || (now.getTime() - lastSeen.getTime()) > 5 * 60 * 1000;
+      const isOffline = endpointIsOffline(ep.last_seen_at, now);
       let score = 100;
       if (isOffline) score -= 30;
       if (ep.firewall_status !== 'ON') score -= 20;
@@ -145,7 +155,7 @@ export function EdrAnalyticsDashboard({ endpoints, onSelectEndpoint, onRefresh }
             Endpoint Detection and Response
           </Typography>
           <Chip
-            label={`${endpoints.length} Active Devices`}
+            label={`${endpoints.filter((e) => !endpointIsOffline(e.last_seen_at)).length} Active · ${endpoints.filter((e) => endpointIsOffline(e.last_seen_at)).length} Offline`}
             size="small"
             sx={{ bgcolor: alpha('#10b981', 0.15), color: '#10b981', fontWeight: 700, fontSize: '0.72rem', border: '1px solid #10b981' }}
           />
@@ -433,9 +443,13 @@ export function EdrAnalyticsDashboard({ endpoints, onSelectEndpoint, onRefresh }
                     </TableCell>
                     <TableCell align="right">
                       <Chip
-                        label={ep.status || 'active'}
+                        label={endpointIsOffline(ep.last_seen_at) ? 'offline' : 'online'}
                         size="small"
-                        sx={{ height: 20, fontSize: '0.65rem', bgcolor: '#1e293b', color: '#94a3b8' }}
+                        sx={{
+                          height: 20, fontSize: '0.65rem', fontWeight: 700,
+                          bgcolor: endpointIsOffline(ep.last_seen_at) ? alpha('#ef4444', 0.15) : alpha('#10b981', 0.15),
+                          color: endpointIsOffline(ep.last_seen_at) ? '#ef4444' : '#10b981'
+                        }}
                       />
                     </TableCell>
                   </TableRow>

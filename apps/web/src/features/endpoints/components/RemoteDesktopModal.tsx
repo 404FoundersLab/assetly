@@ -7,6 +7,7 @@ import TvIcon from '@mui/icons-material/Tv';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import TerminalIcon from '@mui/icons-material/Terminal';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import type { Endpoint } from '../../../types';
 import { apiFetch } from '../../../services/api/client';
@@ -119,6 +120,27 @@ export function RemoteDesktopModal({ open, endpoint, onClose }: RemoteDesktopMod
     }
   };
 
+  // Save the current remote screen as a PNG file on this computer
+  const handleScreenshot = () => {
+    const video = videoRef.current;
+    const source: CanvasImageSource | null = rtcLive && video && video.videoWidth ? video : canvasRef.current;
+    if (!source) return;
+    const w = source instanceof HTMLVideoElement ? source.videoWidth : (source as HTMLCanvasElement).width;
+    const h = source instanceof HTMLVideoElement ? source.videoHeight : (source as HTMLCanvasElement).height;
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    out.getContext('2d')?.drawImage(source, 0, 0, w, h);
+    out.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${endpoint?.hostname || 'remote'}-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }, 'image/png');
+  };
+
   const handleSendCtrlAltDel = async () => {
     try {
       await sendRelayCommand("powershell -NoProfile -Command \"(New-Object -ComObject wscript.shell).SendKeys('^{%}{DEL}')\"");
@@ -191,6 +213,12 @@ export function RemoteDesktopModal({ open, endpoint, onClose }: RemoteDesktopMod
               <MenuItem value="480p">480p Fast</MenuItem>
             </Select>
           </FormControl>
+
+          <Button size="small" variant="outlined" color="inherit" startIcon={<CameraAltIcon />}
+            onClick={handleScreenshot} disabled={status !== 'connected'}
+            sx={{ fontSize: '11px', height: 32, borderColor: '#475569' }}>
+            Screenshot
+          </Button>
 
           <Button size="small" variant="outlined" onClick={handleSendCtrlAltDel}
             sx={{ color: '#f59e0b', borderColor: '#f59e0b', fontSize: '11px', height: 32 }}>
