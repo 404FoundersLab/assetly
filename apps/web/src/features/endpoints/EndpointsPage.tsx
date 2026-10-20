@@ -221,6 +221,9 @@ function EndpointRow({ endpoint, onRefresh }: { endpoint: Endpoint; onRefresh: (
                 <ActionsBar endpointId={endpoint.id} isOffline={isOffline} onRemoteControl={() => setRemoteOpen(true)} />
               </Paper>
 
+              {/* Screen capture (per-device interval) */}
+              <ScreenshotPanel endpointId={endpoint.id} isOffline={isOffline} />
+
               {/* Threat Panel + Security Controls */}
               <Grid container spacing={3} mb={3}>
                 <Grid item xs={12} md={7}><ThreatPanel endpointId={endpoint.id} /></Grid>
