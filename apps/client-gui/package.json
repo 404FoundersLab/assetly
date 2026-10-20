@@ -35,6 +35,8 @@
                                 "main.js",
                                 "preload.js",
                                 "remote-daemon.js",
+      "remote-host.html",
+      "remote-host-preload.js",
                                 "renderer/**",
                                 "assets/**",
                                 "node_modules/**",

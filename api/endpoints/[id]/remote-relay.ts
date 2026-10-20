@@ -40,16 +40,16 @@ export default async function handler(req: Request) {
   try {
     if (req.method === 'GET') {
       if (isAgent) {
-        // Agent gets active status and consumes input queue (clearing it atomically)
+        // Agent gets active status, consumes input queue, and reads new WebRTC signals
+        const since = Number(url.searchParams.get('since') || 0) || 0;
         const [session] = await sql`
           UPDATE remote_desktop_sessions 
           SET input_queue = '[]'::jsonb, updated_at = NOW()
           WHERE endpoint_id = ${id}
-          RETURNING is_active, last_frame, (
+          RETURNING is_active, (
             SELECT input_queue FROM remote_desktop_sessions WHERE endpoint_id = ${id}
           ) AS old_queue
         `;
-
         if (!session) {
           // Initialize session row if it doesn't exist
           await sql`
@@ -57,28 +57,48 @@ export default async function handler(req: Request) {
             VALUES (${id}, false)
             ON CONFLICT (endpoint_id) DO NOTHING
           `;
-          return json({ is_active: false, input_queue: [] });
+          return json({ is_active: false, input_queue: [], signals: [] });
         }
-
+        const signals = session.is_active
+          ? await sql`
+              SELECT id, payload FROM remote_signals
+              WHERE endpoint_id = ${id} AND direction = 'to_agent' AND id > ${since}
+              ORDER BY id ASC LIMIT 100
+            `
+          : [];
         return json({
           is_active: session.is_active,
-          input_queue: session.old_queue || []
+          input_queue: session.old_queue || [],
+          signals
         });
       } else {
-        // Dashboard gets latest frame and command result (consuming command result)
+        // Dashboard gets latest frame (unless lite), command result and new WebRTC signals
+        const lite = url.searchParams.get('mode') === 'lite';
+        const since = Number(url.searchParams.get('since') || 0) || 0;
         const [session] = await sql`
           UPDATE remote_desktop_sessions 
           SET command_result = null
           WHERE endpoint_id = ${id}
-          RETURNING is_active, last_frame, (
+          RETURNING is_active, (
             SELECT command_result FROM remote_desktop_sessions WHERE endpoint_id = ${id}
           ) AS old_command_result
         `;
-        return json(session ? { 
-          is_active: session.is_active, 
-          last_frame: session.last_frame, 
-          command_result: session.old_command_result 
-        } : { is_active: false, last_frame: null, command_result: null });
+        const signals = await sql`
+          SELECT id, payload FROM remote_signals
+          WHERE endpoint_id = ${id} AND direction = 'to_viewer' AND id > ${since}
+          ORDER BY id ASC LIMIT 100
+        `;
+        let lastFrame: string | null = null;
+        if (!lite && session?.is_active) {
+          const [f] = await sql`SELECT last_frame FROM remote_desktop_sessions WHERE endpoint_id = ${id}`;
+          lastFrame = f?.last_frame ?? null;
+        }
+        return json({
+          is_active: session ? session.is_active : false,
+          last_frame: lastFrame,
+          command_result: session ? session.old_command_result : null,
+          signals
+        });
       }
     }
 
@@ -87,7 +107,11 @@ export default async function handler(req: Request) {
 
       if (isAgent) {
         // Agent updates frame and/or command result
-        const { frame, commandResult } = body;
+        const { frame, commandResult, signal } = body;
+        if (signal) {
+          await sql`INSERT INTO remote_signals (endpoint_id, direction, payload) VALUES (${id}, 'to_viewer', ${JSON.stringify(signal)}::jsonb)`;
+          return json({ success: true });
+        }
         await sql`
           INSERT INTO remote_desktop_sessions (endpoint_id, is_active, last_frame, command_result, updated_at)
           VALUES (${id}, true, ${frame || null}, ${commandResult || null}, NOW())
@@ -100,9 +124,10 @@ export default async function handler(req: Request) {
         return json({ success: true });
       } else {
         // Dashboard actions: start, stop, input, command
-        const { action, input, command } = body;
+        const { action, input, command, signal } = body;
 
         if (action === 'start') {
+          await sql`DELETE FROM remote_signals WHERE endpoint_id = ${id}`;
           // Set session active, queue start-remote command for immediate pickup
           await sql`
             INSERT INTO remote_desktop_sessions (endpoint_id, is_active, last_frame, input_queue, updated_at)
@@ -119,6 +144,7 @@ export default async function handler(req: Request) {
         }
 
         if (action === 'stop') {
+          await sql`DELETE FROM remote_signals WHERE endpoint_id = ${id}`;
           await sql`
             UPDATE remote_desktop_sessions 
             SET is_active = false, last_frame = null, input_queue = '[]'::jsonb, updated_at = NOW()
@@ -130,6 +156,11 @@ export default async function handler(req: Request) {
             VALUES (${id}, 'stop-remote', 'pending')
           `;
           return json({ success: true, message: 'Session stopped' });
+        }
+
+        if (action === 'signal' && signal) {
+          await sql`INSERT INTO remote_signals (endpoint_id, direction, payload) VALUES (${id}, 'to_agent', ${JSON.stringify(signal)}::jsonb)`;
+          return json({ success: true });
         }
 
         if (action === 'input' && input) {

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>remote-host</title></head>
+<body>
+<script>
+  // Hidden renderer that owns the WebRTC peer connection and streams the primary screen to the web viewer.
+  const ICE = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  };
+
+  let pc = null;
+  let stream = null;
+  let remoteSet = false;
+  let pending = [];
+
+  function cleanup() {
+    remoteSet = false;
+    pending = [];
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+    window.hostAPI.setState('closed');
+  }
+
+  async function handleOffer(sdp) {
+    cleanup();
+    pc = new RTCPeerConnection(ICE);
+    const conn = pc;
+
+    conn.onicecandidate = (e) => {
+      if (e.candidate) window.hostAPI.sendSignal({ type: 'candidate', candidate: e.candidate.toJSON() });
+    };
+    conn.onconnectionstatechange = () => window.hostAPI.setState(conn.connectionState);
+    conn.ondatachannel = (e) => {
+      e.channel.onmessage = (m) => {
+        try { window.hostAPI.sendInput(JSON.parse(m.data)); } catch (err) {}
+      };
+    };
+
+    const sourceId = await window.hostAPI.getSourceId();
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: sourceId,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFrameRate: 30
+        }
+      }
+    });
+    const track = stream.getVideoTracks()[0];
+    try { track.contentHint = 'detail'; } catch (e) {}
+
+    await conn.setRemoteDescription({ type: 'offer', sdp });
+    remoteSet = true;
+
+    const tr = conn.getTransceivers().find((t) => t.receiver && t.receiver.track && t.receiver.track.kind === 'video');
+    tr.direction = 'sendonly';
+    await tr.sender.replaceTrack(track);
+    try {
+      const params = tr.sender.getParameters();
+      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = 6000000;
+      await tr.sender.setParameters(params);
+    } catch (e) {}
+
+    const answer = await conn.createAnswer();
+    await conn.setLocalDescription(answer);
+    await new Promise((resolve) => {
+      if (conn.iceGatheringState === 'complete') return resolve();
+      const check = () => { if (conn.iceGatheringState === 'complete') { conn.removeEventListener('icegatheringstatechange', check); resolve(); } };
+      conn.addEventListener('icegatheringstatechange', check);
+      setTimeout(resolve, 3000);
+    });
+    window.hostAPI.sendSignal({ type: 'answer', sdp: conn.localDescription.sdp });
+
+    for (const c of pending) { try { await conn.addIceCandidate(c); } catch (e) {} }
+    pending = [];
+  }
+
+  window.hostAPI.onSignal(async (s) => {
+    try {
+      if (s.type === 'offer') {
+        await handleOffer(s.sdp);
+      } else if (s.type === 'candidate' && s.candidate) {
+        if (pc && remoteSet) { await pc.addIceCandidate(s.candidate); }
+        else pending.push(s.candidate);
+      } else if (s.type === 'bye') {
+        cleanup();
+      }
+    } catch (e) {
+      console.error('[remote-host]', e && e.message);
+      window.hostAPI.setState('failed');
+    }
+  });
+
+  window.hostAPI.ready();
+</script>
+</body>
+</html>
+
