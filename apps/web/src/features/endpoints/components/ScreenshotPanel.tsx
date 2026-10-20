@@ -84,7 +84,16 @@ export function ScreenshotPanel({ endpointId, isOffline }: { endpointId: string;
       {shots.length > 0 && (
         <Box sx={{ display: 'flex', gap: 1.5, mt: 2, overflowX: 'auto' }}>
           {shots.map((s) => (
-            <Box key={s.id} sx={{ flex: '0 0 auto' }}>
+            <Box key={s.id} sx={{ flex: '0 0 auto', position: 'relative' }}>
+              <Tooltip title="Delete screenshot">
+                <IconButton
+                  size="small"
+                  onClick={() => deleteShot(s.id)}
+                  sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff', '&:hover': { bgcolor: 'error.main' } }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
               <a href={s.image_data} target="_blank" rel="noreferrer">
                 <img src={s.image_data} alt="screenshot" style={{ height: 120, borderRadius: 4, border: '1px solid #ccc' }} />
               </a>

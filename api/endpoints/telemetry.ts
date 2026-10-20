@@ -62,10 +62,10 @@ export default async function handler(req: Request) {
         VALUES (${endpoint_id}, ${screenshot.image}, ${screenshot.captured_at || new Date().toISOString()})
       `;
       await sql`
-        DELETE FROM endpoint_screenshots WHERE endpoint_id = ${endpoint_id} AND id NOT IN (
+        DELETE FROM endpoint_screenshots WHERE endpoint_id = ${endpoint_id} AND (captured_at < NOW() - INTERVAL '7 days' OR id NOT IN (
           SELECT id FROM endpoint_screenshots WHERE endpoint_id = ${endpoint_id}
           ORDER BY captured_at DESC LIMIT 20
-        )
+        ))
       `;
     }
 
