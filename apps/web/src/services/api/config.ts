@@ -2,7 +2,7 @@
 export const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 export function isApiEnabled(): boolean {
-  return true;
+  return import.meta.env.VITE_USE_API !== 'false';
 }
 
 export function apiUrl(path: string): string {

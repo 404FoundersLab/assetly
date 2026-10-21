@@ -46,7 +46,9 @@ export function HRPage() {
   // Stats
   const stats = useMemo(() => {
     const activeEmp = employees.filter(e => e.status === 'active').length;
-    const pendingLeaves = leaveRequests.filter(r => r.status === 'pending').length;
+    const pendingLeaves = leaveRequests.filter(
+      (r) => r.status === 'pending' || r.status === 'pending_manager' || r.status === 'pending_hr'
+    ).length;
     const onLeaveToday = leaveRequests.filter(r => r.status === 'approved' && today >= r.startDate && today <= r.endDate).length;
     const pendingTimesheets = timesheets.filter(t => t.status === 'submitted').length;
     const activeOnboardings = onboardings.filter(o => o.status === 'in_progress').length;
