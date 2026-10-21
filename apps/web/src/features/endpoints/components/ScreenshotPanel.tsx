@@ -26,7 +26,7 @@ export function ScreenshotPanel({ endpointId, isOffline }: { endpointId: string;
 
   const loadShots = useCallback(async () => {
     try {
-      const res = await apiFetch<{ screenshots: Shot[] }>(`/api/endpoints/${endpointId}/screenshots`);
+      const res = await apiFetch<{ screenshots: Shot[] }>(`/api/endpoints/${endpointId}/screenshots`, { cache: 'no-store' });
       setShots(res.screenshots ?? []);
     } catch { /* ignore */ }
   }, [endpointId]);
@@ -109,6 +109,12 @@ export function ScreenshotPanel({ endpointId, isOffline }: { endpointId: string;
           Stored in the database · auto-deleted after 7 days · latest 20 kept per device
         </Typography>
       </Box>
+
+      {interval > 0 && (
+        <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 1 }}>
+          Automatic capture is ON ({INTERVAL_OPTIONS.find((o) => o.value === interval)?.label}). New screenshots keep arriving after you delete old ones. Set Interval to "Off" to stop them.
+        </Typography>
+      )}
 
       {shots.length > 0 && (
         <Box sx={{ display: 'flex', gap: 1.5, mt: 2, overflowX: 'auto' }}>
