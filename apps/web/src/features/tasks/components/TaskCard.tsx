@@ -157,6 +157,20 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
                 border: `1px solid ${alpha(priorityMeta.color, 0.3)}`,
               }}
             />
+            {task.projectName && (
+              <Chip
+                label={task.projectName.length > 22 ? `${task.projectName.slice(0, 20)}…` : task.projectName}
+                size="small"
+                sx={{
+                  height: 22,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  color: '#6366F1',
+                  bgcolor: 'rgba(99, 102, 241, 0.1)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                }}
+              />
+            )}
             {task.ticketReferenceId && (
               <Chip
                 icon={<ConfirmationNumberIcon sx={{ fontSize: '12px !important' }} />}

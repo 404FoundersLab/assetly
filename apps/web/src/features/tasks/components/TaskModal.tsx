@@ -32,10 +32,20 @@ interface TaskModalProps {
   task: EmployeeTask | null;
   initialStatus?: TaskStatus;
   initialTicketRef?: string;
+  initialProjectId?: string;
+  initialEmployeeId?: string;
   onClose: () => void;
 }
 
-export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef, onClose }: TaskModalProps) {
+export function TaskModal({
+  open,
+  task,
+  initialStatus = 'todo',
+  initialTicketRef,
+  initialProjectId,
+  initialEmployeeId,
+  onClose,
+}: TaskModalProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
@@ -44,6 +54,7 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
   const tickets = useAppSelector((s) => s.tickets.items);
+  const projects = useAppSelector((s) => s.tasks.projects);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -52,6 +63,7 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
   const [type, setType] = useState<TaskType>('task');
   const [assignedEmployeeId, setAssignedEmployeeId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [estimatedHours, setEstimatedHours] = useState<number>(8);
   const [loggedHours, setLoggedHours] = useState<number>(0);
@@ -69,6 +81,7 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
       setType(task.type);
       setAssignedEmployeeId(task.assignedEmployeeId || '');
       setDepartmentId(task.departmentId || '');
+      setProjectId(task.projectId || '');
       setDueDate(task.dueDate || '');
       setEstimatedHours(task.estimatedHours || 0);
       setLoggedHours(task.loggedHours || 0);
@@ -81,8 +94,9 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
       setStatus(initialStatus);
       setPriority('medium');
       setType(initialTicketRef ? 'ticket' : 'task');
-      setAssignedEmployeeId(employees[0]?.id || '');
+      setAssignedEmployeeId(initialEmployeeId || employees[0]?.id || '');
       setDepartmentId(departments[0]?.id || '');
+      setProjectId(initialProjectId || '');
       const defaultDue = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
       setDueDate(defaultDue);
       setEstimatedHours(8);
@@ -91,7 +105,7 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
       setTicketReferenceId(initialTicketRef || '');
       setChecklist([]);
     }
-  }, [task, initialStatus, initialTicketRef, employees, departments]);
+  }, [task, initialStatus, initialTicketRef, initialProjectId, initialEmployeeId, employees, departments]);
 
   const handleAddChecklistItem = () => {
     if (!newChecklistText.trim()) return;
@@ -120,6 +134,8 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
     const assignedEmp = employees.find((e) => e.id === assignedEmployeeId);
     const assignedName = assignedEmp ? `${assignedEmp.firstName} ${assignedEmp.lastName}` : 'Unassigned';
     const dept = departments.find((d) => d.id === departmentId);
+    const project = projects.find((p) => p.id === projectId);
+    const projectName = project ? project.name : undefined;
 
     const tags = tagsInput
       .split(',')
@@ -132,6 +148,8 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
           ...task,
           title: title.trim(),
           description: description.trim(),
+          projectId: projectId || undefined,
+          projectName,
           status,
           priority,
           type,
@@ -153,6 +171,8 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
         addTask({
           title: title.trim(),
           description: description.trim(),
+          projectId: projectId || undefined,
+          projectName,
           status,
           priority,
           type,
@@ -286,8 +306,25 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
             </TextField>
           </Grid>
 
-          {/* Assignee & Department */}
-          <Grid item xs={12} sm={6}>
+          {/* Project, Assignee & Department */}
+          <Grid item xs={12} sm={4}>
+            <TextField
+              select
+              label="Project Deliverable"
+              fullWidth
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+            >
+              <MenuItem value="">General / No Project</MenuItem>
+              {projects.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.name} ({p.code})
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          <Grid item xs={12} sm={4}>
             <TextField
               select
               label="Assigned Employee"
@@ -303,7 +340,7 @@ export function TaskModal({ open, task, initialStatus = 'todo', initialTicketRef
             </TextField>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
             <TextField
               select
               label="Department"

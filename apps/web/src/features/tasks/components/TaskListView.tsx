@@ -118,6 +118,19 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
                             bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)',
                           }}
                         />
+                        {task.projectName && (
+                          <Chip
+                            label={task.projectName}
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: '#6366F1',
+                              bgcolor: 'rgba(99, 102, 241, 0.1)',
+                            }}
+                          />
+                        )}
                         {task.ticketReferenceId && (
                           <Chip
                             icon={<ConfirmationNumberIcon sx={{ fontSize: '12px !important' }} />}

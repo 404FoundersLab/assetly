@@ -1,15 +1,20 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { EmployeeTask, TaskChecklistItem, TaskPriority, TaskStatus, TaskType } from '../types';
+import type { EmployeeTask, Project, TaskChecklistItem, TaskPriority, TaskStatus, TaskType } from '../types';
+
+export type TaskGroupBy = 'stage' | 'employee' | 'project';
 
 interface TasksState {
   items: EmployeeTask[];
+  projects: Project[];
   selectedTaskId: string | null;
   filterAssigneeId: string | 'all';
   filterDepartmentId: string | 'all';
+  filterProjectId: string | 'all';
   filterPriority: TaskPriority | 'all';
   filterStatus: TaskStatus | 'all';
   filterType: TaskType | 'all';
   searchQuery: string;
+  groupBy: TaskGroupBy;
 }
 
 const today = new Date();
@@ -18,11 +23,105 @@ const formatDate = (offsetDays: number) => {
   return d.toISOString().split('T')[0];
 };
 
+export const INITIAL_PROJECTS: Project[] = [
+  {
+    id: 'PRJ-101',
+    name: 'Cloud & Redis HA Infrastructure',
+    code: 'INFRA',
+    description: 'High-availability multi-region cluster migration, automated failover, and Redis 7.2 upgrade.',
+    departmentId: '22222222-2222-2222-2222-222222222201',
+    departmentName: 'Engineering',
+    managerName: 'Vasanth (Admin)',
+    status: 'active',
+    priority: 'high',
+    startDate: formatDate(-30),
+    endDate: formatDate(30),
+    color: '#6366F1',
+    memberEmployeeIds: [
+      '44444444-4444-4444-4444-444444444402', // Mike Johnson
+      '44444444-4444-4444-4444-444444444406', // David Brown
+    ],
+  },
+  {
+    id: 'PRJ-102',
+    name: 'HRMS Leave & Workflow Automation',
+    code: 'HRMS',
+    description: 'Automated Slack/Email approval escalations, multi-tier leave balance ledger, and peer handover tracking.',
+    departmentId: '22222222-2222-2222-2222-222222222202',
+    departmentName: 'Human Resources',
+    managerName: 'Emily Davis',
+    status: 'active',
+    priority: 'medium',
+    startDate: formatDate(-20),
+    endDate: formatDate(45),
+    color: '#10B981',
+    memberEmployeeIds: [
+      '44444444-4444-4444-4444-444444444401', // Sarah Chen
+      '44444444-4444-4444-4444-444444444403', // Emily Davis
+    ],
+  },
+  {
+    id: 'PRJ-103',
+    name: 'Endpoint Security & Zero-Trust Fleet Hardening',
+    code: 'EDR',
+    description: 'Telemetry monitoring agent, disk encryption quarantine triggers, and VPN gateway timeout fixes.',
+    departmentId: '22222222-2222-2222-2222-222222222201',
+    departmentName: 'Engineering',
+    managerName: 'Pavan (IT Admin)',
+    status: 'active',
+    priority: 'urgent',
+    startDate: formatDate(-15),
+    endDate: formatDate(20),
+    color: '#EC4899',
+    memberEmployeeIds: [
+      '44444444-4444-4444-4444-444444444402', // Mike Johnson
+      '44444444-4444-4444-4444-444444444406', // David Brown
+    ],
+  },
+  {
+    id: 'PRJ-104',
+    name: 'Q3 Financial CapEx & IT Spend Audit',
+    code: 'FIN',
+    description: 'Cloud amortization reconciliation, server registry linkage, and depreciation schedules for board review.',
+    departmentId: '22222222-2222-2222-2222-222222222204',
+    departmentName: 'Finance',
+    managerName: 'Priya Patel',
+    status: 'active',
+    priority: 'high',
+    startDate: formatDate(-10),
+    endDate: formatDate(15),
+    color: '#F59E0B',
+    memberEmployeeIds: [
+      '44444444-4444-4444-4444-444444444405', // Priya Patel
+    ],
+  },
+  {
+    id: 'PRJ-105',
+    name: 'Design System & UI/UX Refresh 2026',
+    code: 'DSGN',
+    description: 'WCAG AAA color tokens, dark mode harmony, and accessible micro-interaction libraries.',
+    departmentId: '22222222-2222-2222-2222-222222222201',
+    departmentName: 'Engineering',
+    managerName: 'Sarah Chen',
+    status: 'active',
+    priority: 'medium',
+    startDate: formatDate(-25),
+    endDate: formatDate(35),
+    color: '#8B5CF6',
+    memberEmployeeIds: [
+      '44444444-4444-4444-4444-444444444407', // Anna Martinez
+      '44444444-4444-4444-4444-444444444401', // Sarah Chen
+    ],
+  },
+];
+
 export const INITIAL_TASKS: EmployeeTask[] = [
   {
     id: 'TSK-101',
     title: 'Migrate Redis session cache cluster to High-Availability tier',
     description: 'Upgrade the active-active cluster to node version 7.2 with TLS authentication and verify automated failover behavior under test load.',
+    projectId: 'PRJ-101',
+    projectName: 'Cloud & Redis HA Infrastructure',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444402', // Mike Johnson
     assignedEmployeeName: 'Mike Johnson',
     departmentId: '22222222-2222-2222-2222-222222222201',
@@ -49,6 +148,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-102',
     title: 'Resolve VPN handshake timeouts for remote European regional team',
     description: 'Diagnose intermittent OpenVPN disconnects reported on macOS Sonoma clients connecting via Frankfurt gateway tunnel.',
+    projectId: 'PRJ-103',
+    projectName: 'Endpoint Security & Zero-Trust Fleet Hardening',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444402', // Mike Johnson
     assignedEmployeeName: 'Mike Johnson',
     departmentId: '22222222-2222-2222-2222-222222222201',
@@ -74,6 +175,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-103',
     title: 'Build automated Leave Approval escalation bot for Slack & Email',
     description: 'Develop an automated background worker that alerts secondary managers if leave requests remain unattended after 48 business hours.',
+    projectId: 'PRJ-102',
+    projectName: 'HRMS Leave & Workflow Automation',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444401', // Sarah Chen
     assignedEmployeeName: 'Sarah Chen',
     departmentId: '22222222-2222-2222-2222-222222222201',
@@ -99,6 +202,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-104',
     title: 'Annual Statutory HR Equal Opportunity Compliance Audit Filing',
     description: 'Compile workforce demographic balance, affirmative inclusion metrics, and mandatory training acknowledgment certificates for Q3 review.',
+    projectId: 'PRJ-102',
+    projectName: 'HRMS Leave & Workflow Automation',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444403', // Emily Davis
     assignedEmployeeName: 'Emily Davis',
     departmentId: '22222222-2222-2222-2222-222222222202',
@@ -124,6 +229,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-105',
     title: 'Fix memory leak in Endpoints Telemetry WebSocket listener',
     description: 'Telemetry daemon CPU spikes on long-lived connections due to unclosed socket buffers during agent reconnect cycles.',
+    projectId: 'PRJ-103',
+    projectName: 'Endpoint Security & Zero-Trust Fleet Hardening',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444406', // David Brown
     assignedEmployeeName: 'David Brown',
     departmentId: '22222222-2222-2222-2222-222222222201',
@@ -150,6 +257,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-106',
     title: 'Design Dark-Mode Accessible Color Tokens for Design System',
     description: 'Ensure all MUI components pass WCAG AAA contrast guidelines for slate-900 / dark sapphire backgrounds across portals.',
+    projectId: 'PRJ-105',
+    projectName: 'Design System & UI/UX Refresh 2026',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444407', // Anna Martinez
     assignedEmployeeName: 'Anna Martinez',
     departmentId: '22222222-2222-2222-2222-222222222201',
@@ -174,6 +283,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-107',
     title: 'Reconcile Q3 Cloud Infrastructure CapEx & Depreciation Journal',
     description: 'Map AWS / Azure invoices with asset depreciation tables and cost center budget lines in IT Spend.',
+    projectId: 'PRJ-104',
+    projectName: 'Q3 Financial CapEx & IT Spend Audit',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444405', // Priya Patel
     assignedEmployeeName: 'Priya Patel',
     departmentId: '22222222-2222-2222-2222-222222222204',
@@ -198,6 +309,8 @@ export const INITIAL_TASKS: EmployeeTask[] = [
     id: 'TSK-108',
     title: 'Configure automated Endpoint Security quarantine policies',
     description: 'Set rules to automatically isolate non-compliant devices failing disk encryption or antivirus definitions within 15 minutes of detection.',
+    projectId: 'PRJ-103',
+    projectName: 'Endpoint Security & Zero-Trust Fleet Hardening',
     assignedEmployeeId: '44444444-4444-4444-4444-444444444402', // Mike Johnson
     assignedEmployeeName: 'Mike Johnson',
     departmentId: '22222222-2222-2222-2222-222222222201',
@@ -222,13 +335,16 @@ export const INITIAL_TASKS: EmployeeTask[] = [
 
 const initialState: TasksState = {
   items: INITIAL_TASKS,
+  projects: INITIAL_PROJECTS,
   selectedTaskId: null,
   filterAssigneeId: 'all',
   filterDepartmentId: 'all',
+  filterProjectId: 'all',
   filterPriority: 'all',
   filterStatus: 'all',
   filterType: 'all',
   searchQuery: '',
+  groupBy: 'stage',
 };
 
 const tasksSlice = createSlice({
@@ -294,6 +410,9 @@ const tasksSlice = createSlice({
     setFilterDepartment: (state, action: PayloadAction<string | 'all'>) => {
       state.filterDepartmentId = action.payload;
     },
+    setFilterProject: (state, action: PayloadAction<string | 'all'>) => {
+      state.filterProjectId = action.payload;
+    },
     setFilterPriority: (state, action: PayloadAction<TaskPriority | 'all'>) => {
       state.filterPriority = action.payload;
     },
@@ -306,9 +425,30 @@ const tasksSlice = createSlice({
     setSearchQuery: (state, action: PayloadAction<string>) => {
       state.searchQuery = action.payload;
     },
+    setGroupBy: (state, action: PayloadAction<TaskGroupBy>) => {
+      state.groupBy = action.payload;
+    },
+    addProject: (state, action: PayloadAction<Omit<Project, 'id'>>) => {
+      const nextId = `PRJ-${100 + state.projects.length + 1}`;
+      state.projects.push({ ...action.payload, id: nextId });
+    },
+    updateProject: (state, action: PayloadAction<Project>) => {
+      const idx = state.projects.findIndex((p) => p.id === action.payload.id);
+      if (idx !== -1) state.projects[idx] = action.payload;
+    },
+    deleteProject: (state, action: PayloadAction<string>) => {
+      state.projects = state.projects.filter((p) => p.id !== action.payload);
+      state.items.forEach((t) => {
+        if (t.projectId === action.payload) {
+          t.projectId = undefined;
+          t.projectName = undefined;
+        }
+      });
+    },
     resetFilters: (state) => {
       state.filterAssigneeId = 'all';
       state.filterDepartmentId = 'all';
+      state.filterProjectId = 'all';
       state.filterPriority = 'all';
       state.filterStatus = 'all';
       state.filterType = 'all';
@@ -327,10 +467,15 @@ export const {
   setSelectedTaskId,
   setFilterAssignee,
   setFilterDepartment,
+  setFilterProject,
   setFilterPriority,
   setFilterStatus,
   setFilterType,
   setSearchQuery,
+  setGroupBy,
+  addProject,
+  updateProject,
+  deleteProject,
   resetFilters,
 } = tasksSlice.actions;
 

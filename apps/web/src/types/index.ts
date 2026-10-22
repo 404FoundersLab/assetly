@@ -235,10 +235,29 @@ export interface TaskChecklistItem {
   completed: boolean;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  departmentId: string;
+  departmentName?: string;
+  managerId?: string;
+  managerName?: string;
+  status: 'active' | 'planning' | 'completed' | 'on_hold';
+  priority: TaskPriority;
+  startDate: string;
+  endDate: string;
+  color: string;
+  memberEmployeeIds?: string[];
+}
+
 export interface EmployeeTask {
   id: string;
   title: string;
   description: string;
+  projectId?: string;
+  projectName?: string;
   assignedEmployeeId: string;
   assignedEmployeeName?: string;
   assignedEmployeeAvatar?: string;

@@ -26,10 +26,12 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AddIcon from '@mui/icons-material/Add';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
+import FolderIcon from '@mui/icons-material/Folder';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector, useAuthUser } from '../../hooks/storeHooks';
 import { toggleChecklistItem, logTaskHours, updateTaskStatus } from '../../store/tasksSlice';
-import type { EmployeeTask, TaskStatus } from '../../types';
+import type { EmployeeTask, Project, TaskStatus } from '../../types';
 
 export function EmployeeTasksTab() {
   const theme = useTheme();
@@ -39,6 +41,7 @@ export function EmployeeTasksTab() {
   const user = useAuthUser();
 
   const tasks = useAppSelector((s) => s.tasks.items);
+  const projects = useAppSelector((s) => s.tasks.projects);
   const employees = useAppSelector((s) => s.employees.items);
 
   const [logHoursTask, setLogHoursTask] = useState<EmployeeTask | null>(null);
@@ -63,6 +66,26 @@ export function EmployeeTasksTab() {
       return false;
     });
   }, [tasks, currentEmployee, user]);
+
+  // Grouped by Project (Project-Wise Structure for employees)
+  const projectGroups = useMemo(() => {
+    const map: Record<string, { project?: Project; tasks: EmployeeTask[] }> = {};
+
+    projects.forEach((p) => {
+      map[p.id] = { project: p, tasks: [] };
+    });
+    map['unassigned'] = { project: undefined, tasks: [] };
+
+    myTasks.forEach((t) => {
+      const pId = t.projectId || 'unassigned';
+      if (!map[pId]) {
+        map[pId] = { project: projects.find((p) => p.id === pId), tasks: [] };
+      }
+      map[pId].tasks.push(t);
+    });
+
+    return Object.values(map).filter((g) => g.tasks.length > 0);
+  }, [projects, myTasks]);
 
   // KPI stats
   const stats = useMemo(() => {
@@ -98,13 +121,13 @@ export function EmployeeTasksTab() {
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2 }}>
           <Box>
             <Typography variant="overline" color="#8B5CF6" fontWeight={800} sx={{ letterSpacing: '0.08em' }}>
-              PERSONAL DELIVERABLES & TO-DOS
+              PROJECT-WISE DELIVERABLES & TO-DOS
             </Typography>
             <Typography variant="h5" fontWeight={800} sx={{ mt: 0.5 }}>
-              My Assigned Work & Tasks
+              My Project Work & Tasks
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Track daily deliverables, check off checklist milestones, and log working hours.
+              Track your deliverables structured project-wise, mark subtask milestones, and log working hours.
             </Typography>
           </Box>
 
@@ -122,17 +145,17 @@ export function EmployeeTasksTab() {
               py: 1,
             }}
           >
-            Open Full Tasks Board
+            Open Full Workspace
           </Button>
         </Box>
 
         {/* Micro KPI Row */}
         <Grid container spacing={2} sx={{ mt: 2 }}>
           {[
-            { label: 'Assigned Deliverables', val: stats.total, color: '#6366F1' },
+            { label: 'Active Projects', val: projectGroups.length, color: '#6366F1' },
+            { label: 'Assigned Deliverables', val: stats.total, color: '#3B82F6' },
             { label: 'Currently In Progress', val: stats.inProgress, color: '#F59E0B' },
-            { label: 'Completed Deliverables', val: stats.completed, color: '#10B981' },
-            { label: 'Total Hours Logged', val: `${stats.hoursLogged}h`, color: '#8B5CF6' },
+            { label: 'Total Hours Logged', val: `${stats.hoursLogged}h`, color: '#10B981' },
           ].map((item) => (
             <Grid item xs={6} sm={3} key={item.label}>
               <Box
@@ -155,167 +178,259 @@ export function EmployeeTasksTab() {
         </Grid>
       </Card>
 
-      {/* Task List */}
-      <Stack spacing={2}>
-        {myTasks.map((task) => {
-          const totalChecklist = task.checklist?.length || 0;
-          const completedChecklist = task.checklist?.filter((c) => c.completed).length || 0;
-          const checklistPercent = totalChecklist > 0 ? (completedChecklist / totalChecklist) * 100 : 0;
+      {/* Project-Wise Groupings */}
+      <Stack spacing={3}>
+        {projectGroups.map((group) => {
+          const project = group.project;
+          const groupTasks = group.tasks;
+          const totalInProj = groupTasks.length;
+          const doneInProj = groupTasks.filter((t) => t.status === 'done').length;
+          const projPercent = totalInProj > 0 ? (doneInProj / totalInProj) * 100 : 0;
+          const pColor = project?.color || '#8B5CF6';
 
           return (
             <Card
-              key={task.id}
+              key={project ? project.id : 'unassigned'}
               sx={{
-                p: 2.5,
-                borderRadius: '14px',
+                borderRadius: '16px',
                 border: '1px solid',
-                borderColor: theme.palette.divider,
-                bgcolor: isDark ? 'rgba(30, 41, 59, 0.5)' : '#FFFFFF',
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  borderColor: alpha('#8B5CF6', 0.4),
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                },
+                borderColor: alpha(pColor, isDark ? 0.3 : 0.2),
+                bgcolor: isDark ? 'rgba(30, 41, 59, 0.6)' : '#FFFFFF',
+                overflow: 'hidden',
               }}
             >
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, mb: 1.5 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="caption" fontWeight={800} color="#8B5CF6">
-                    {task.id}
-                  </Typography>
-                  <Chip
-                    label={task.status.replace('_', ' ')}
-                    size="small"
-                    color={task.status === 'done' ? 'success' : task.status === 'in_progress' ? 'warning' : 'default'}
-                    sx={{ textTransform: 'capitalize', fontWeight: 800, fontSize: '0.68rem', height: 22 }}
-                  />
-                  <Chip
-                    label={task.priority}
-                    size="small"
-                    sx={{
-                      textTransform: 'capitalize',
-                      fontWeight: 700,
-                      fontSize: '0.68rem',
-                      height: 22,
-                      bgcolor:
-                        task.priority === 'urgent'
-                          ? 'rgba(239, 68, 68, 0.1)'
-                          : task.priority === 'high'
-                          ? 'rgba(249, 115, 22, 0.1)'
-                          : 'rgba(59, 130, 246, 0.1)',
-                      color:
-                        task.priority === 'urgent'
-                          ? '#EF4444'
-                          : task.priority === 'high'
-                          ? '#F97316'
-                          : '#3B82F6',
-                    }}
-                  />
-                  {task.ticketReferenceId && (
-                    <Chip
-                      icon={<ConfirmationNumberIcon sx={{ fontSize: '12px !important' }} />}
-                      label={task.ticketReferenceId}
-                      size="small"
+              {/* Project Header Bar */}
+              <Box
+                sx={{
+                  p: 2.5,
+                  bgcolor: alpha(pColor, isDark ? 0.1 : 0.05),
+                  borderBottom: '1px solid',
+                  borderColor: theme.palette.divider,
+                }}
+              >
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1.5 }}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Box
                       sx={{
-                        height: 22,
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        color: '#EC4899',
-                        bgcolor: 'rgba(236, 72, 153, 0.1)',
+                        width: 32,
+                        height: 32,
+                        borderRadius: '8px',
+                        bgcolor: alpha(pColor, 0.15),
+                        color: pColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <FolderIcon sx={{ fontSize: 18 }} />
+                    </Box>
+                    <Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="subtitle1" fontWeight={800}>
+                          {project ? project.name : 'General Tasks & Work'}
+                        </Typography>
+                        {project && (
+                          <Chip
+                            label={project.code}
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              bgcolor: alpha(pColor, 0.15),
+                              color: pColor,
+                            }}
+                          />
+                        )}
+                      </Stack>
+                      {project?.description && (
+                        <Typography variant="caption" color="text.secondary">
+                          {project.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Stack>
+
+                  <Box sx={{ minWidth: 140 }}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary">
+                        Progress ({doneInProj}/{totalInProj})
+                      </Typography>
+                      <Typography variant="caption" fontWeight={800} sx={{ color: pColor }}>
+                        {Math.round(projPercent)}%
+                      </Typography>
+                    </Stack>
+                    <LinearProgress
+                      variant="determinate"
+                      value={projPercent}
+                      sx={{
+                        height: 5,
+                        borderRadius: 2.5,
+                        bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                        '& .MuiLinearProgress-bar': { bgcolor: pColor, borderRadius: 2.5 },
                       }}
                     />
-                  )}
-                </Stack>
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                    Due: {task.dueDate || 'No due date'}
-                  </Typography>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<AccessTimeIcon sx={{ fontSize: 14 }} />}
-                    onClick={() => setLogHoursTask(task)}
-                    sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, borderRadius: '6px' }}
-                  >
-                    Log Hours (⏱ {task.loggedHours || 0}h)
-                  </Button>
-                </Stack>
+                  </Box>
+                </Box>
               </Box>
 
-              <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
-                {task.title}
-              </Typography>
+              {/* Tasks within this Project */}
+              <CardContent sx={{ p: 2.5 }}>
+                <Stack spacing={2}>
+                  {groupTasks.map((task) => {
+                    const totalChecklist = task.checklist?.length || 0;
+                    const completedChecklist = task.checklist?.filter((c) => c.completed).length || 0;
+                    const checklistPercent = totalChecklist > 0 ? (completedChecklist / totalChecklist) * 100 : 0;
 
-              {task.description && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.85rem' }}>
-                  {task.description}
-                </Typography>
-              )}
+                    return (
+                      <Box
+                        key={task.id}
+                        sx={{
+                          p: 2,
+                          borderRadius: '12px',
+                          border: '1px solid',
+                          borderColor: theme.palette.divider,
+                          bgcolor: isDark ? 'rgba(15, 23, 42, 0.4)' : 'rgba(248, 250, 252, 0.7)',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, mb: 1 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="caption" fontWeight={800} color={pColor}>
+                              {task.id}
+                            </Typography>
+                            <Chip
+                              label={task.status.replace('_', ' ')}
+                              size="small"
+                              color={task.status === 'done' ? 'success' : task.status === 'in_progress' ? 'warning' : 'default'}
+                              sx={{ textTransform: 'capitalize', fontWeight: 800, fontSize: '0.68rem', height: 22 }}
+                            />
+                            <Chip
+                              label={task.priority}
+                              size="small"
+                              sx={{
+                                textTransform: 'capitalize',
+                                fontWeight: 700,
+                                fontSize: '0.68rem',
+                                height: 22,
+                                bgcolor:
+                                  task.priority === 'urgent'
+                                    ? 'rgba(239, 68, 68, 0.1)'
+                                    : task.priority === 'high'
+                                    ? 'rgba(249, 115, 22, 0.1)'
+                                    : 'rgba(59, 130, 246, 0.1)',
+                                color:
+                                  task.priority === 'urgent'
+                                    ? '#EF4444'
+                                    : task.priority === 'high'
+                                    ? '#F97316'
+                                    : '#3B82F6',
+                              }}
+                            />
+                            {task.ticketReferenceId && (
+                              <Chip
+                                icon={<ConfirmationNumberIcon sx={{ fontSize: '12px !important' }} />}
+                                label={task.ticketReferenceId}
+                                size="small"
+                                sx={{
+                                  height: 22,
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  color: '#EC4899',
+                                  bgcolor: 'rgba(236, 72, 153, 0.1)',
+                                }}
+                              />
+                            )}
+                          </Stack>
 
-              {/* Subtasks Checklist Interactive */}
-              {totalChecklist > 0 && (
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: '10px',
-                    bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(241, 245, 249, 0.5)',
-                    border: '1px solid',
-                    borderColor: theme.palette.divider,
-                  }}
-                >
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="caption" fontWeight={700}>
-                      Milestones ({completedChecklist}/{totalChecklist} complete)
-                    </Typography>
-                    <Typography variant="caption" fontWeight={700} color="#8B5CF6">
-                      {Math.round(checklistPercent)}%
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={checklistPercent}
-                    sx={{ height: 5, borderRadius: 2, mb: 1.5 }}
-                  />
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                              Due: {task.dueDate || 'No due date'}
+                            </Typography>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<AccessTimeIcon sx={{ fontSize: 14 }} />}
+                              onClick={() => setLogHoursTask(task)}
+                              sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, borderRadius: '6px' }}
+                            >
+                              Log Hours (⏱ {task.loggedHours || 0}h)
+                            </Button>
+                          </Stack>
+                        </Box>
 
-                  <Stack spacing={0.5}>
-                    {task.checklist.map((c) => (
-                      <Box key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Checkbox
-                          size="small"
-                          checked={c.completed}
-                          onChange={() => dispatch(toggleChecklistItem({ taskId: task.id, itemId: c.id }))}
-                        />
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontSize: '0.82rem',
-                            textDecoration: c.completed ? 'line-through' : 'none',
-                            color: c.completed ? 'text.secondary' : 'text.primary',
-                          }}
-                        >
-                          {c.text}
+                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+                          {task.title}
                         </Typography>
+
+                        {task.description && (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.82rem' }}>
+                            {task.description}
+                          </Typography>
+                        )}
+
+                        {/* Interactive Subtasks */}
+                        {totalChecklist > 0 && (
+                          <Box
+                            sx={{
+                              p: 1.5,
+                              borderRadius: '8px',
+                              bgcolor: isDark ? 'rgba(0,0,0,0.2)' : '#FFFFFF',
+                              border: '1px solid',
+                              borderColor: theme.palette.divider,
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="caption" fontWeight={700}>
+                                Checklist Milestones ({completedChecklist}/{totalChecklist} complete)
+                              </Typography>
+                              <Typography variant="caption" fontWeight={700} sx={{ color: pColor }}>
+                                {Math.round(checklistPercent)}%
+                              </Typography>
+                            </Box>
+
+                            <Stack spacing={0.5}>
+                              {task.checklist.map((c) => (
+                                <Box key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Checkbox
+                                    size="small"
+                                    checked={c.completed}
+                                    onChange={() => dispatch(toggleChecklistItem({ taskId: task.id, itemId: c.id }))}
+                                  />
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: '0.82rem',
+                                      textDecoration: c.completed ? 'line-through' : 'none',
+                                      color: c.completed ? 'text.secondary' : 'text.primary',
+                                    }}
+                                  >
+                                    {c.text}
+                                  </Typography>
+                                </Box>
+                              ))}
+                            </Stack>
+                          </Box>
+                        )}
                       </Box>
-                    ))}
-                  </Stack>
-                </Box>
-              )}
+                    );
+                  })}
+                </Stack>
+              </CardContent>
             </Card>
           );
         })}
 
         {myTasks.length === 0 && (
           <Card sx={{ p: 6, textAlign: 'center', borderRadius: '16px', border: '1px dashed', borderColor: theme.palette.divider }}>
-            <AssignmentIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1, opacity: 0.6 }} />
+            <FolderIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1, opacity: 0.6 }} />
             <Typography variant="subtitle1" fontWeight={700}>
               No tasks currently assigned to you
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 440, mx: 'auto', mt: 0.5, mb: 2 }}>
-              Your manager or team lead has not assigned any pending deliverables. You can view all workspace tasks and support tickets on the main board.
+              Your manager or team lead has not assigned any deliverables under active projects. You can browse all workspace projects on the main board.
             </Typography>
             <Button variant="outlined" endIcon={<OpenInNewIcon />} onClick={() => navigate('/tasks')} sx={{ borderRadius: '8px' }}>
-              Browse Workspace Tasks
+              Browse Workspace Projects
             </Button>
           </Card>
         )}
