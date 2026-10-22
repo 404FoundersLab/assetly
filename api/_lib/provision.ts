@@ -270,6 +270,23 @@ const TENANT_SCHEMA_STATEMENTS = [
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
   )`,
+
+  `CREATE TABLE IF NOT EXISTS remote_desktop_sessions (
+    endpoint_id UUID PRIMARY KEY REFERENCES endpoints(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT FALSE,
+    last_frame TEXT,
+    command_result TEXT,
+    input_queue JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS remote_signals (
+    id BIGSERIAL PRIMARY KEY,
+    endpoint_id UUID NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
+    direction VARCHAR(10) NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
 ];
 
 // ── Neon branch provisioning ──────────────────────────────────────────────────

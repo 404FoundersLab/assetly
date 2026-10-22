@@ -4,6 +4,29 @@ import { assertAgentAuthorized } from '../../_lib/security';
 
 export const config = { runtime: 'edge' };
 
+const ensuredTenants = new Set<string>();
+
+async function ensureRemoteTables(sql: any, tenantId: string) {
+  if (ensuredTenants.has(tenantId)) return;
+  await sql`CREATE TABLE IF NOT EXISTS remote_desktop_sessions (
+    endpoint_id UUID PRIMARY KEY REFERENCES endpoints(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT FALSE,
+    last_frame TEXT,
+    command_result TEXT,
+    input_queue JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS remote_signals (
+    id BIGSERIAL PRIMARY KEY,
+    endpoint_id UUID NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
+    direction VARCHAR(10) NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_remote_signals_lookup ON remote_signals(endpoint_id, direction, id)`;
+  ensuredTenants.add(tenantId);
+}
+
 export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return corsPreflight();
 
@@ -38,6 +61,8 @@ export default async function handler(req: Request) {
 
   // 2. Logic execution
   try {
+    await ensureRemoteTables(sql, tenantId);
+
     if (req.method === 'GET') {
       if (isAgent) {
         // Agent gets active status, consumes input queue, and reads new WebRTC signals
