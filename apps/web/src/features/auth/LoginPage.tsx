@@ -37,6 +37,7 @@ import { apiLogin, changePassword } from '../../services/api/auth';
 import { ApiError, checkApiHealth, loginErrorMessage } from '../../services/api/client';
 import { getHomeRouteForRole } from '../../utils/routing';
 import { apiUrl } from '../../services/api/config';
+import { DEMO_TENANT, DEMO_USERS } from '../../data/demoData';
 
 /** Full demo admin — only when DEMO_AUTH_ENABLED is on (do not use on a public portfolio). */
 const DEMO_LOGIN = {
@@ -157,22 +158,54 @@ export function LoginPage() {
   }, []);
 
   const completeLogin = async (loginEmail: string, loginPassword: string) => {
-    const data = await apiLogin(loginEmail, loginPassword);
-    if (data.requirePasswordSetup) {
-      (window as any).__pendingUser = data.user;
-      (window as any).__pendingTenant = data.tenant;
-      (window as any).__pendingToken = data.token;
-      (await import('../../services/api/auth')).storeToken(data.token);
-      dispatch(setPendingSession({ user: data.user, tenant: data.tenant, token: data.token }));
-      return;
+    if (!isApiEnabled()) {
+      const demoUser = DEMO_USERS[loginEmail.toLowerCase()];
+      if (demoUser && demoUser.password === loginPassword) {
+        dispatch(
+          setSession({
+            user: demoUser.user,
+            tenant: DEMO_TENANT,
+            token: 'mock-jwt-token-local',
+          }),
+        );
+        return;
+      }
+      throw new Error('Invalid email or password');
     }
-    dispatch(
-      setSession({
-        user: data.user,
-        tenant: data.tenant,
-        token: data.token,
-      }),
-    );
+
+    try {
+      const data = await apiLogin(loginEmail, loginPassword);
+      if (data.requirePasswordSetup) {
+        (window as any).__pendingUser = data.user;
+        (window as any).__pendingTenant = data.tenant;
+        (window as any).__pendingToken = data.token;
+        (await import('../../services/api/auth')).storeToken(data.token);
+        dispatch(setPendingSession({ user: data.user, tenant: data.tenant, token: data.token }));
+        return;
+      }
+      dispatch(
+        setSession({
+          user: data.user,
+          tenant: data.tenant,
+          token: data.token,
+        }),
+      );
+    } catch (err) {
+      if (demoAuthEnabled) {
+        const demoUser = DEMO_USERS[loginEmail.toLowerCase()];
+        if (demoUser && demoUser.password === loginPassword) {
+          dispatch(
+            setSession({
+              user: demoUser.user,
+              tenant: DEMO_TENANT,
+              token: 'mock-jwt-token-local',
+            }),
+          );
+          return;
+        }
+      }
+      throw err;
+    }
   };
 
   const handleGuestLogin = async () => {

@@ -21,48 +21,141 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'PUT') {
-      if (!isHrAdmin) return error('Forbidden — only HR admins can approve or reject leave', 403);
-
       const body = await parseBody<Record<string, unknown>>(req);
-      const status = String(body.status ?? '').trim();
+      const action = String(body.action ?? '').trim(); // 'manager_review' | 'hr_review' | 'cancel'
+      const status = String(body.status ?? '').trim(); // 'approved' | 'rejected' | 'cancelled'
+      const comment = body.comment ? String(body.comment).trim() : null;
 
-      if (!['approved', 'rejected'].includes(status)) {
-        return error('Invalid status update', 400);
-      }
-
-      const rows = await sql`
-        UPDATE hr_leave_requests
-        SET status = ${status}, approved_by = ${auth.sub}, updated_at = NOW()
-        WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
-        RETURNING *
+      // Verify request exists
+      const existingRows = await sql`
+        SELECT * FROM hr_leave_requests WHERE id = ${id} AND tenant_id = ${auth.tenantId!} AND deleted_at IS NULL LIMIT 1
       ` as Record<string, any>[];
 
-      if (rows.length === 0) return error('Not found', 404);
+      if (existingRows.length === 0) return error('Leave request not found', 404);
+      const existing = existingRows[0];
+
+      // 1. Employee Self-Cancellation
+      if (action === 'cancel' || status === 'cancelled') {
+        if (!isHrAdmin && (!selfEmployeeId || existing.employee_id !== selfEmployeeId)) {
+          return error('Forbidden — only the applicant can cancel their request', 403);
+        }
+        if (existing.status !== 'pending' && existing.status !== 'pending_manager' && existing.status !== 'pending_hr') {
+          return error('Cannot cancel a leave request that is already finalized', 400);
+        }
+
+        const rows = await sql`
+          UPDATE hr_leave_requests
+          SET status = 'cancelled', updated_at = NOW()
+          WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+          RETURNING *
+        ` as Record<string, any>[];
+
+        await insertAuditLog({
+          tenantId: auth.tenantId,
+          userId: auth.sub,
+          userName: `${auth.firstName} ${auth.lastName}`,
+          action: 'CANCEL',
+          entityType: 'leave_request',
+          entityId: id,
+          details: 'Employee cancelled pending leave request',
+        });
+
+        return json({ ...rows[0], status: 'cancelled' });
+      }
+
+      // 2. Reporting Lead / Manager Review
+      if (action === 'manager_review') {
+        const isManager = existing.manager_id === selfEmployeeId || isHrAdmin;
+        if (!isManager) {
+          return error('Forbidden — only the designated reporting lead or HR can review this request', 403);
+        }
+
+        const managerStatus = status === 'approved' ? 'approved' : 'rejected';
+        const overallStatus = managerStatus === 'approved' ? 'pending_hr' : 'rejected';
+        const reviewerName = `${auth.firstName} ${auth.lastName}`.trim();
+
+        let updated: Record<string, any>;
+        try {
+          const rows = await sql`
+            UPDATE hr_leave_requests
+            SET 
+              manager_status = ${managerStatus},
+              manager_comment = ${comment},
+              manager_name = ${reviewerName},
+              reviewed_by_manager_at = NOW(),
+              status = ${overallStatus},
+              updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+            RETURNING *
+          ` as Record<string, any>[];
+          updated = rows[0];
+        } catch {
+          const rows = await sql`
+            UPDATE hr_leave_requests
+            SET status = ${overallStatus}, updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+            RETURNING *
+          ` as Record<string, any>[];
+          updated = rows[0];
+        }
+
+        await insertAuditLog({
+          tenantId: auth.tenantId,
+          userId: auth.sub,
+          userName: reviewerName,
+          action: 'REVIEW',
+          entityType: 'leave_request',
+          entityId: id,
+          details: `Reporting Lead ${managerStatus} leave request${comment ? `: ${comment}` : ''}`,
+        });
+
+        return json(updated);
+      }
+
+      // 3. HR Admin Review / Final Sanction
+      if (!isHrAdmin) {
+        return error('Forbidden — HR privileges required for final approval', 403);
+      }
+
+      const finalStatus = status === 'approved' ? 'approved' : 'rejected';
+      const reviewerName = `${auth.firstName} ${auth.lastName}`.trim();
+
+      let updatedRow: Record<string, any>;
+      try {
+        const rows = await sql`
+          UPDATE hr_leave_requests
+          SET 
+            hr_status = ${finalStatus},
+            hr_comment = ${comment},
+            approved_by = ${auth.sub},
+            reviewed_by_hr_at = NOW(),
+            status = ${finalStatus},
+            updated_at = NOW()
+          WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+          RETURNING *
+        ` as Record<string, any>[];
+        updatedRow = rows[0];
+      } catch {
+        const rows = await sql`
+          UPDATE hr_leave_requests
+          SET status = ${finalStatus}, approved_by = ${auth.sub}, updated_at = NOW()
+          WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+          RETURNING *
+        ` as Record<string, any>[];
+        updatedRow = rows[0];
+      }
 
       await insertAuditLog({
         tenantId: auth.tenantId,
         userId: auth.sub,
-        userName: `${auth.firstName} ${auth.lastName}`,
+        userName: reviewerName,
         action: 'UPDATE',
         entityType: 'leave_request',
         entityId: id,
-        entityLabel: `Leave Request Status`,
-        details: `Marked leave request as ${status}`,
+        details: `HR marked leave request as ${finalStatus}${comment ? ` (${comment})` : ''}`,
       });
 
-      const row = rows[0];
-      return json({
-        id: row.id,
-        employeeId: row.employee_id,
-        leaveType: row.leave_type,
-        startDate: row.start_date,
-        endDate: row.end_date,
-        daysCount: row.days_count,
-        reason: row.reason,
-        status: row.status,
-        approvedBy: row.approved_by,
-        createdAt: row.created_at,
-      });
+      return json(updatedRow);
     }
 
     if (req.method === 'DELETE') {
@@ -78,19 +171,16 @@ export default async function handler(req: Request) {
         if (!selfEmployeeId || existing[0].employee_id !== selfEmployeeId) {
           return error('Forbidden', 403);
         }
-        if (existing[0].status !== 'pending') {
+        if (existing[0].status !== 'pending' && existing[0].status !== 'pending_manager' && existing[0].status !== 'pending_hr') {
           return error('Forbidden — only pending requests can be cancelled', 403);
         }
       }
 
-      const rows = await sql`
+      await sql`
         UPDATE hr_leave_requests
         SET deleted_at = NOW(), updated_at = NOW()
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
-        RETURNING *
-      ` as Record<string, any>[];
-
-      if (rows.length === 0) return error('Not found', 404);
+      `;
 
       await insertAuditLog({
         tenantId: auth.tenantId,
