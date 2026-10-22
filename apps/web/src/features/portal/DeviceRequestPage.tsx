@@ -33,6 +33,7 @@ import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { useAppDispatch, useAppSelector, useAuthUser } from '../../hooks/storeHooks';
 import { isApiEnabled } from '../../services/api/config';
 import { createAssetRequest, fetchAssetRequests } from '../../services/api/requests';
@@ -51,6 +52,7 @@ import { LoadingButton } from '../../components/Loader';
 import { ApiError } from '../../services/api/client';
 import { EmployeeTicketsTab } from './EmployeeTicketsTab';
 import { EmployeeLeavesTab } from './EmployeeLeavesTab';
+import { EmployeeTasksTab } from './EmployeeTasksTab';
 
 const REQUEST_TYPES: AssetRequestType[] = ['new', 'replacement', 'accessory'];
 
@@ -213,9 +215,12 @@ export function DeviceRequestPage() {
         <Tab icon={<DevicesOtherIcon />} iconPosition="start" label="Device Requests" />
         <Tab icon={<ConfirmationNumberIcon />} iconPosition="start" label="Support Tickets" />
         <Tab icon={<BeachAccessIcon />} iconPosition="start" label="Leaves & Time Off" />
+        <Tab icon={<TaskAltIcon />} iconPosition="start" label="My Work & Tasks" />
       </Tabs>
 
-      {activeTab === 2 ? (
+      {activeTab === 3 ? (
+        <EmployeeTasksTab />
+      ) : activeTab === 2 ? (
         <EmployeeLeavesTab refreshTrigger={refreshTrigger} />
       ) : activeTab === 1 ? (
         <EmployeeTicketsTab refreshTrigger={refreshTrigger} />

@@ -41,6 +41,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import DescriptionIcon from '@mui/icons-material/Description';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
@@ -145,6 +146,12 @@ const HR_NAVIGATION: HRNavItem[] = [
     to: '/hr/reports',
     label: 'Reports',
     icon: <BarChartIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'single',
+    to: '/tasks',
+    label: 'Work & Tasks',
+    icon: <TaskAltIcon sx={{ fontSize: 20 }} />,
   },
   {
     type: 'single',

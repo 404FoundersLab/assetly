@@ -31,6 +31,7 @@ import DevicesIcon from '@mui/icons-material/Devices';
 import LayersIcon from '@mui/icons-material/Layers';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { useAppDispatch, useAuthUser, usePermissions, useTenant } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
 import { logout } from '../../store/authSlice';
@@ -225,6 +226,15 @@ export function LandingPage() {
       permission: 'module:hr' as const,
       color: '#10B981',
       tag: 'PEOPLE OPS',
+    },
+    {
+      title: 'Work & Task Management',
+      description: 'Employee sprint deliverables, team Kanban boards, checklist tracking, and unified support tickets.',
+      icon: <TaskAltIcon sx={{ fontSize: 28 }} />,
+      path: '/tasks',
+      permission: 'module:tasks' as const,
+      color: '#8B5CF6',
+      tag: 'PRODUCTIVITY',
     },
     {
       title: 'Executive Doc Vault',
