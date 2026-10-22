@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { HRLayout } from './components/layout/HRLayout';
 import { ExecDocsLayout } from './components/layout/ExecDocsLayout';
+import { TasksLayout } from './components/layout/TasksLayout';
 import { EmployeePortalLayout } from './components/layout/EmployeePortalLayout';
 import { DataBootstrap } from './components/DataBootstrap';
 import { GlobalLoadingBar } from './components/Loader';
@@ -67,6 +68,7 @@ import { FinancePage as ExecDocsFinancePage } from './features/exe-docs/finance/
 import { MeetingsPage } from './features/exe-docs/meetings/MeetingsPage';
 import { CompletedReportPage } from './features/exe-docs/meetings/CompletedReportPage';
 import { CompliancePage } from './features/exe-docs/compliance/CompliancePage';
+import { TasksPage } from './features/tasks/TasksPage';
 
 export default function App() {
   return (
@@ -230,6 +232,17 @@ export default function App() {
         <Route path="meetings" element={<MeetingsPage />} />
         <Route path="meetings/details" element={<CompletedReportPage />} />
         <Route path="compliance" element={<CompliancePage />} />
+      </Route>
+
+      <Route
+        path="/tasks"
+        element={
+          <ProtectedRoute>
+            <TasksLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<TasksPage />} />
       </Route>
 
       <Route path="*" element={<AuthRedirect />} />

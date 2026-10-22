@@ -1,7 +1,7 @@
 import type { Tenant } from '../types';
 
 export interface SystemModuleConfig {
-  id: 'module:assets' | 'module:hr' | 'module:docs' | 'module:finance';
+  id: 'module:assets' | 'module:hr' | 'module:docs' | 'module:finance' | 'module:tasks';
   name: string;
   description: string;
   badge: string;
@@ -25,6 +25,14 @@ export const SYSTEM_MODULES: readonly SystemModuleConfig[] = [
     badge: 'PEOPLE OPS',
     color: '#10B981',
     route: '/hr',
+  },
+  {
+    id: 'module:tasks',
+    name: 'Work & Task Management',
+    description: 'Track employee work tasks, team Kanban boards, deliverables, milestones, and unified support ticket lifecycles.',
+    badge: 'PRODUCTIVITY',
+    color: '#8B5CF6',
+    route: '/tasks',
   },
   {
     id: 'module:docs',

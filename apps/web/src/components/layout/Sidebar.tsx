@@ -35,6 +35,7 @@ import AutoGraphIcon from '@mui/icons-material/AutoGraph';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import HomeIcon from '@mui/icons-material/Home';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import LayersIcon from '@mui/icons-material/Layers';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
@@ -57,6 +58,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Overview',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/tasks', label: 'Work & Tasks', icon: <TaskAltIcon fontSize="small" />, permission: 'module:tasks' },
       { to: '/analytics', label: 'AI & Analytics', icon: <AutoGraphIcon fontSize="small" />, permission: 'module:assets' },
       { to: '/requests', label: 'Requests', icon: <AssignmentIcon fontSize="small" />, permission: 'request:review' },
     ],
