@@ -167,7 +167,29 @@ export function DashboardPage() {
       />
 
       {/* Quick Stat Cards */}
-      <Grid container spacing={2.5} mb={3.5}>
+      <Grid
+        container
+        spacing={0}
+        mb={3.5}
+        sx={{
+          display: 'grid',
+          gap: 2.5,
+          width: '100%',
+          m: 0,
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            lg: `repeat(${showRequests ? 5 : 4}, minmax(0, 1fr))`,
+          },
+          '& > .MuiGrid-item': {
+            maxWidth: 'none !important',
+            flexBasis: 'auto !important',
+            width: 'auto !important',
+            p: '0 !important',
+            m: 0,
+          },
+        }}
+      >
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Assets"
