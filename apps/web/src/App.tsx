@@ -48,6 +48,7 @@ import { DevicesPage } from './features/devices/DevicesPage';
 import { DeviceRequestPage } from './features/portal/DeviceRequestPage';
 import { RequestsPage } from './features/requests/RequestsPage';
 import { EndpointsPage } from './features/endpoints/EndpointsPage';
+import { ENDPOINT_SECURITY_ENABLED } from './constants/features';
 import { LifecyclePage } from './features/lifecycle/LifecyclePage';
 import { FinancePage } from './features/finance/FinancePage';
 import { SoftwarePage } from './features/software/SoftwarePage';

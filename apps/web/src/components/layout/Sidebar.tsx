@@ -41,6 +41,7 @@ import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
 import type { Permission } from '../../types';
 import { APP_NAME } from '../../constants/brand';
+import { ENDPOINT_SECURITY_ENABLED } from '../../constants/features';
 
 const DRAWER_WIDTH = 276;
 

@@ -22,6 +22,9 @@ COPY apps/web/vite.config.ts ./apps/web/
 # Set production frontend build environment
 ENV VITE_USE_API=true
 ENV VITE_API_URL=
+# Feature flag (build-time): set --build-arg ENABLE_ENDPOINT_SECURITY=true to enable
+ARG ENABLE_ENDPOINT_SECURITY=false
+ENV VITE_ENABLE_ENDPOINT_SECURITY=$ENABLE_ENDPOINT_SECURITY
 
 # Build production bundle
 RUN npm run build --prefix apps/web

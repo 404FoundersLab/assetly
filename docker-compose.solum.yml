@@ -52,6 +52,9 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
+      args:
+        # Set ENABLE_ENDPOINT_SECURITY=true (env or .env) and rebuild to enable
+        ENABLE_ENDPOINT_SECURITY: ${ENABLE_ENDPOINT_SECURITY:-false}
     image: assetly-web
     container_name: assetly-web
     restart: unless-stopped
