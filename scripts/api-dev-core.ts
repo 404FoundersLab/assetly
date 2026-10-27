@@ -11,6 +11,8 @@ import chatIngest from '../api/chat/ingest';
 import authLogin from '../api/auth/login';
 import authChangePassword from '../api/auth/change-password';
 import authDemoStatus from '../api/auth/demo-status';
+import authMfa from '../api/auth/mfa';
+import authMfaAdmin from '../api/auth/mfa-admin';
 import assetsIndex from '../api/assets/index';
 import assetsImport from '../api/assets/import';
 import assetsAssign from '../api/assets/assign';
@@ -93,6 +95,8 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/auth/login') return authLogin;
   if (pathname === '/api/auth/change-password') return authChangePassword;
   if (pathname === '/api/auth/demo-status') return authDemoStatus;
+  if (pathname === '/api/auth/mfa') return authMfa;
+  if (pathname === '/api/auth/mfa-admin') return authMfaAdmin;
   if (pathname === '/api/assets/import') return assetsImport;
   if (pathname === '/api/assets/assign') return assetsAssign;
   if (pathname === '/api/assets/return') return assetsReturn;

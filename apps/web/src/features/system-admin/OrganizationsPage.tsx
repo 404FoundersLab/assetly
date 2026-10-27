@@ -24,6 +24,8 @@ import { useAppSelector, useAppDispatch } from '../../hooks/storeHooks';
 import { fetchTenants, deleteTenantThunk } from '../../store/tenantsSlice';
 import { PageHeader } from '../../components/PageHeader';
 import { ResetTenantPasswordDialog } from './ResetTenantPasswordDialog';
+import { TenantMfaDialog } from './TenantMfaDialog';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import { DEFAULT_ENABLED_MODULES, SYSTEM_MODULES } from '../../constants/modules';
 import type { Tenant } from '../../types';
 
@@ -33,6 +35,7 @@ export function OrganizationsPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [selectedTenantForReset, setSelectedTenantForReset] = useState<Tenant | null>(null);
+  const [selectedTenantForMfa, setSelectedTenantForMfa] = useState<Tenant | null>(null);
 
   useEffect(() => {
     dispatch(fetchTenants());
@@ -147,6 +150,11 @@ export function OrganizationsPage() {
                           <LockResetIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      <Tooltip title="Manage MFA">
+                        <IconButton size="small" color="primary" onClick={() => setSelectedTenantForMfa(tenant)}>
+                          <ShieldOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Edit">
                         <IconButton
                           size="small"
@@ -195,6 +203,11 @@ export function OrganizationsPage() {
         open={Boolean(selectedTenantForReset)}
         onClose={() => setSelectedTenantForReset(null)}
         tenant={selectedTenantForReset}
+      />
+      <TenantMfaDialog
+        open={Boolean(selectedTenantForMfa)}
+        onClose={() => setSelectedTenantForMfa(null)}
+        tenant={selectedTenantForMfa}
       />
     </Box>
   );

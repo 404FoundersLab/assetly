@@ -23,6 +23,7 @@ import { APP_NAME } from '../../constants/brand';
 import { isApiEnabled } from '../../services/api/config';
 import { BillingCard } from './BillingCard';
 import { ChangePasswordCard } from './ChangePasswordCard';
+import { MfaCard } from './MfaCard';
 import {
   SettingRow,
   SettingsCard,
@@ -109,6 +110,9 @@ export function SettingsPage() {
               title="Security"
               description="Protect your account access"
             />
+            <Grid item xs={12} sx={{ display: 'flex' }}>
+              <MfaCard />
+            </Grid>
             <Grid item xs={12} sx={{ display: 'flex' }}>
               <ChangePasswordCard />
             </Grid>

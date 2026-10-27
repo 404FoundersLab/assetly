@@ -2,6 +2,7 @@ import { json, error, corsPreflight, parseBody, getSql } from '../_lib/db';
 import { DEMO_USERS } from '../_lib/demo-users';
 import { signAuthToken, verifyPassword, insertAuditLog } from '../_lib/auth';
 import { isDemoAuthEnabled } from '../_lib/security';
+import { getMfaRecord, isMfaEnforced, verifyTotp } from '../_lib/mfa';
 import { mapTenant, type DbUser, type DbTenant } from '../_lib/mappers';
 import {
   isPortfolioGuestEmail,
@@ -101,7 +102,7 @@ export default async function handler(req: Request) {
   if (req.method !== 'POST') return error('Method not allowed', 405);
 
   try {
-    const body = await parseBody<{ email?: string; password?: string }>(req);
+    const body = await parseBody<{ email?: string; password?: string; mfaCode?: string }>(req);
     const email = String(body.email ?? '').trim().toLowerCase();
     const password = String(body.password ?? '');
 
@@ -261,6 +262,15 @@ export default async function handler(req: Request) {
     const valid = await verifyPassword(email, password);
     if (!valid) return error('Invalid email or password', 401);
 
+    const mfa = await getMfaRecord(email);
+    if (mfa?.enabled) {
+      const mfaCode = String(body.mfaCode ?? '').trim();
+      if (!mfaCode) return json({ mfaRequired: true });
+      if (!(await verifyTotp(mfa.secret, mfaCode))) {
+        return error('Invalid verification code', 401);
+      }
+    }
+
     let mustChange = false;
     try {
       const sql = getSql();
@@ -280,6 +290,16 @@ export default async function handler(req: Request) {
         plan: 'Professional',
         enabledModules: ['module:assets', 'module:hr', 'module:docs', 'module:finance'],
       } as any;
+    }
+
+    if (!mfa?.enabled && (await isMfaEnforced(email, userRecord.tenantId))) {
+      const pendingToken = await signAuthToken(userRecord, { mfaPending: true });
+      return json({
+        token: pendingToken,
+        user: userRecord,
+        tenant: tenantRecord,
+        mfaEnrollRequired: true,
+      });
     }
 
     const token = await signAuthToken(userRecord);
