@@ -7,6 +7,24 @@ import { ApiError } from '../../services/api/client';
 import { LoadingButton } from '../../components/Loader';
 import { SettingsCard } from './SettingsCard';
 
+export function MfaStatusChip() {
+  const [status, setStatus] = useState<{ enabled: boolean; enforced: boolean } | null>(null);
+  useEffect(() => {
+    getMfaStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ enabled: false, enforced: false }));
+  }, []);
+  if (!status) return <Chip label="…" size="small" variant="outlined" />;
+  return (
+    <Chip
+      label={status.enabled ? 'Enabled' : status.enforced ? 'Required — setup pending' : 'Not enabled'}
+      size="small"
+      color={status.enabled ? 'success' : 'default'}
+      variant={status.enabled ? 'filled' : 'outlined'}
+    />
+  );
+}
+
 export function MfaCard() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [enforced, setEnforced] = useState(false);
