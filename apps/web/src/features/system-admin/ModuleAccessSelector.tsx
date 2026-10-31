@@ -18,6 +18,7 @@ import InventoryIcon from '@mui/icons-material/Inventory2';
 import PeopleIcon from '@mui/icons-material/People';
 import FolderIcon from '@mui/icons-material/Folder';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import LayersIcon from '@mui/icons-material/Layers';
 import { SYSTEM_MODULES, DEFAULT_ENABLED_MODULES, SystemModuleConfig } from '../../constants/modules';
 
@@ -31,6 +32,7 @@ const moduleIcons: Record<string, React.ReactNode> = {
   'module:hr': <PeopleIcon sx={{ fontSize: 24 }} />,
   'module:docs': <FolderIcon sx={{ fontSize: 24 }} />,
   'module:finance': <AccountBalanceIcon sx={{ fontSize: 24 }} />,
+  'module:tasks': <ChecklistIcon sx={{ fontSize: 24 }} />,
 };
 
 export function ModuleAccessSelector({ selectedModules, onChange }: ModuleAccessSelectorProps) {

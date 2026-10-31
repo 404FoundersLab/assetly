@@ -314,6 +314,7 @@ export const PERMISSIONS = {
   'module:assets': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer'],
   'module:hr': ['platform_admin', 'tenant_admin', 'hr_admin'],
   'module:finance': ['platform_admin', 'tenant_admin', 'finance_admin'],
+  'module:tasks': ['platform_admin', 'tenant_admin', 'it_admin', 'hr_admin', 'finance_admin', 'viewer'],
   'module:docs': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'finance_admin', 'viewer'],
   'asset:read': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer'],
   'asset:write': ['platform_admin', 'tenant_admin', 'it_admin'],

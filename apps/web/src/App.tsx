@@ -67,6 +67,7 @@ import { FinancePage as ExecDocsFinancePage } from './features/exe-docs/finance/
 import { MeetingsPage } from './features/exe-docs/meetings/MeetingsPage';
 import { CompletedReportPage } from './features/exe-docs/meetings/CompletedReportPage';
 import { CompliancePage } from './features/exe-docs/compliance/CompliancePage';
+import { ProductIdeasPage } from './features/tasks/ProductIdeasPage';
 
 export default function App() {
   return (
@@ -192,6 +193,7 @@ export default function App() {
         <Route path="settings" element={<ModuleRoute module="settings:write"><SettingsPage /></ModuleRoute>} />
         <Route path="settings/users" element={<ModuleRoute module="user:manage"><TenantUsersPage /></ModuleRoute>} />
         <Route path="analytics" element={<ModuleRoute module="module:assets"><AnalyticsPage /></ModuleRoute>} />
+        <Route path="tasks/product-ideas" element={<ModuleRoute module="module:tasks"><ProductIdeasPage /></ModuleRoute>} />
       </Route>
 
       <Route

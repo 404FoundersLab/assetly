@@ -20,6 +20,7 @@ import tenantsReducer from './tenantsSlice';
 import usersReducer from './usersSlice';
 import ticketsReducer from './ticketsSlice';
 import assetCategoriesReducer from './assetCategoriesSlice';
+import productIdeasReducer from './productIdeasSlice';
 
 const appReducer = combineReducers({
   auth: authReducer,
@@ -40,6 +41,7 @@ const appReducer = combineReducers({
   users: usersReducer,
   tickets: ticketsReducer,
   assetCategories: assetCategoriesReducer,
+  productIdeas: productIdeasReducer,
 });
 
 const rootReducer = (state: any, action: any) => {

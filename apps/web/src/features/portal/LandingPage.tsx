@@ -28,6 +28,7 @@ import FolderIcon from '@mui/icons-material/Folder';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DevicesIcon from '@mui/icons-material/Devices';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import LayersIcon from '@mui/icons-material/Layers';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
@@ -243,6 +244,15 @@ export function LandingPage() {
       permission: 'module:finance' as const,
       color: '#F59E0B',
       tag: 'FINANCE & CAPEX',
+    },
+    {
+      title: 'Work & Task Management',
+      description: 'Plan projects, track team tasks, and validate product opportunities with shared assignments.',
+      icon: <ChecklistIcon sx={{ fontSize: 28 }} />,
+      path: '/tasks/product-ideas',
+      permission: 'module:tasks' as const,
+      color: '#176B5B',
+      tag: 'TEAM WORKSPACE',
     },
   ];
 

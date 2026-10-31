@@ -1,7 +1,7 @@
 import type { Tenant } from '../types';
 
 export interface SystemModuleConfig {
-  id: 'module:assets' | 'module:hr' | 'module:docs' | 'module:finance';
+  id: 'module:assets' | 'module:hr' | 'module:docs' | 'module:finance' | 'module:tasks';
   name: string;
   description: string;
   badge: string;
@@ -41,6 +41,14 @@ export const SYSTEM_MODULES: readonly SystemModuleConfig[] = [
     badge: 'FINANCE & CAPEX',
     color: '#F59E0B',
     route: '/it-spend',
+  },
+  {
+    id: 'module:tasks',
+    name: 'Work & Task Management',
+    description: 'Team task boards, project planning, product opportunity research, and shared assignments.',
+    badge: 'TEAM WORKSPACE',
+    color: '#176B5B',
+    route: '/tasks/product-ideas',
   },
 ] as const;
 

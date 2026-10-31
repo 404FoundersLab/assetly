@@ -21,7 +21,8 @@
     "migrate:rag": "tsx scripts/migrate-013.ts",
     "migrate:device-types": "tsx scripts/migrate-014.ts",
     "migrate:device-families": "tsx scripts/migrate-015.ts",
-    "migrate:hide-infra-requests": "tsx scripts/migrate-016.ts"
+    "migrate:hide-infra-requests": "tsx scripts/migrate-016.ts",
+    "migrate:product-opportunity-assignments": "tsx scripts/migrate-022.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
