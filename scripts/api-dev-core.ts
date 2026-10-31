@@ -19,6 +19,7 @@ import assetsAssign from '../api/assets/assign';
 import assetsReturn from '../api/assets/return';
 import assetsById from '../api/assets/[id]';
 import employeesIndex from '../api/employees/index';
+import employeesBulkDelete from '../api/employees/bulk-delete';
 import employeesById from '../api/employees/[id]';
 import departmentsIndex from '../api/departments/index';
 import departmentsById from '../api/departments/[id]';
@@ -98,6 +99,7 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/assets/assign') return assetsAssign;
   if (pathname === '/api/assets/return') return assetsReturn;
   if (pathname === '/api/assets') return assetsIndex;
+  if (pathname === '/api/employees/bulk-delete') return employeesBulkDelete;
   if (pathname === '/api/employees') return employeesIndex;
   if (pathname === '/api/departments') return departmentsIndex;
   if (pathname === '/api/vendors') return vendorsIndex;

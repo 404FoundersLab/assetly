@@ -19,9 +19,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   department?: Department;
+  onSaved?: (department: Department) => void;
 }
 
-export function DepartmentFormDialog({ open, onClose, department }: Props) {
+export function DepartmentFormDialog({ open, onClose, department, onSaved }: Props) {
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
@@ -42,9 +43,14 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
     setLoading(true);
     try {
       const payload = { name: name.trim(), costCenter: costCenter.trim() };
-      if (department) await updateDepartmentApi(department.id, payload);
-      else await createDepartment({ ...payload, id: crypto.randomUUID() });
+      let saved: Department;
+      if (department) {
+        saved = await updateDepartmentApi(department.id, payload);
+      } else {
+        saved = await createDepartment({ ...payload, id: crypto.randomUUID() });
+      }
       await reloadFromApi(dispatch);
+      onSaved?.(saved);
       onClose();
     } finally {
       setLoading(false);
