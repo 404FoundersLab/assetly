@@ -23,6 +23,7 @@ import { APP_NAME } from '../../constants/brand';
 import { isApiEnabled } from '../../services/api/config';
 import { BillingCard } from './BillingCard';
 import { ChangePasswordCard } from './ChangePasswordCard';
+import { MfaCard, MfaStatusChip } from './MfaCard';
 import {
   SettingRow,
   SettingsCard,
@@ -79,7 +80,7 @@ export function SettingsPage() {
               <SettingRow label="Role" value={user?.role?.replace('_', ' ') ?? '—'} />
               <SettingRow
                 label="MFA"
-                value={<Chip label="Coming in Phase 2" size="small" variant="outlined" />}
+                value={isApiEnabled() ? <MfaStatusChip /> : <Chip label="Unavailable" size="small" variant="outlined" />}
               />
             </Box>
           </SettingsCard>
