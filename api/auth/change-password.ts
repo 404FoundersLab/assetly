@@ -53,11 +53,41 @@ export default async function handler(req: Request) {
     const sql = getSql();
     const passwordHash = await hashPassword(newPassword);
     try {
-      await sql`
-        INSERT INTO user_passwords (email, password_hash, updated_at, must_change_password)
-        VALUES (${email}, ${passwordHash}, NOW(), false)
-        ON CONFLICT (email) DO UPDATE SET password_hash = ${passwordHash}, updated_at = NOW(), must_change_password = false
-      `;
+      const existingPw = (await sql`
+        SELECT email FROM user_passwords WHERE lower(email) = ${email} LIMIT 1
+      `) as { email: string }[];
+
+      if (existingPw.length > 0) {
+        await sql`
+          UPDATE user_passwords
+          SET password_hash = ${passwordHash}, updated_at = NOW(), must_change_password = false
+          WHERE lower(email) = ${email}
+        `;
+      } else {
+        try {
+          await sql`
+            INSERT INTO user_passwords (email, password_hash, updated_at, must_change_password)
+            VALUES (${email}, ${passwordHash}, NOW(), false)
+          `;
+        } catch {
+          await sql`
+            UPDATE user_passwords
+            SET password_hash = ${passwordHash}, updated_at = NOW(), must_change_password = false
+            WHERE lower(email) = ${email}
+          `;
+        }
+      }
+
+      // Also update users.password_hash if column exists
+      try {
+        await sql`
+          UPDATE users
+          SET password_hash = ${passwordHash}
+          WHERE lower(email) = ${email}
+        `;
+      } catch {
+        /* ignore */
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg.includes('user_passwords')) {

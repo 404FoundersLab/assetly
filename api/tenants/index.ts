@@ -124,26 +124,64 @@ export default async function handler(req: Request) {
       let generatedPassword: string | undefined;
       if (adminEmail) {
         try {
-          const userId = crypto.randomUUID();
           const names = adminName.split(' ');
           const firstName = names[0] || 'Admin';
           const lastName = names.slice(1).join(' ') || '';
 
-          await sql`
-            INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
-            VALUES (${userId}, ${id}, ${adminEmail}, ${firstName}, ${lastName}, 'tenant_admin')
-            ON CONFLICT (email) DO UPDATE SET tenant_id = ${id}, role = 'tenant_admin'
-          `;
+          const existingUser = (await sql`
+            SELECT id FROM users WHERE lower(email) = ${adminEmail} LIMIT 1
+          `) as { id: string }[];
+
+          if (existingUser.length > 0) {
+            await sql`
+              UPDATE users
+              SET tenant_id = ${id}, role = 'tenant_admin'
+              WHERE id = ${existingUser[0].id}
+            `;
+          } else {
+            const userId = crypto.randomUUID();
+            try {
+              await sql`
+                INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+                VALUES (${userId}, ${id}, ${adminEmail}, ${firstName}, ${lastName}, 'tenant_admin')
+              `;
+            } catch {
+              await sql`
+                UPDATE users
+                SET tenant_id = ${id}, role = 'tenant_admin'
+                WHERE lower(email) = ${adminEmail}
+              `;
+            }
+          }
 
           const randomSuffix = crypto.randomUUID().split('-')[0].toUpperCase();
           generatedPassword = `Temp-${randomSuffix}`;
           const hashed = await hashPassword(generatedPassword);
 
-          await sql`
-            INSERT INTO user_passwords (email, password_hash, must_change_password)
-            VALUES (${adminEmail}, ${hashed}, true)
-            ON CONFLICT (email) DO UPDATE SET password_hash = ${hashed}, must_change_password = true
-          `;
+          const existingPw = (await sql`
+            SELECT email FROM user_passwords WHERE lower(email) = ${adminEmail} LIMIT 1
+          `) as { email: string }[];
+
+          if (existingPw.length > 0) {
+            await sql`
+              UPDATE user_passwords
+              SET password_hash = ${hashed}, must_change_password = true, updated_at = NOW()
+              WHERE lower(email) = ${adminEmail}
+            `;
+          } else {
+            try {
+              await sql`
+                INSERT INTO user_passwords (email, password_hash, must_change_password, updated_at)
+                VALUES (${adminEmail}, ${hashed}, true, NOW())
+              `;
+            } catch {
+              await sql`
+                UPDATE user_passwords
+                SET password_hash = ${hashed}, must_change_password = true, updated_at = NOW()
+                WHERE lower(email) = ${adminEmail}
+              `;
+            }
+          }
         } catch {
           // Non-blocking if user creation fails
         }

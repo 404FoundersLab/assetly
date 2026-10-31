@@ -60,7 +60,7 @@ export default async function handler(req: Request) {
     const hashedPassword = await hashPassword(newPassword);
     const mustChange = body.mustChangePassword ?? true;
 
-    // 1. Ensure user exists in users table
+    // 1. Ensure user exists in users table and has tenant_admin role
     const existingUsers = (await sql`
       SELECT id FROM users WHERE lower(email) = ${targetEmail} LIMIT 1
     `) as { id: string }[];
@@ -72,29 +72,90 @@ export default async function handler(req: Request) {
       const firstName = names[0] || 'Admin';
       const lastName = names.slice(1).join(' ') || '';
 
+      try {
+        await sql`
+          INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+          VALUES (${newUserId}, ${tenantId}, ${targetEmail}, ${firstName}, ${lastName}, 'tenant_admin')
+        `;
+      } catch (insertErr) {
+        // Fallback if concurrent insert or conflict occurred
+        await sql`
+          UPDATE users
+          SET tenant_id = ${tenantId}, role = 'tenant_admin'
+          WHERE lower(email) = ${targetEmail}
+        `;
+      }
+    } else {
       await sql`
-        INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
-        VALUES (${newUserId}, ${tenantId}, ${targetEmail}, ${firstName}, ${lastName}, 'tenant_admin')
-        ON CONFLICT (email) DO UPDATE SET tenant_id = ${tenantId}, role = 'tenant_admin'
+        UPDATE users
+        SET tenant_id = ${tenantId}, role = 'tenant_admin'
+        WHERE id = ${existingUsers[0].id}
       `;
     }
 
-    // 2. Ensure user_passwords table exists and update/insert password
+    // Also update users.password_hash if column exists
     try {
       await sql`
-        INSERT INTO user_passwords (email, password_hash, updated_at, must_change_password)
-        VALUES (${targetEmail}, ${hashedPassword}, NOW(), ${mustChange})
-        ON CONFLICT (email) DO UPDATE SET 
-          password_hash = ${hashedPassword},
-          updated_at = NOW(),
-          must_change_password = ${mustChange}
+        UPDATE users
+        SET password_hash = ${hashedPassword}
+        WHERE lower(email) = ${targetEmail}
       `;
+    } catch {
+      /* ignore if password_hash column not present on users */
+    }
+
+    // 2. Ensure user_passwords table exists and update/insert password without relying on ON CONFLICT
+    try {
+      const existingPw = (await sql`
+        SELECT email FROM user_passwords WHERE lower(email) = ${targetEmail} LIMIT 1
+      `) as { email: string }[];
+
+      if (existingPw.length > 0) {
+        await sql`
+          UPDATE user_passwords
+          SET password_hash = ${hashedPassword},
+              updated_at = NOW(),
+              must_change_password = ${mustChange}
+          WHERE lower(email) = ${targetEmail}
+        `;
+      } else {
+        try {
+          await sql`
+            INSERT INTO user_passwords (email, password_hash, updated_at, must_change_password)
+            VALUES (${targetEmail}, ${hashedPassword}, NOW(), ${mustChange})
+          `;
+        } catch {
+          await sql`
+            UPDATE user_passwords
+            SET password_hash = ${hashedPassword},
+                updated_at = NOW(),
+                must_change_password = ${mustChange}
+            WHERE lower(email) = ${targetEmail}
+          `;
+        }
+      }
     } catch (dbErr) {
       const msg = dbErr instanceof Error ? dbErr.message : '';
-      if (msg.includes('user_passwords')) {
-        return error('Password storage is not initialized in database.', 503);
+      if (msg.includes('user_passwords') && msg.includes('does not exist')) {
+        try {
+          await sql`
+            CREATE TABLE IF NOT EXISTS user_passwords (
+              email VARCHAR(255) PRIMARY KEY,
+              password_hash VARCHAR(255) NOT NULL,
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              must_change_password BOOLEAN NOT NULL DEFAULT false
+            )
+          `;
+          await sql`
+            INSERT INTO user_passwords (email, password_hash, updated_at, must_change_password)
+            VALUES (${targetEmail}, ${hashedPassword}, NOW(), ${mustChange})
+          `;
+        } catch (initErr) {
+          return error('Password storage is not initialized in database.', 503);
+        }
+      } else {
+        throw dbErr;
       }
-      throw dbErr;
     }
 
     // 3. Log audit event
