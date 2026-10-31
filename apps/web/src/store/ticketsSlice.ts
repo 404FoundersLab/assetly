@@ -70,10 +70,12 @@ export const INITIAL_TICKETS: SupportTicket[] = [
 
 interface TicketsState {
   items: SupportTicket[];
+  seeded: boolean;
 }
 
 const initialState: TicketsState = {
   items: INITIAL_TICKETS,
+  seeded: true,
 };
 
 const ticketsSlice = createSlice({
@@ -82,6 +84,7 @@ const ticketsSlice = createSlice({
   reducers: {
     replaceAllTickets: (state, action: PayloadAction<SupportTicket[]>) => {
       state.items = action.payload;
+      state.seeded = true;
     },
     addTicket: (
       state,
@@ -104,6 +107,7 @@ const ticketsSlice = createSlice({
         updatedAt: now,
       };
       state.items.unshift(newTicket);
+      state.seeded = true;
     },
     updateTicket: (state, action: PayloadAction<SupportTicket>) => {
       const idx = state.items.findIndex((t) => t.id === action.payload.id);
@@ -118,12 +122,19 @@ const ticketsSlice = createSlice({
           updatedAt: new Date().toISOString(),
         });
       }
+      state.seeded = true;
     },
     deleteTicket: (state, action: PayloadAction<string>) => {
       state.items = state.items.filter((t) => t.id !== action.payload);
+      state.seeded = true;
+    },
+    deleteAllTickets: (state) => {
+      state.items = [];
+      state.seeded = true;
     },
   },
 });
 
-export const { replaceAllTickets, addTicket, updateTicket, deleteTicket } = ticketsSlice.actions;
+export const { replaceAllTickets, addTicket, updateTicket, deleteTicket, deleteAllTickets } =
+  ticketsSlice.actions;
 export default ticketsSlice.reducer;

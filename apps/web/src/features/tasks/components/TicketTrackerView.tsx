@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -33,13 +33,22 @@ import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import AddTaskIcon from '@mui/icons-material/AddTask';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import type { SupportTicket, TicketCategory, TicketPriority, TicketStatus } from '../../../types';
 import { useAppDispatch, useAppSelector, useAuthUser } from '../../../hooks/storeHooks';
-import { updateTicket, deleteTicket, replaceAllTickets, INITIAL_TICKETS } from '../../../store/ticketsSlice';
+import {
+  updateTicket,
+  deleteTicket,
+  deleteAllTickets,
+  replaceAllTickets,
+  INITIAL_TICKETS,
+} from '../../../store/ticketsSlice';
+import { deleteTicket as deleteTicketApi } from '../../../services/api/tickets';
 
 const PRIORITY_COLORS: Record<TicketPriority, { color: string; bg: string }> = {
   critical: { color: '#7C3AED', bg: 'rgba(124, 58, 237, 0.1)' },
@@ -73,14 +82,8 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
   const canManage =
     user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
 
-  // Ensure initial tickets are populated in Redux if empty
-  useEffect(() => {
-    if (!tickets || tickets.length === 0) {
-      dispatch(replaceAllTickets(INITIAL_TICKETS));
-    }
-  }, [tickets, dispatch]);
-
-  const activeTicketsList = tickets && tickets.length > 0 ? tickets : INITIAL_TICKETS;
+  // Read strictly from store - do NOT fallback to INITIAL_TICKETS if user emptied/deleted them
+  const activeTicketsList: SupportTicket[] = Array.isArray(tickets) ? tickets : [];
 
   // Search & Filtering State
   const [search, setSearch] = useState('');
@@ -93,6 +96,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
   const [ticketStatus, setTicketStatus] = useState<TicketStatus>('resolved');
   const [assignedTo, setAssignedTo] = useState('');
   const [ticketToDelete, setTicketToDelete] = useState<SupportTicket | null>(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   const filteredTickets = useMemo(() => {
@@ -136,9 +140,23 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
 
   const handleConfirmDelete = () => {
     if (!ticketToDelete) return;
-    dispatch(deleteTicket(ticketToDelete.id));
-    setSnackbarMessage(`Ticket ${ticketToDelete.id} removed.`);
+    const deletedId = ticketToDelete.id;
+    dispatch(deleteTicket(deletedId));
+    // Also try API delete in background if configured
+    deleteTicketApi(deletedId).catch(() => {});
+    setSnackbarMessage(`Ticket ${deletedId} deleted permanently.`);
     setTicketToDelete(null);
+  };
+
+  const handleConfirmDeleteAll = () => {
+    dispatch(deleteAllTickets());
+    setSnackbarMessage('All tickets removed from system.');
+    setDeleteAllOpen(false);
+  };
+
+  const handleRestoreDemoTickets = () => {
+    dispatch(replaceAllTickets(INITIAL_TICKETS));
+    setSnackbarMessage('Initial demo tickets restored.');
   };
 
   return (
@@ -190,8 +208,8 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
             })}
           </Stack>
 
-          {/* Search, Category Filter, and New Ticket Button */}
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: { xs: '100%', md: 'auto' } }}>
+          {/* Search, Category Filter, and Action Buttons */}
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: { xs: '100%', md: 'auto' }, flexWrap: 'wrap' }}>
             <TextField
               size="small"
               placeholder="Search tickets..."
@@ -204,7 +222,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
                   </InputAdornment>
                 ),
               }}
-              sx={{ width: { xs: '100%', sm: 220 } }}
+              sx={{ width: { xs: '100%', sm: 200 } }}
             />
 
             <TextField
@@ -212,7 +230,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
               size="small"
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              sx={{ width: 130 }}
+              sx={{ width: 120 }}
             >
               <MenuItem value="all">All Types</MenuItem>
               <MenuItem value="hardware">Hardware</MenuItem>
@@ -241,6 +259,27 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
               >
                 New Ticket
               </Button>
+            )}
+
+            {canManage && activeTicketsList.length > 0 && (
+              <Tooltip title="Delete All Tickets">
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  startIcon={<DeleteSweepIcon sx={{ fontSize: 18 }} />}
+                  onClick={() => setDeleteAllOpen(true)}
+                  sx={{
+                    borderRadius: '9px',
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    height: 38,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Clear All
+                </Button>
+              </Tooltip>
             )}
           </Stack>
         </Stack>
@@ -456,22 +495,57 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} sx={{ py: 6, textAlign: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">
-                      No support tickets match the selected filters.
-                    </Typography>
-                    {(search || filterStatus !== 'all' || filterCategory !== 'all') && (
-                      <Button
-                        size="small"
-                        startIcon={<FilterAltOffIcon />}
-                        onClick={() => {
-                          setSearch('');
-                          setFilterStatus('all');
-                          setFilterCategory('all');
-                        }}
-                        sx={{ mt: 1, textTransform: 'none', fontWeight: 600 }}
-                      >
-                        Reset Filters
-                      </Button>
+                    {activeTicketsList.length === 0 ? (
+                      <Box sx={{ maxWidth: 400, mx: 'auto' }}>
+                        <Typography variant="subtitle1" fontWeight={700} color="text.secondary" gutterBottom>
+                          No support tickets in the system.
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          All tickets have been resolved or deleted. Create a new support ticket or restore initial demo tickets.
+                        </Typography>
+                        <Stack direction="row" spacing={1.5} justifyContent="center">
+                          {onOpenCreateTicket && (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={<AddIcon />}
+                              onClick={onOpenCreateTicket}
+                              sx={{ bgcolor: '#EC4899', '&:hover': { bgcolor: '#DB2777' }, textTransform: 'none', fontWeight: 700 }}
+                            >
+                              New Ticket
+                            </Button>
+                          )}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<RestartAltIcon />}
+                            onClick={handleRestoreDemoTickets}
+                            sx={{ textTransform: 'none', fontWeight: 700 }}
+                          >
+                            Load Demo Tickets
+                          </Button>
+                        </Stack>
+                      </Box>
+                    ) : (
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          No support tickets match the selected filters.
+                        </Typography>
+                        {(search || filterStatus !== 'all' || filterCategory !== 'all') && (
+                          <Button
+                            size="small"
+                            startIcon={<FilterAltOffIcon />}
+                            onClick={() => {
+                              setSearch('');
+                              setFilterStatus('all');
+                              setFilterCategory('all');
+                            }}
+                            sx={{ mt: 1, textTransform: 'none', fontWeight: 600 }}
+                          >
+                            Reset Filters
+                          </Button>
+                        )}
+                      </Box>
                     )}
                   </TableCell>
                 </TableRow>
@@ -597,7 +671,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
             Are you sure you want to delete ticket <strong>{ticketToDelete?.id}</strong>: "{ticketToDelete?.title}"?
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            This action cannot be undone. Associated work tasks will lose their ticket reference badge.
+            This action is permanent and will not restore automatically.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -611,6 +685,41 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
             sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px' }}
           >
             Delete Ticket
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <Dialog
+        open={deleteAllOpen}
+        onClose={() => setDeleteAllOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+      >
+        <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
+          <DeleteSweepIcon />
+          Clear All Tickets
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Are you sure you want to delete all <strong>{activeTicketsList.length}</strong> support tickets?
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            This will permanently remove all tickets from your dashboard. You can restore sample demo tickets at any time.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteAllOpen(false)} sx={{ textTransform: 'none', fontWeight: 600 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDeleteAll}
+            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px' }}
+          >
+            Clear All Tickets
           </Button>
         </DialogActions>
       </Dialog>

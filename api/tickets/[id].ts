@@ -20,6 +20,30 @@ export default async function handler(req: Request, { params }: { params: { id: 
   const sql = await getTenantSql(auth.tenantId!);
 
   try {
+    // ── DELETE — delete ticket (admin only) ──────────────────────────────────
+    if (req.method === 'DELETE') {
+      if (!canReviewRequests(auth.role)) {
+        return error('Only administrators can delete tickets', 403);
+      }
+
+      await sql`
+        DELETE FROM support_tickets
+        WHERE id = ${ticketId} AND tenant_id = ${auth.tenantId!}
+      `;
+
+      void insertAuditLog({
+        tenantId:   auth.tenantId,
+        userId:     auth.sub,
+        userName:   `${auth.firstName} ${auth.lastName}`,
+        action:     'DELETE',
+        entityType: 'support_ticket',
+        entityId:   ticketId,
+        details:    'Deleted support ticket',
+      }).catch(() => {});
+
+      return json({ success: true, deletedId: ticketId });
+    }
+
     // ── PATCH — update status / assign / resolution notes (admin only) ──────
     if (req.method === 'PATCH') {
       if (!canReviewRequests(auth.role)) {
