@@ -18,7 +18,7 @@ export const DEMO_TENANT: Tenant = {
   name: 'Solum Technologies',
   slug: 'solum-technologies',
   plan: 'Professional',
-  enabledModules: ['module:assets', 'module:hr', 'module:docs', 'module:finance'],
+  enabledModules: ['module:assets', 'module:hr', 'module:docs', 'module:finance', 'module:tasks'],
 };
 
 export const DEMO_USERS: Record<string, { password: string; user: User }> = {

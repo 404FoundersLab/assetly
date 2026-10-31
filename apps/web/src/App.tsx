@@ -68,6 +68,7 @@ import { FinancePage as ExecDocsFinancePage } from './features/exe-docs/finance/
 import { MeetingsPage } from './features/exe-docs/meetings/MeetingsPage';
 import { CompletedReportPage } from './features/exe-docs/meetings/CompletedReportPage';
 import { CompliancePage } from './features/exe-docs/compliance/CompliancePage';
+import { ProductIdeasPage } from './features/tasks/ProductIdeasPage';
 import { TasksPage } from './features/tasks/TasksPage';
 
 export default function App() {
@@ -243,6 +244,7 @@ export default function App() {
         }
       >
         <Route index element={<TasksPage />} />
+        <Route path="product-ideas" element={<ModuleRoute module="module:tasks"><ProductIdeasPage /></ModuleRoute>} />
       </Route>
 
       <Route path="*" element={<AuthRedirect />} />

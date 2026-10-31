@@ -22,6 +22,7 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import LaptopMacOutlinedIcon from '@mui/icons-material/LaptopMacOutlined';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthUser, useTenant } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
@@ -40,6 +41,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Task Workspace',
     items: [
       { to: '/tasks', label: 'Kanban & Tasks', icon: <ViewKanbanOutlinedIcon sx={{ fontSize: 19 }} /> },
+      { to: '/tasks/product-ideas', label: 'Product Ideas & Validation', icon: <ChecklistIcon sx={{ fontSize: 19 }} /> },
     ],
   },
   {

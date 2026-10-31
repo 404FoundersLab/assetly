@@ -28,6 +28,7 @@ import FolderIcon from '@mui/icons-material/Folder';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DevicesIcon from '@mui/icons-material/Devices';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import LayersIcon from '@mui/icons-material/Layers';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
