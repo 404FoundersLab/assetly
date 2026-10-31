@@ -12,6 +12,7 @@ import {
   Autocomplete,
   Stack,
   Alert,
+  Snackbar,
 } from '@mui/material';
 import { createFilterOptions } from '@mui/material/Autocomplete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -27,6 +28,7 @@ import { AssetQrPanel } from '../../components/AssetQrPanel';
 import { LoadingButton } from '../../components/Loader';
 import { reloadFromApi } from '../../components/DataBootstrap';
 import { lookupWarranty } from '../../services/api/warranty';
+import { ApiError } from '../../services/api/client';
 
 import { createAsset as createAssetApi } from '../../services/api/assets';
 import { uploadImage } from '../../services/api/entities';
@@ -116,6 +118,8 @@ export function NewAssetPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [createdItem, setCreatedItem] = useState<CreatedAsset | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [syncingWarranty, setSyncingWarranty] = useState(false);
   const [warrantyMsg, setWarrantyMsg] = useState<{ text: string; severity: 'success' | 'info' | 'error' } | null>(null);
@@ -187,7 +191,20 @@ export function NewAssetPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !form.assetTag.trim() || !form.name.trim()) return;
+    setErrorMsg(null);
+
+    if (!user) {
+      setErrorMsg('You must be signed in to add an asset.');
+      return;
+    }
+    if (!form.assetTag.trim()) {
+      setErrorMsg('Asset Tag is required.');
+      return;
+    }
+    if (!form.name.trim()) {
+      setErrorMsg('Asset Name is required.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -203,11 +220,17 @@ export function NewAssetPage() {
 
       let imageUrl = form.imageUrl;
       if (imageUrl && imageFile) {
-        const uploaded = await uploadImage(imageUrl, imageFile.name);
-        imageUrl = uploaded.url;
+        try {
+          const uploaded = await uploadImage(imageUrl, imageFile.name);
+          imageUrl = uploaded.url;
+        } catch (imgErr) {
+          console.warn('Image upload failed, continuing with asset save:', imgErr);
+        }
       }
+
+      const assetId = safeRandomUUID();
       const created = await createAssetApi({
-        id: safeRandomUUID(),
+        id: assetId,
         tenantId: user.tenantId,
         assetTag: form.assetTag.trim(),
         name: form.name.trim(),
@@ -238,13 +261,28 @@ export function NewAssetPage() {
           userName: assignedBy,
           action: 'CREATE',
           entityType: 'asset',
-          entityId: 'new',
+          entityId: assetId,
           entityLabel: form.assetTag.trim(),
           details: `Created ${form.name.trim()}${imageFile ? ' with image' : ''}`,
         },
       });
-      await reloadFromApi(dispatch);
+
+      try {
+        await reloadFromApi(dispatch);
+      } catch (reloadErr) {
+        console.warn('Cache reload warning:', reloadErr);
+      }
+
+      setSaveSuccess(`Asset "${created.name}" (${created.assetTag}) created successfully!`);
       setCreatedItem({ id: created.id, assetTag: created.assetTag, name: created.name });
+    } catch (err: unknown) {
+      console.error('Failed to create asset:', err);
+      const msg = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to save asset. Please try again.';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -252,6 +290,8 @@ export function NewAssetPage() {
 
   const resetForAnother = () => {
     setCreatedItem(null);
+    setErrorMsg(null);
+    setSaveSuccess(null);
     setForm(createEmptyAssetForm(typeSlugs[0] ?? 'laptop'));
     setImageFile(null);
     setImagePreview(null);
@@ -260,6 +300,9 @@ export function NewAssetPage() {
   if (createdItem) {
     return (
       <Box sx={{ maxWidth: 520, mx: 'auto' }}>
+        <Alert severity="success" sx={{ mb: 2.5, borderRadius: '12px', fontWeight: 600 }}>
+          Asset saved successfully! Your QR code has been generated.
+        </Alert>
         <Card sx={{ textAlign: 'center', p: { xs: 3, sm: 4 } }}>
           <Box
             sx={{
@@ -323,6 +366,11 @@ export function NewAssetPage() {
         ]}
       />
 
+      {errorMsg && (
+        <Alert severity="error" sx={{ mb: 2.5, borderRadius: '12px' }} onClose={() => setErrorMsg(null)}>
+          {errorMsg}
+        </Alert>
+      )}
       <Box component="form" onSubmit={handleSubmit}>
         <FormSection title="Identity">
           <Grid container spacing={2}>
@@ -738,6 +786,16 @@ export function NewAssetPage() {
         </Box>
       </Box>
       <EmployeeFormDialog open={showEmployeeForm} onClose={() => setShowEmployeeForm(false)} />
+      <Snackbar
+        open={Boolean(saveSuccess)}
+        autoHideDuration={5000}
+        onClose={() => setSaveSuccess(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSaveSuccess(null)} sx={{ borderRadius: '10px' }}>
+          {saveSuccess}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

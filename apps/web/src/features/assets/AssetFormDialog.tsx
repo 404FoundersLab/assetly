@@ -109,8 +109,9 @@ export function AssetFormDialog({ open, onClose }: Props) {
     if (!form.assetTag || !form.name || loading) return;
     setLoading(true);
     try {
+      const newAssetId = safeRandomUUID();
       const created = await createAssetApi({
-        id: safeRandomUUID(),
+        id: newAssetId,
         tenantId: user!.tenantId,
         assetTag: form.assetTag.trim(),
         name: form.name.trim(),
@@ -134,7 +135,7 @@ export function AssetFormDialog({ open, onClose }: Props) {
           userName: `${user!.firstName} ${user!.lastName}`,
           action: 'CREATE',
           entityType: 'asset',
-          entityId: 'new',
+          entityId: newAssetId,
           entityLabel: form.assetTag,
           details: `Created ${form.name}`,
         },
