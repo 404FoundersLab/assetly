@@ -9,10 +9,14 @@ import {
   Chip,
   Button,
   LinearProgress,
-  Avatar,
-  Divider,
   IconButton,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  Alert,
   alpha,
   useTheme,
 } from '@mui/material';
@@ -20,16 +24,20 @@ import FolderIcon from '@mui/icons-material/Folder';
 import AddIcon from '@mui/icons-material/Add';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import PersonIcon from '@mui/icons-material/Person';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import type { EmployeeTask, Project } from '../../../types';
 import { TaskCard } from './TaskCard';
+import { useAppDispatch, useAuthUser } from '../../../hooks/storeHooks';
+import { deleteProject } from '../../../store/tasksSlice';
 
 interface ProjectWiseTasksViewProps {
   projects: Project[];
   tasks: EmployeeTask[];
   onEditTask: (task: EmployeeTask) => void;
   onAddTaskToProject: (projectId: string, projectName: string) => void;
+  onOpenCreateProject?: () => void;
+  onEditProject?: (project: Project) => void;
 }
 
 export function ProjectWiseTasksView({
@@ -37,17 +45,40 @@ export function ProjectWiseTasksView({
   tasks,
   onEditTask,
   onAddTaskToProject,
+  onOpenCreateProject,
+  onEditProject,
 }: ProjectWiseTasksViewProps) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const dispatch = useAppDispatch();
+  const user = useAuthUser();
 
-  const filteredProjects = selectedProjectId === 'all'
-    ? projects
-    : projects.filter((p) => p.id === selectedProjectId);
+  const canManageProjects =
+    user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+
+  const filteredProjects =
+    selectedProjectId === 'all'
+      ? projects
+      : projects.filter((p) => p.id === selectedProjectId);
 
   // Unassigned tasks (tasks without a project)
   const unassignedTasks = tasks.filter((t) => !t.projectId);
+
+  const handleConfirmDeleteProject = () => {
+    if (!projectToDelete) return;
+    const deletedName = projectToDelete.name;
+    const deletedId = projectToDelete.id;
+    dispatch(deleteProject(deletedId));
+    if (selectedProjectId === deletedId) {
+      setSelectedProjectId('all');
+    }
+    setSnackbarMessage(`Project "${deletedName}" was deleted successfully.`);
+    setProjectToDelete(null);
+  };
 
   return (
     <Box>
@@ -85,6 +116,31 @@ export function ProjectWiseTasksView({
             />
           );
         })}
+
+        {canManageProjects && onOpenCreateProject && (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={onOpenCreateProject}
+            sx={{
+              borderRadius: '8px',
+              fontWeight: 700,
+              textTransform: 'none',
+              height: 32,
+              ml: { xs: 0, sm: 1 },
+              borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+              color: isDark ? '#E2E8F0' : '#1E293B',
+              '&:hover': {
+                borderColor: '#8B5CF6',
+                color: '#8B5CF6',
+                bgcolor: alpha('#8B5CF6', 0.08),
+              },
+            }}
+          >
+            New Project
+          </Button>
+        )}
       </Box>
 
       {/* Projects List with Tasks */}
@@ -170,7 +226,7 @@ export function ProjectWiseTasksView({
                     </Typography>
                   </Box>
 
-                  {/* Project Meta Metrics & Add Task Button */}
+                  {/* Project Meta Metrics & Add Task / Manage Buttons */}
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
                     <Box sx={{ minWidth: 150 }}>
                       <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
@@ -193,22 +249,63 @@ export function ProjectWiseTasksView({
                       />
                     </Box>
 
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() => onAddTaskToProject(project.id, project.name)}
-                      sx={{
-                        bgcolor: project.color,
-                        '&:hover': { bgcolor: alpha(project.color, 0.85) },
-                        fontWeight: 700,
-                        textTransform: 'none',
-                        borderRadius: '9px',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Add Task
-                    </Button>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() => onAddTaskToProject(project.id, project.name)}
+                        sx={{
+                          bgcolor: project.color,
+                          '&:hover': { bgcolor: alpha(project.color, 0.85) },
+                          fontWeight: 700,
+                          textTransform: 'none',
+                          borderRadius: '9px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Add Task
+                      </Button>
+
+                      {canManageProjects && (
+                        <>
+                          {onEditProject && (
+                            <Tooltip title="Edit Project">
+                              <IconButton
+                                size="small"
+                                onClick={() => onEditProject(project)}
+                                sx={{
+                                  color: 'text.secondary',
+                                  border: '1px solid',
+                                  borderColor: theme.palette.divider,
+                                  borderRadius: '8px',
+                                  p: '5px',
+                                  '&:hover': { color: project.color, bgcolor: alpha(project.color, 0.1) },
+                                }}
+                              >
+                                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Delete Project">
+                            <IconButton
+                              size="small"
+                              onClick={() => setProjectToDelete(project)}
+                              sx={{
+                                color: 'error.main',
+                                border: '1px solid',
+                                borderColor: alpha(theme.palette.error.main, 0.3),
+                                borderRadius: '8px',
+                                p: '5px',
+                                '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) },
+                              }}
+                            >
+                              <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
+                    </Stack>
                   </Stack>
                 </Box>
 
@@ -300,6 +397,56 @@ export function ProjectWiseTasksView({
           </Card>
         )}
       </Stack>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={Boolean(projectToDelete)}
+        onClose={() => setProjectToDelete(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: '16px', p: 1 },
+        }}
+      >
+        <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
+          <DeleteOutlineIcon />
+          Delete Project
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1.5 }}>
+            Are you sure you want to delete project <strong>{projectToDelete?.name}</strong> ({projectToDelete?.code})?
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            All existing tasks linked to this project will remain intact in the system and become General / Unassigned Deliverables.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setProjectToDelete(null)} sx={{ textTransform: 'none', fontWeight: 600 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDeleteProject}
+            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px' }}
+          >
+            Delete Project
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar feedback */}
+      <Snackbar
+        open={Boolean(snackbarMessage)}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarMessage(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbarMessage(null)} severity="success" sx={{ width: '100%', borderRadius: '10px' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
+export default ProjectWiseTasksView;

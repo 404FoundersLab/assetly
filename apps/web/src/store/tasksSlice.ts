@@ -429,7 +429,15 @@ const tasksSlice = createSlice({
       state.groupBy = action.payload;
     },
     addProject: (state, action: PayloadAction<Omit<Project, 'id'>>) => {
-      const nextId = `PRJ-${100 + state.projects.length + 1}`;
+      let maxNum = 100;
+      for (const p of state.projects) {
+        const match = p.id.match(/^PRJ-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      const nextId = `PRJ-${maxNum + 1}`;
       state.projects.push({ ...action.payload, id: nextId });
     },
     updateProject: (state, action: PayloadAction<Project>) => {

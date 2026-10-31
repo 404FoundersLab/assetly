@@ -42,6 +42,8 @@ import { WorkAnalyticsView } from './components/WorkAnalyticsView';
 import { ProjectWiseTasksView } from './components/ProjectWiseTasksView';
 import { EmployeeWorkloadBoardView } from './components/EmployeeWorkloadBoardView';
 import { TaskModal } from './components/TaskModal';
+import { ProjectModal } from './components/ProjectModal';
+import { TicketModal } from './components/TicketModal';
 
 export function TasksPage() {
   const theme = useTheme();
@@ -50,6 +52,7 @@ export function TasksPage() {
   const user = useAuthUser();
 
   const isEmployeeRole = user?.role === 'employee';
+  const canManageProjects = user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
 
   const tasks = useAppSelector((s) => s.tasks.items);
   const projects = useAppSelector((s) => s.tasks.projects);
@@ -87,6 +90,9 @@ export function TasksPage() {
   const [modalInitialTicketRef, setModalInitialTicketRef] = useState<string | undefined>(undefined);
   const [modalInitialProjectId, setModalInitialProjectId] = useState<string | undefined>(undefined);
   const [modalInitialEmployeeId, setModalInitialEmployeeId] = useState<string | undefined>(undefined);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
 
   // Current logged in user's matching employee ID
   const currentEmployee = useMemo(() => {
@@ -198,21 +204,42 @@ export function TasksPage() {
         }
         actions={
           <Stack direction="row" spacing={1.5}>
-            {!isEmployeeRole && (
+            <Button
+              variant="outlined"
+              startIcon={<ConfirmationNumberIcon sx={{ fontSize: 18 }} />}
+              onClick={() => {
+                setActiveTab(isEmployeeRole ? 3 : 4);
+                setTicketModalOpen(true);
+              }}
+              sx={{
+                borderRadius: '10px',
+                fontWeight: 700,
+                textTransform: 'none',
+                borderColor: '#EC4899',
+                color: '#EC4899',
+                '&:hover': { borderColor: '#DB2777', bgcolor: 'rgba(236, 72, 153, 0.08)' },
+              }}
+            >
+              New Ticket
+            </Button>
+            {canManageProjects && (
               <Button
                 variant="outlined"
-                startIcon={<ConfirmationNumberIcon sx={{ fontSize: 18 }} />}
-                onClick={() => setActiveTab(4)}
+                startIcon={<FolderIcon sx={{ fontSize: 18 }} />}
+                onClick={() => {
+                  setSelectedProject(null);
+                  setProjectModalOpen(true);
+                }}
                 sx={{
                   borderRadius: '10px',
                   fontWeight: 700,
                   textTransform: 'none',
-                  borderColor: '#EC4899',
-                  color: '#EC4899',
-                  '&:hover': { borderColor: '#DB2777', bgcolor: 'rgba(236, 72, 153, 0.08)' },
+                  borderColor: '#8B5CF6',
+                  color: '#8B5CF6',
+                  '&:hover': { borderColor: '#7C3AED', bgcolor: 'rgba(139, 92, 246, 0.08)' },
                 }}
               >
-                Ticket Tracker
+                New Project
               </Button>
             )}
             <Button
@@ -471,6 +498,14 @@ export function TasksPage() {
               tasks={filteredTasks}
               onEditTask={handleOpenEditModal}
               onAddTaskToProject={(pId, pName) => handleOpenCreateModal('todo', undefined, pId)}
+              onOpenCreateProject={() => {
+                setSelectedProject(null);
+                setProjectModalOpen(true);
+              }}
+              onEditProject={(p) => {
+                setSelectedProject(p);
+                setProjectModalOpen(true);
+              }}
             />
           )}
 
@@ -490,7 +525,7 @@ export function TasksPage() {
           )}
 
           {activeTab === 3 && (
-            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} />
+            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} onOpenCreateTicket={() => setTicketModalOpen(true)} />
           )}
         </>
       ) : (
@@ -524,6 +559,14 @@ export function TasksPage() {
               tasks={filteredTasks}
               onEditTask={handleOpenEditModal}
               onAddTaskToProject={(pId, pName) => handleOpenCreateModal('todo', undefined, pId)}
+              onOpenCreateProject={() => {
+                setSelectedProject(null);
+                setProjectModalOpen(true);
+              }}
+              onEditProject={(p) => {
+                setSelectedProject(p);
+                setProjectModalOpen(true);
+              }}
             />
           )}
 
@@ -537,7 +580,7 @@ export function TasksPage() {
 
           {activeTab === 4 && (
             // Ticket Tracker
-            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} />
+            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} onOpenCreateTicket={() => setTicketModalOpen(true)} />
           )}
 
           {activeTab === 5 && (
@@ -556,6 +599,22 @@ export function TasksPage() {
         initialProjectId={modalInitialProjectId}
         initialEmployeeId={modalInitialEmployeeId}
         onClose={() => setModalOpen(false)}
+      />
+
+      {/* Project Create / Edit Dialog */}
+      <ProjectModal
+        open={projectModalOpen}
+        project={selectedProject}
+        onClose={() => {
+          setProjectModalOpen(false);
+          setSelectedProject(null);
+        }}
+      />
+
+      {/* Ticket Create Dialog */}
+      <TicketModal
+        open={ticketModalOpen}
+        onClose={() => setTicketModalOpen(false)}
       />
     </Box>
   );

@@ -89,23 +89,55 @@ export function TaskModal({
       setTicketReferenceId(task.ticketReferenceId || '');
       setChecklist(task.checklist || []);
     } else {
-      setTitle('');
-      setDescription('');
-      setStatus(initialStatus);
-      setPriority('medium');
-      setType(initialTicketRef ? 'ticket' : 'task');
-      setAssignedEmployeeId(initialEmployeeId || employees[0]?.id || '');
-      setDepartmentId(departments[0]?.id || '');
-      setProjectId(initialProjectId || '');
-      const defaultDue = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
-      setDueDate(defaultDue);
-      setEstimatedHours(8);
-      setLoggedHours(0);
-      setTagsInput('');
-      setTicketReferenceId(initialTicketRef || '');
-      setChecklist([]);
+      const linkedTicket = initialTicketRef ? tickets.find((t) => t.id === initialTicketRef) : null;
+      if (linkedTicket) {
+        setTitle(`Resolve ${linkedTicket.id}: ${linkedTicket.title}`);
+        setDescription(linkedTicket.description || `Deliverable to address support ticket ${linkedTicket.id}`);
+        setStatus(initialStatus);
+        const prioMap: Record<string, TaskPriority> = {
+          critical: 'urgent',
+          high: 'high',
+          medium: 'medium',
+          low: 'low',
+        };
+        setPriority(prioMap[linkedTicket.priority] || 'medium');
+        setType('ticket');
+        setAssignedEmployeeId(linkedTicket.employeeId || initialEmployeeId || employees[0]?.id || '');
+        if (linkedTicket.departmentName) {
+          const dept = departments.find(
+            (d) => d.name.toLowerCase() === linkedTicket.departmentName?.toLowerCase()
+          );
+          setDepartmentId(dept ? dept.id : (departments[0]?.id || ''));
+        } else {
+          setDepartmentId(departments[0]?.id || '');
+        }
+        setProjectId(initialProjectId || '');
+        const defaultDue = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
+        setDueDate(defaultDue);
+        setEstimatedHours(8);
+        setLoggedHours(0);
+        setTagsInput(`Support, ${linkedTicket.category.toUpperCase()}`);
+        setTicketReferenceId(linkedTicket.id);
+        setChecklist([]);
+      } else {
+        setTitle('');
+        setDescription('');
+        setStatus(initialStatus);
+        setPriority('medium');
+        setType(initialTicketRef ? 'ticket' : 'task');
+        setAssignedEmployeeId(initialEmployeeId || employees[0]?.id || '');
+        setDepartmentId(departments[0]?.id || '');
+        setProjectId(initialProjectId || '');
+        const defaultDue = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
+        setDueDate(defaultDue);
+        setEstimatedHours(8);
+        setLoggedHours(0);
+        setTagsInput('');
+        setTicketReferenceId(initialTicketRef || '');
+        setChecklist([]);
+      }
     }
-  }, [task, initialStatus, initialTicketRef, initialProjectId, initialEmployeeId, employees, departments]);
+  }, [task, initialStatus, initialTicketRef, initialProjectId, initialEmployeeId, employees, departments, tickets]);
 
   const handleAddChecklistItem = () => {
     if (!newChecklistText.trim()) return;
