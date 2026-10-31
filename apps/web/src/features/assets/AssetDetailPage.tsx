@@ -17,6 +17,8 @@ import {
   LinearProgress,
   alpha,
   useTheme,
+  Chip,
+  Snackbar,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,8 +27,10 @@ import KeyboardReturnIcon from '@mui/icons-material/KeyboardReturn';
 import QrCodeIcon from '@mui/icons-material/QrCode';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import SyncIcon from '@mui/icons-material/Sync';
+import LaunchIcon from '@mui/icons-material/Launch';
 import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
-import { useAppSelector } from '../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 import { usePermissions } from '../../hooks/storeHooks';
 import { StatusChip } from '../../components/StatusChip';
 import { AssetQrPanel } from '../../components/AssetQrPanel';
@@ -37,6 +41,10 @@ import { assetFinancials } from '../finance/itSpendMetrics';
 import { itSpendUrl } from '../../constants/routes';
 import { useAssetCategories } from '../../hooks/useAssetCategories';
 import { DEVICE_FAMILY_META } from '../../constants/deviceFamilies';
+import { lookupWarranty, type WarrantyLookupResult } from '../../services/api/warranty';
+import { patchAsset } from '../../services/api/assets';
+import { reloadFromApi } from '../../components/DataBootstrap';
+import { LoadingButton } from '../../components/Loader';
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -59,6 +67,7 @@ export function AssetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const theme = useTheme();
+  const dispatch = useAppDispatch();
   const { can } = usePermissions();
   const asset = useAppSelector((s) => s.assets.items.find((a) => a.id === id));
   const employees = useAppSelector((s) => s.employees.items);
@@ -70,9 +79,63 @@ export function AssetDetailPage() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [syncingWarranty, setSyncingWarranty] = useState(false);
+  const [warrantyInfo, setWarrantyInfo] = useState<WarrantyLookupResult | null>(null);
+  const [warrantyToast, setWarrantyToast] = useState<{ message: string; severity: 'success' | 'info' | 'error' } | null>(null);
+
   const { pathOf, metaOf, labelOf } = useAssetCategories();
   const listPath = asset ? pathOf(asset.category) : DEVICE_FAMILY_META.it_asset.path;
   const listLabel = asset ? metaOf(asset.category).menu : DEVICE_FAMILY_META.it_asset.menu;
+
+  const isLaptop = asset?.category?.toLowerCase() === 'laptop';
+  const mfg = (asset?.manufacturer || '').toLowerCase();
+  const isLenovo = isLaptop && (mfg.includes('lenovo') || (asset?.model?.toLowerCase().includes('thinkpad') ?? false) || (asset?.serialNumber?.startsWith('1S') ?? false) || !asset?.manufacturer);
+  const isDell = isLaptop && (mfg.includes('dell') || (asset?.serialNumber?.length === 7 && /^[A-Z0-9]{7}$/i.test(asset?.serialNumber ?? '')));
+
+  const handleSyncLenovoWarranty = async () => {
+    if (!asset?.serialNumber) {
+      setWarrantyToast({ message: 'Serial number is required to look up Lenovo warranty.', severity: 'error' });
+      return;
+    }
+    setSyncingWarranty(true);
+    try {
+      const data = await lookupWarranty(asset.serialNumber, 'lenovo');
+      setWarrantyInfo(data);
+      if (data.endDate) {
+        await patchAsset(asset.id, {
+          warrantyExpiresAt: data.endDate,
+        });
+        await reloadFromApi(dispatch);
+        setWarrantyToast({
+          message: `Synced with Lenovo! Warranty updated to ${formatDate(data.endDate)} (${data.planName || 'Active'}).`,
+          severity: 'success',
+        });
+      } else {
+        setWarrantyToast({
+          message: 'Lenovo data retrieved, but no expiration date was returned.',
+          severity: 'info',
+        });
+      }
+    } catch (err: any) {
+      setWarrantyToast({
+        message: err?.message || 'Failed to fetch warranty from Lenovo.',
+        severity: 'error',
+      });
+    } finally {
+      setSyncingWarranty(false);
+    }
+  };
+
+  const handleOpenDellSupport = () => {
+    if (asset?.serialNumber) {
+      navigator.clipboard.writeText(asset.serialNumber);
+      setWarrantyToast({
+        message: `Service Tag "${asset.serialNumber}" copied to clipboard! Opening Dell Support...`,
+        severity: 'info',
+      });
+    }
+    window.open('https://www.dell.com/support/contractservices/en-in', '_blank', 'noopener,noreferrer');
+  };
 
   if (!asset) {
     return (
@@ -277,11 +340,114 @@ export function AssetDetailPage() {
 
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Warranty
-              </Typography>
-              <Divider sx={{ mb: 1 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                <Typography variant="h6">
+                  Warranty
+                </Typography>
+                {isLaptop && (
+                  <Stack direction="row" spacing={1}>
+                    {isLenovo && (
+                      <LoadingButton
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                        loading={syncingWarranty}
+                        startIcon={<SyncIcon />}
+                        onClick={handleSyncLenovoWarranty}
+                      >
+                        Sync Lenovo
+                      </LoadingButton>
+                    )}
+                    {isDell && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<LaunchIcon />}
+                        onClick={handleOpenDellSupport}
+                      >
+                        Check Dell
+                      </Button>
+                    )}
+                  </Stack>
+                )}
+              </Box>
+              <Divider sx={{ mb: 1.5 }} />
+
               <DetailRow label="Expires" value={formatDate(asset.warrantyExpiresAt)} />
+
+              {warrantyInfo && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {warrantyInfo.planName || 'Manufacturer Warranty'}
+                    </Typography>
+                    <Chip
+                      label={warrantyInfo.status || 'Active'}
+                      color={warrantyInfo.status === 'Active' ? 'success' : 'default'}
+                      size="small"
+                    />
+                  </Box>
+                  {warrantyInfo.startDate && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Start: {formatDate(warrantyInfo.startDate)}
+                    </Typography>
+                  )}
+                  {warrantyInfo.deliveryType && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Coverage: {warrantyInfo.deliveryType === 'on_site' ? 'On Site Support' : warrantyInfo.deliveryType}
+                    </Typography>
+                  )}
+                  {warrantyInfo.supportUrl && (
+                    <Link
+                      href={warrantyInfo.supportUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mt: 1, fontSize: '0.8rem' }}
+                    >
+                      View on Lenovo Support <LaunchIcon sx={{ fontSize: 13 }} />
+                    </Link>
+                  )}
+                </Box>
+              )}
+
+              {!warrantyInfo && isLaptop && isLenovo && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Link
+                    href="https://pcsupport.lenovo.com/in/en/warranty-lookup#/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.8rem' }}
+                  >
+                    Lenovo Warranty Lookup Portal <LaunchIcon sx={{ fontSize: 13 }} />
+                  </Link>
+                </Box>
+              )}
+
+              {isLaptop && isDell && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Link
+                    href="https://www.dell.com/support/contractservices/en-in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (asset.serialNumber) navigator.clipboard.writeText(asset.serialNumber);
+                    }}
+                    sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.8rem' }}
+                  >
+                    Dell Support Services & Warranty <LaunchIcon sx={{ fontSize: 13 }} />
+                  </Link>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -354,6 +520,22 @@ export function AssetDetailPage() {
         asset={asset}
         onDeleted={() => navigate(listPath)}
       />
+
+      <Snackbar
+        open={Boolean(warrantyToast)}
+        autoHideDuration={6000}
+        onClose={() => setWarrantyToast(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={warrantyToast?.severity || 'info'}
+          onClose={() => setWarrantyToast(null)}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {warrantyToast?.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

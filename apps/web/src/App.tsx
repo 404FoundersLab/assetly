@@ -126,13 +126,13 @@ export default function App() {
 
         {/* Attendance */}
         <Route path="attendance" element={<AttendancePage />} />
-        <Route path="attendance/my" element={<MyAttendancePage />} />
+        <Route path="attendance/my" element={<Navigate to="/portal?tab=attendance" replace />} />
         <Route path="attendance/team" element={<TeamAttendancePage />} />
         <Route path="attendance/reports" element={<AttendanceReportsPage />} />
 
         {/* Leaves */}
         <Route path="leaves" element={<LeavesPage />} />
-        <Route path="leaves/my" element={<MyLeavesPage />} />
+        <Route path="leaves/my" element={<Navigate to="/portal?tab=leaves" replace />} />
         <Route path="leaves/requests" element={<LeaveRequestsPage />} />
         <Route path="leaves/balance" element={<LeaveBalancePage />} />
         <Route path="leaves/types" element={<LeaveTypesPage />} />

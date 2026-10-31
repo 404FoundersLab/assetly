@@ -58,8 +58,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 export function EmployeeRoute({ children }: { children: React.ReactNode }) {
-  const role = useAppSelector((s) => s.auth.user?.role);
-  if (!isEmployeeRole(role)) return <Navigate to="/" replace />;
+  // All authenticated users can access their self-service employee portal
   return <>{children}</>;
 }
 

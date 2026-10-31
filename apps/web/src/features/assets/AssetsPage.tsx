@@ -83,7 +83,9 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
       const matchCategory = categoryFilter === 'all' || a.category === categoryFilter;
       const matchWarranty =
         !warrantyFilter ||
-        (daysUntil(a.warrantyExpiresAt) <= Number(warrantyFilter) && daysUntil(a.warrantyExpiresAt) >= 0);
+        (warrantyFilter === 'expired'
+          ? daysUntil(a.warrantyExpiresAt) < 0
+          : daysUntil(a.warrantyExpiresAt) <= Number(warrantyFilter) && daysUntil(a.warrantyExpiresAt) >= 0);
       return matchSearch && matchStatus && matchCategory && matchWarranty;
     });
   }, [scoped, search, statusFilter, categoryFilter, warrantyFilter, employeeMap, vendorMap, labelOf]);
@@ -124,7 +126,7 @@ export function AssetsPage({ family = 'it_asset' }: { family?: DeviceFamily }) {
     <Box>
       <PageHeader
         title={meta.title}
-        subtitle={`${filtered.length} of ${scoped.length} ${meta.title.toLowerCase()}${warrantyFilter ? ` · warranty expiring within ${warrantyFilter} days` : ''}`}
+        subtitle={`${filtered.length} of ${scoped.length} ${meta.title.toLowerCase()}${warrantyFilter ? (warrantyFilter === 'expired' ? ' · warranty expired' : ` · warranty expiring within ${warrantyFilter} days`) : ''}`}
         breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: meta.menu }]}
         actions={
           <>

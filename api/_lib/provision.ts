@@ -44,6 +44,8 @@ const TENANT_SCHEMA_STATEMENTS = [
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
+    joining_email TEXT,
+    official_email TEXT,
     job_title VARCHAR(255),
     department_id UUID REFERENCES departments(id),
     status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -81,6 +83,12 @@ const TENANT_SCHEMA_STATEMENTS = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, asset_tag)
   )`,
+
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS department VARCHAR(255)`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS specs TEXT`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS image_url TEXT`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS repair_cost NUMERIC(12,2) DEFAULT 0`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS qr_code_data VARCHAR(500)`,
 
   `CREATE INDEX IF NOT EXISTS idx_assets_tenant ON assets(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(tenant_id, status)`,

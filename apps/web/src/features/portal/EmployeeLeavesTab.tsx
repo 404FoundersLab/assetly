@@ -29,6 +29,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import CloseIcon from '@mui/icons-material/Close';
@@ -71,6 +72,7 @@ export function EmployeeLeavesTab({ refreshTrigger = 0 }: EmployeeLeavesTabProps
   const employees = useAppSelector((s) => s.employees.items);
 
   const [openModal, setOpenModal] = useState(false);
+  const [holidaysOpen, setHolidaysOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -293,20 +295,34 @@ export function EmployeeLeavesTab({ refreshTrigger = 0 }: EmployeeLeavesTabProps
             Reporting Lead: <strong>{reportingManager.firstName} {reportingManager.lastName}</strong> ({reportingManager.jobTitle})
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setOpenModal(true)}
-          sx={{
-            bgcolor: '#10B981',
-            '&:hover': { bgcolor: '#059669' },
-            borderRadius: '10px',
-            textTransform: 'none',
-            fontWeight: 700,
-          }}
-        >
-          Apply for Leave
-        </Button>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Button
+            variant="outlined"
+            startIcon={<CalendarMonthIcon />}
+            onClick={() => setHolidaysOpen(true)}
+            sx={{
+              borderRadius: '10px',
+              textTransform: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Company Holidays
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenModal(true)}
+            sx={{
+              bgcolor: '#10B981',
+              '&:hover': { bgcolor: '#059669' },
+              borderRadius: '10px',
+              textTransform: 'none',
+              fontWeight: 700,
+            }}
+          >
+            Apply for Leave
+          </Button>
+        </Stack>
       </Box>
 
       {/* Quota Balance Cards */}
