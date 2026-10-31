@@ -42,6 +42,7 @@ import { WorkAnalyticsView } from './components/WorkAnalyticsView';
 import { ProjectWiseTasksView } from './components/ProjectWiseTasksView';
 import { EmployeeWorkloadBoardView } from './components/EmployeeWorkloadBoardView';
 import { TaskModal } from './components/TaskModal';
+import { ProjectModal } from './components/ProjectModal';
 
 export function TasksPage() {
   const theme = useTheme();
@@ -50,6 +51,7 @@ export function TasksPage() {
   const user = useAuthUser();
 
   const isEmployeeRole = user?.role === 'employee';
+  const canManageProjects = user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
 
   const tasks = useAppSelector((s) => s.tasks.items);
   const projects = useAppSelector((s) => s.tasks.projects);
@@ -87,6 +89,8 @@ export function TasksPage() {
   const [modalInitialTicketRef, setModalInitialTicketRef] = useState<string | undefined>(undefined);
   const [modalInitialProjectId, setModalInitialProjectId] = useState<string | undefined>(undefined);
   const [modalInitialEmployeeId, setModalInitialEmployeeId] = useState<string | undefined>(undefined);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   // Current logged in user's matching employee ID
   const currentEmployee = useMemo(() => {
@@ -213,6 +217,26 @@ export function TasksPage() {
                 }}
               >
                 Ticket Tracker
+              </Button>
+            )}
+            {canManageProjects && (
+              <Button
+                variant="outlined"
+                startIcon={<FolderIcon sx={{ fontSize: 18 }} />}
+                onClick={() => {
+                  setSelectedProject(null);
+                  setProjectModalOpen(true);
+                }}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  borderColor: '#8B5CF6',
+                  color: '#8B5CF6',
+                  '&:hover': { borderColor: '#7C3AED', bgcolor: 'rgba(139, 92, 246, 0.08)' },
+                }}
+              >
+                New Project
               </Button>
             )}
             <Button
@@ -471,6 +495,14 @@ export function TasksPage() {
               tasks={filteredTasks}
               onEditTask={handleOpenEditModal}
               onAddTaskToProject={(pId, pName) => handleOpenCreateModal('todo', undefined, pId)}
+              onOpenCreateProject={() => {
+                setSelectedProject(null);
+                setProjectModalOpen(true);
+              }}
+              onEditProject={(p) => {
+                setSelectedProject(p);
+                setProjectModalOpen(true);
+              }}
             />
           )}
 
@@ -524,6 +556,14 @@ export function TasksPage() {
               tasks={filteredTasks}
               onEditTask={handleOpenEditModal}
               onAddTaskToProject={(pId, pName) => handleOpenCreateModal('todo', undefined, pId)}
+              onOpenCreateProject={() => {
+                setSelectedProject(null);
+                setProjectModalOpen(true);
+              }}
+              onEditProject={(p) => {
+                setSelectedProject(p);
+                setProjectModalOpen(true);
+              }}
             />
           )}
 
@@ -556,6 +596,16 @@ export function TasksPage() {
         initialProjectId={modalInitialProjectId}
         initialEmployeeId={modalInitialEmployeeId}
         onClose={() => setModalOpen(false)}
+      />
+
+      {/* Project Create / Edit Dialog */}
+      <ProjectModal
+        open={projectModalOpen}
+        project={selectedProject}
+        onClose={() => {
+          setProjectModalOpen(false);
+          setSelectedProject(null);
+        }}
       />
     </Box>
   );
