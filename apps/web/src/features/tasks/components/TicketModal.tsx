@@ -278,3 +278,4 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
 }
 
 export default TicketModal;
+

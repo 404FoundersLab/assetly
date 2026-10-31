@@ -31,3 +31,9 @@ export async function updateTicket(id: string, patch: UpdateTicketPayload): Prom
     body:   JSON.stringify(patch),
   });
 }
+
+export async function deleteTicket(id: string): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>(`/api/tickets/${id}`, {
+    method: 'DELETE',
+  });
+}
