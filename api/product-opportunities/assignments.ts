@@ -49,15 +49,42 @@ function parseAssignmentInput(body: AssignmentBody): AssignmentInput | Response 
   const assigneeIds = Array.isArray(body.assigneeIds)
     ? [...new Set(body.assigneeIds.filter((id): id is string => typeof id === 'string'))]
     : [];
-  const workStatus = typeof body.workStatus === 'string' ? body.workStatus : 'not_started';
+  let workStatus = typeof body.workStatus === 'string' ? body.workStatus : 'not_started';
   const nextStep = typeof body.nextStep === 'string' ? body.nextStep.trim().slice(0, 4000) : '';
 
   if (!opportunityId || opportunityId.length > 120) return error('A valid opportunity ID is required', 400);
   if (assigneeIds.length > 30 || assigneeIds.some((id) => !UUID_PATTERN.test(id))) return error('One or more assignee IDs are invalid', 400);
   if (!VALID_WORK_STATUSES.has(workStatus)) return error('Invalid work status', 400);
-  if (workStatus === 'in_progress' && assigneeIds.length === 0) return error('Assign at least one teammate before starting work', 400);
+
+  // If unassigning, automatically reset in_progress to not_started
+  if (assigneeIds.length === 0 && workStatus === 'in_progress') {
+    workStatus = 'not_started';
+  }
 
   return { opportunityId, assigneeIds, workStatus: workStatus as AssignmentInput['workStatus'], nextStep };
+}
+
+async function ensureAssignmentsTable(sql: any): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS product_opportunity_assignments (
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      opportunity_id TEXT NOT NULL,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      work_status TEXT NOT NULL DEFAULT 'in_progress'
+        CHECK (work_status IN ('not_started', 'in_progress', 'done')),
+      work_started_at TIMESTAMPTZ,
+      next_step TEXT NOT NULL DEFAULT '',
+      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (tenant_id, opportunity_id, user_id)
+    );
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_product_opportunity_assignments_user
+      ON product_opportunity_assignments (tenant_id, user_id, updated_at DESC);
+  `;
 }
 
 async function getAssignments(sql: any, tenantId: string, opportunityId?: string): Promise<Response> {
@@ -159,13 +186,35 @@ export default async function handler(req: Request) {
 
   try {
     const sql = await getTenantSql(auth.tenantId);
-    return req.method === 'GET'
-      ? await getAssignments(sql, auth.tenantId)
-      : await handlePut(req, sql, auth);
+    try {
+      return req.method === 'GET'
+        ? await getAssignments(sql, auth.tenantId)
+        : await handlePut(req, sql, auth);
+    } catch (dbErr) {
+      const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      if (
+        msg.includes('product_opportunity_assignments') &&
+        (msg.includes('does not exist') || msg.includes('relation'))
+      ) {
+        await ensureAssignmentsTable(sql);
+        return req.method === 'GET'
+          ? await getAssignments(sql, auth.tenantId)
+          : await handlePut(req, sql, auth);
+      }
+      throw dbErr;
+    }
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Request failed';
     if (message.includes('product_opportunity_assignments') && message.includes('does not exist')) {
-      return error('Database migration needed. Run migration 022 for product opportunity assignments.', 500);
+      try {
+        const sql = await getTenantSql(auth.tenantId);
+        await ensureAssignmentsTable(sql);
+        return req.method === 'GET'
+          ? await getAssignments(sql, auth.tenantId)
+          : await handlePut(req, sql, auth);
+      } catch {
+        return error('Database migration needed. Run migration 022 for product opportunity assignments.', 500);
+      }
     }
     return error(message, 500);
   }
