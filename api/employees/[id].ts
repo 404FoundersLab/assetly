@@ -76,7 +76,9 @@ export default async function handler(req: Request) {
         `;
       }
 
-      const rows = await sql`
+      let rows: DbEmployee[];
+      try {
+        rows = await sql`
         UPDATE employees SET
           employee_number = COALESCE(${body.employeeNumber != null ? String(body.employeeNumber) : null}, employee_number),
           first_name = ${firstName},
@@ -97,6 +99,60 @@ export default async function handler(req: Request) {
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
         RETURNING *
       ` as DbEmployee[];
+      } catch (updateErr: unknown) {
+        const errMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+        if (errMsg.includes('joining_email') || errMsg.includes('column') || (updateErr as { code?: string })?.code === '42703') {
+          try {
+            await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS joining_email TEXT`;
+            await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS official_email TEXT`;
+            await sql`UPDATE employees SET joining_email = email WHERE joining_email IS NULL`;
+
+            rows = await sql`
+        UPDATE employees SET
+          employee_number = COALESCE(${body.employeeNumber != null ? String(body.employeeNumber) : null}, employee_number),
+          first_name = ${firstName},
+          last_name = ${lastName},
+          joining_email = ${joiningEmail},
+          official_email = ${officialEmail},
+          email = ${nextLoginEmail},
+          job_title = COALESCE(${body.jobTitle != null ? String(body.jobTitle) : null}, job_title),
+          department_id = COALESCE(${
+            body.departmentId !== undefined
+              ? body.departmentId
+                ? String(body.departmentId)
+                : null
+              : null
+          }, department_id),
+          status = COALESCE(${body.status ? String(body.status) : null}, status),
+          hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
+        WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+        RETURNING *
+      ` as DbEmployee[];
+          } catch {
+            rows = await sql`
+              UPDATE employees SET
+                employee_number = COALESCE(${body.employeeNumber != null ? String(body.employeeNumber) : null}, employee_number),
+                first_name = ${firstName},
+                last_name = ${lastName},
+                email = ${nextLoginEmail},
+                job_title = COALESCE(${body.jobTitle != null ? String(body.jobTitle) : null}, job_title),
+                department_id = COALESCE(${
+                  body.departmentId !== undefined
+                    ? body.departmentId
+                      ? String(body.departmentId)
+                      : null
+                    : null
+                }, department_id),
+                status = COALESCE(${body.status ? String(body.status) : null}, status),
+                hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
+              WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+              RETURNING *
+            ` as DbEmployee[];
+          }
+        } else {
+          throw updateErr;
+        }
+      }
 
       const emp = mapEmployee(rows[0]);
       const emailNote =

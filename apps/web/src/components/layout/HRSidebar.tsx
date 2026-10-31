@@ -94,7 +94,6 @@ const HR_NAVIGATION: HRNavItem[] = [
     label: 'Attendance',
     icon: <AccessTimeIcon sx={{ fontSize: 20 }} />,
     children: [
-      { to: '/hr/attendance/my', label: 'My Attendance', icon: <PersonIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/attendance/team', label: 'Team Attendance', icon: <GroupsIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/attendance/reports', label: 'Attendance Reports', icon: <AssessmentIcon sx={{ fontSize: 18 }} /> },
     ],
@@ -105,7 +104,6 @@ const HR_NAVIGATION: HRNavItem[] = [
     label: 'Leave',
     icon: <BeachAccessIcon sx={{ fontSize: 20 }} />,
     children: [
-      { to: '/hr/leaves/my', label: 'My Leaves', icon: <PersonIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/leaves/requests', label: 'Leave Requests', icon: <PendingActionsIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/leaves/balance', label: 'Leave Balance', icon: <AccountBalanceWalletIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/leaves/types', label: 'Leave Types', icon: <PolicyIcon sx={{ fontSize: 18 }} /> },

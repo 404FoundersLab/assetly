@@ -38,15 +38,25 @@ export default async function handler(req: Request) {
     if (auth.role === 'employee') {
       employeeId = auth.employeeId ?? null;
       if (!employeeId) {
-        const resolveEmp = await sql`
-          SELECT id FROM employees
-          WHERE tenant_id = ${auth.tenantId!}
-            AND (
-              lower(COALESCE(official_email, joining_email, email)) = ${auth.email.toLowerCase()}
-              OR lower(email) = ${auth.email.toLowerCase()}
-            )
-          LIMIT 1
-        ` as { id: string }[];
+        let resolveEmp: { id: string }[];
+        try {
+          resolveEmp = await sql`
+            SELECT id FROM employees
+            WHERE tenant_id = ${auth.tenantId!}
+              AND (
+                lower(COALESCE(official_email, joining_email, email)) = ${auth.email.toLowerCase()}
+                OR lower(email) = ${auth.email.toLowerCase()}
+              )
+            LIMIT 1
+          ` as { id: string }[];
+        } catch {
+          resolveEmp = await sql`
+            SELECT id FROM employees
+            WHERE tenant_id = ${auth.tenantId!}
+              AND lower(email) = ${auth.email.toLowerCase()}
+            LIMIT 1
+          ` as { id: string }[];
+        }
         employeeId = resolveEmp[0]?.id ?? null;
       }
     }

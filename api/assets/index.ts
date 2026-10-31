@@ -58,7 +58,9 @@ export default async function handler(req: Request) {
       const body = await parseBody<Record<string, unknown>>(req);
       const payload = assetInsertPayload(body, (auth.tenantId!));
 
-      const rows = await sql`
+      let rows: DbAsset[];
+      try {
+        rows = await sql`
         INSERT INTO assets (
           id, tenant_id, asset_tag, name, category, manufacturer, model, serial_number,
           status, lifecycle_stage, purchase_date, purchase_cost, current_value, repair_cost, location,
@@ -75,6 +77,53 @@ export default async function handler(req: Request) {
         )
         RETURNING *
       ` as DbAsset[];
+      } catch (insertErr: unknown) {
+        const errMsg = insertErr instanceof Error ? insertErr.message : String(insertErr);
+        if (errMsg.includes('department') || errMsg.includes('repair_cost') || errMsg.includes('specs') || errMsg.includes('image_url') || errMsg.includes('column') || (insertErr as { code?: string })?.code === '42703') {
+          try {
+            await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS department VARCHAR(255)`;
+            await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS specs TEXT`;
+            await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS image_url TEXT`;
+            await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS repair_cost NUMERIC(12,2) DEFAULT 0`;
+            await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS qr_code_data VARCHAR(500)`;
+
+            rows = await sql`
+        INSERT INTO assets (
+          id, tenant_id, asset_tag, name, category, manufacturer, model, serial_number,
+          status, lifecycle_stage, purchase_date, purchase_cost, current_value, repair_cost, location,
+          department, specs, image_url, vendor_id, assigned_employee_id, warranty_expires_at,
+          notes, qr_code_data
+        ) VALUES (
+          ${payload.id}, ${payload.tenantId}, ${payload.assetTag}, ${payload.name},
+          ${payload.category}, ${payload.manufacturer}, ${payload.model}, ${payload.serialNumber},
+          ${payload.status}, ${payload.lifecycleStage}, ${payload.purchaseDate},
+          ${payload.purchaseCost}, ${payload.currentValue}, ${payload.repairCost}, ${payload.location},
+          ${payload.department}, ${payload.specs}, ${payload.imageUrl}, ${payload.vendorId},
+          ${payload.assignedEmployeeId}, ${payload.warrantyExpiresAt}, ${payload.notes},
+          ${payload.qrCodeData}
+        )
+        RETURNING *
+      ` as DbAsset[];
+          } catch {
+            rows = await sql`
+              INSERT INTO assets (
+                id, tenant_id, asset_tag, name, category, manufacturer, model, serial_number,
+                status, lifecycle_stage, purchase_date, purchase_cost, current_value, location,
+                vendor_id, assigned_employee_id, warranty_expires_at, notes
+              ) VALUES (
+                ${payload.id}, ${payload.tenantId}, ${payload.assetTag}, ${payload.name},
+                ${payload.category}, ${payload.manufacturer}, ${payload.model}, ${payload.serialNumber},
+                ${payload.status}, ${payload.lifecycleStage}, ${payload.purchaseDate},
+                ${payload.purchaseCost}, ${payload.currentValue}, ${payload.location},
+                ${payload.vendorId}, ${payload.assignedEmployeeId}, ${payload.warrantyExpiresAt}, ${payload.notes}
+              )
+              RETURNING *
+            ` as DbAsset[];
+          }
+        } else {
+          throw insertErr;
+        }
+      }
 
       const asset = mapAsset(rows[0]);
 

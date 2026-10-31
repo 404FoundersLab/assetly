@@ -83,7 +83,9 @@ export default async function handler(req: Request) {
         payload.assignedEmployeeId = null;
       }
 
-      const rows = await sql`
+      let rows: DbAsset[];
+      try {
+        rows = await sql`
         INSERT INTO assets (
           id, tenant_id, asset_tag, name, category, manufacturer, model, serial_number,
           status, lifecycle_stage, purchase_date, purchase_cost, current_value, repair_cost, location,
@@ -100,6 +102,34 @@ export default async function handler(req: Request) {
         )
         RETURNING *
       ` as DbAsset[];
+      } catch (err: unknown) {
+        try {
+          await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS department VARCHAR(255)`;
+          await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS specs TEXT`;
+          await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS image_url TEXT`;
+          await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS repair_cost NUMERIC(12,2) DEFAULT 0`;
+          await sql`ALTER TABLE assets ADD COLUMN IF NOT EXISTS qr_code_data VARCHAR(500)`;
+          rows = await sql`
+        INSERT INTO assets (
+          id, tenant_id, asset_tag, name, category, manufacturer, model, serial_number,
+          status, lifecycle_stage, purchase_date, purchase_cost, current_value, repair_cost, location,
+          department, specs, image_url, vendor_id, assigned_employee_id, warranty_expires_at,
+          notes, qr_code_data
+        ) VALUES (
+          ${payload.id}, ${payload.tenantId},
+          ${payload.assetTag}, ${payload.name}, ${payload.category}, ${payload.manufacturer},
+          ${payload.model}, ${payload.serialNumber}, ${payload.status}, ${payload.lifecycleStage},
+          ${payload.purchaseDate}, ${payload.purchaseCost}, ${payload.currentValue}, ${payload.repairCost},
+          ${payload.location}, ${payload.department}, ${payload.specs}, ${payload.imageUrl},
+          ${payload.vendorId}, ${payload.assignedEmployeeId}, ${payload.warrantyExpiresAt},
+          ${payload.notes}, ${payload.qrCodeData}
+        )
+        RETURNING *
+      ` as DbAsset[];
+        } catch {
+          throw err;
+        }
+      }
 
       const asset = mapAsset(rows[0]);
       created.push(asset);

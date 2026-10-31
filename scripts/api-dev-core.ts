@@ -49,6 +49,7 @@ import billingWebhooksRazorpay from '../api/billing/webhooks-razorpay';
 import hrLeave from '../api/hr/leave';
 import hrLeaveById from '../api/hr/leave/[id]';
 import hrBalances from '../api/hr/balances';
+import warrantyLookup from '../api/warranty/lookup';
 
 type ApiHandler = (req: Request) => Promise<Response>;
 
@@ -102,6 +103,7 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/hr/leave') return hrLeave;
   if (/^\/api\/hr\/leave\/[^/]+$/.test(pathname)) return hrLeaveById;
   if (pathname === '/api/hr/balances') return hrBalances;
+  if (pathname === '/api/warranty/lookup') return warrantyLookup;
   if (pathname === '/api/endpoints') return endpointsIndex;
   if (pathname === '/api/endpoints/register') return endpointsRegister;
   if (pathname === '/api/endpoints/telemetry') return endpointsTelemetry;

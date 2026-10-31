@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -32,6 +33,7 @@ import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { useAppDispatch, useAppSelector, useAuthUser } from '../../hooks/storeHooks';
@@ -52,11 +54,30 @@ import { LoadingButton } from '../../components/Loader';
 import { ApiError } from '../../services/api/client';
 import { EmployeeTicketsTab } from './EmployeeTicketsTab';
 import { EmployeeLeavesTab } from './EmployeeLeavesTab';
+import { EmployeeAttendanceTab } from './EmployeeAttendanceTab';
 import { EmployeeTasksTab } from './EmployeeTasksTab';
 
 const REQUEST_TYPES: AssetRequestType[] = ['new', 'replacement', 'accessory'];
 
+const TAB_KEYS = ['devices', 'tickets', 'leaves', 'attendance', 'tasks'];
+
 export function DeviceRequestPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const getInitialTab = () => {
+    if (tabParam === 'attendance') return 3;
+    if (tabParam === 'tasks') return 4;
+    if (tabParam === 'leaves') return 2;
+    if (tabParam === 'tickets') return 1;
+    return 0;
+  };
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+
+  const handleTabChange = (_: React.SyntheticEvent, newTab: number) => {
+    setActiveTab(newTab);
+    setSearchParams({ tab: TAB_KEYS[newTab] || 'devices' }, { replace: true });
+  };
+
   const dispatch = useAppDispatch();
   const user = useAuthUser();
   const allRequests = useAppSelector((s) => s.requests.items);
@@ -64,8 +85,6 @@ export function DeviceRequestPage() {
   const employees = useAppSelector((s) => s.employees.items);
   const assets = useAppSelector((s) => s.assets.items);
   const { requestSlugs, labelOf } = useAssetCategories();
-
-  const [activeTab, setActiveTab] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [requestType, setRequestType] = useState<AssetRequestType>('new');
   const [category, setCategory] = useState('laptop');
@@ -209,17 +228,20 @@ export function DeviceRequestPage() {
 
       <Tabs
         value={activeTab}
-        onChange={(_, v) => setActiveTab(v as number)}
+        onChange={handleTabChange}
         sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab icon={<DevicesOtherIcon />} iconPosition="start" label="Device Requests" />
         <Tab icon={<ConfirmationNumberIcon />} iconPosition="start" label="Support Tickets" />
         <Tab icon={<BeachAccessIcon />} iconPosition="start" label="Leaves & Time Off" />
+        <Tab icon={<AccessTimeIcon />} iconPosition="start" label="My Attendance" />
         <Tab icon={<TaskAltIcon />} iconPosition="start" label="My Work & Tasks" />
       </Tabs>
 
-      {activeTab === 3 ? (
+      {activeTab === 4 ? (
         <EmployeeTasksTab />
+      ) : activeTab === 3 ? (
+        <EmployeeAttendanceTab />
       ) : activeTab === 2 ? (
         <EmployeeLeavesTab refreshTrigger={refreshTrigger} />
       ) : activeTab === 1 ? (

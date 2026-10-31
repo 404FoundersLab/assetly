@@ -120,13 +120,23 @@ export default async function handler(req: Request) {
       if (rows.length > 0 && rows[0].password_hash === 'optional-on-first-login') {
         optionalFirstTime = true;
       } else if (rows.length === 0) {
-        const employees = await sql`
-          SELECT id, tenant_id, email, first_name, last_name 
-          FROM employees 
-          WHERE lower(COALESCE(official_email, joining_email, email)) = ${email}
-             OR lower(email) = ${email}
-          LIMIT 1
-        ` as { id: string; tenant_id: string; email: string; first_name: string; last_name: string }[];
+        let employees: { id: string; tenant_id: string; email: string; first_name: string; last_name: string }[];
+        try {
+          employees = await sql`
+            SELECT id, tenant_id, email, first_name, last_name 
+            FROM employees 
+            WHERE lower(COALESCE(official_email, joining_email, email)) = ${email}
+               OR lower(email) = ${email}
+            LIMIT 1
+          ` as { id: string; tenant_id: string; email: string; first_name: string; last_name: string }[];
+        } catch {
+          employees = await sql`
+            SELECT id, tenant_id, email, first_name, last_name 
+            FROM employees 
+            WHERE lower(email) = ${email}
+            LIMIT 1
+          ` as { id: string; tenant_id: string; email: string; first_name: string; last_name: string }[];
+        }
 
         if (employees.length > 0) {
           const emp = employees[0];
