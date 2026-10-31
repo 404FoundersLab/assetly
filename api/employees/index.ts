@@ -108,16 +108,28 @@ export default async function handler(req: Request) {
         await sql`
           INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
           VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
-          ON CONFLICT (tenant_id, email) DO NOTHING
+          ON CONFLICT (email) DO NOTHING
         `;
+      } catch {
+        try {
+          await sql`
+            INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+            VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
+            ON CONFLICT (tenant_id, email) DO NOTHING
+          `;
+        } catch {
+          /* user may already exist */
+        }
+      }
 
+      try {
         await sql`
           INSERT INTO user_passwords (email, password_hash, must_change_password)
           VALUES (${joiningEmail}, 'optional-on-first-login', true)
-          ON CONFLICT (email) DO UPDATE SET must_change_password = true
+          ON CONFLICT (email) DO UPDATE SET password_hash = 'optional-on-first-login', must_change_password = true
         `;
       } catch {
-        /* user may already exist */
+        /* user_passwords table might not have email constraint or already updated */
       }
 
       return json(mapEmployee(rows[0]), 201);

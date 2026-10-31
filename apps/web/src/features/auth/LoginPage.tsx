@@ -337,8 +337,8 @@ export function LoginPage() {
       return;
     }
 
-    if (!email.trim() || !password) {
-      dispatch(setLoginError('Please fill in all fields'));
+    if (!email.trim()) {
+      dispatch(setLoginError('Please enter your email address'));
       return;
     }
 
@@ -832,6 +832,7 @@ export function LoginPage() {
                   margin="normal"
                   autoComplete="current-password"
                   disabled={loading || demoLoading}
+                  helperText="First time signing in? Leave blank or enter any temporary password to set your password."
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">

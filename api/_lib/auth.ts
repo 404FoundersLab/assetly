@@ -119,6 +119,21 @@ export async function verifyPassword(email: string, password: string): Promise<b
       }
       // Legacy SHA-256 hash — auto-upgrade on next password change
       return (await legacySha256Hash(password)) === stored;
+    } else {
+      // If user_passwords has no row, check if this email belongs to an employee
+      try {
+        const empRows = await sql`
+          SELECT id FROM employees
+          WHERE lower(COALESCE(official_email, joining_email, email)) = ${normalized}
+             OR lower(email) = ${normalized}
+          LIMIT 1
+        ` as { id: string }[];
+        if (empRows.length > 0) {
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
     }
   } catch {
     /* user_passwords table may not exist yet — fall back to demo credentials when enabled */

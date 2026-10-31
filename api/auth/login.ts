@@ -116,7 +116,7 @@ export default async function handler(req: Request) {
       if (isPortfolioGuestEmail(email)) {
         /* guest never uses first-login password bypass */
       } else {
-      const rows = await sql`SELECT password_hash FROM user_passwords WHERE email = ${email}` as { password_hash: string }[];
+      const rows = await sql`SELECT password_hash FROM user_passwords WHERE lower(email) = ${email}` as { password_hash: string }[];
       if (rows.length > 0 && rows[0].password_hash === 'optional-on-first-login') {
         optionalFirstTime = true;
       } else if (rows.length === 0) {
@@ -142,17 +142,33 @@ export default async function handler(req: Request) {
           const emp = employees[0];
           const userId = crypto.randomUUID();
           
-          await sql`
-            INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
-            VALUES (${userId}, ${emp.tenant_id}, ${emp.email}, ${emp.first_name}, ${emp.last_name || ''}, 'employee')
-            ON CONFLICT (tenant_id, email) DO NOTHING
-          `;
+          try {
+            await sql`
+              INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+              VALUES (${userId}, ${emp.tenant_id}, ${email}, ${emp.first_name}, ${emp.last_name || ''}, 'employee')
+              ON CONFLICT (email) DO NOTHING
+            `;
+          } catch {
+            try {
+              await sql`
+                INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+                VALUES (${userId}, ${emp.tenant_id}, ${email}, ${emp.first_name}, ${emp.last_name || ''}, 'employee')
+                ON CONFLICT (tenant_id, email) DO NOTHING
+              `;
+            } catch {
+              /* ignore */
+            }
+          }
           
-          await sql`
-            INSERT INTO user_passwords (email, password_hash, must_change_password)
-            VALUES (${emp.email}, 'optional-on-first-login', true)
-            ON CONFLICT (email) DO NOTHING
-          `;
+          try {
+            await sql`
+              INSERT INTO user_passwords (email, password_hash, must_change_password)
+              VALUES (${email}, 'optional-on-first-login', true)
+              ON CONFLICT (email) DO UPDATE SET password_hash = 'optional-on-first-login', must_change_password = true
+            `;
+          } catch {
+            /* ignore */
+          }
           
           optionalFirstTime = true;
         }
@@ -202,16 +218,26 @@ export default async function handler(req: Request) {
 
     try {
       const sql = getSql();
-      // Fetch user + derive role from user_roles JOIN (our schema uses a join table)
-      const users = await sql`
-        SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name,
-               COALESCE(r.name, u.role, 'viewer') AS role
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id
-        LEFT JOIN roles r ON r.id = ur.role_id
-        WHERE lower(u.email) = ${email}
-        LIMIT 1
-      ` as DbUser[];
+      // Fetch user: try join if user_roles exists, otherwise query users directly
+      let users: DbUser[] = [];
+      try {
+        users = await sql`
+          SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name,
+                 COALESCE(r.name, u.role, 'viewer') AS role
+          FROM users u
+          LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN roles r ON r.id = ur.role_id
+          WHERE lower(u.email) = ${email}
+          LIMIT 1
+        ` as DbUser[];
+      } catch {
+        users = await sql`
+          SELECT id, tenant_id, email, first_name, last_name, role
+          FROM users
+          WHERE lower(email) = ${email}
+          LIMIT 1
+        ` as DbUser[];
+      }
       if (users.length > 0) {
         const u = users[0];
         userRecord = {
@@ -222,6 +248,25 @@ export default async function handler(req: Request) {
           lastName: u.last_name || '',
           role: u.role,
         };
+
+        if (userRecord.role === 'employee') {
+          try {
+            const empRows = await sql`
+              SELECT id FROM employees
+              WHERE tenant_id = ${u.tenant_id}
+                AND (
+                  lower(COALESCE(official_email, joining_email, email)) = ${email}
+                  OR lower(email) = ${email}
+                )
+              LIMIT 1
+            ` as { id: string }[];
+            if (empRows.length > 0) {
+              userRecord.employeeId = empRows[0].id;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
 
         // Query 'tenants' table first, fall back to legacy 'companies'
         let tenants: DbTenant[] = [];
@@ -264,8 +309,12 @@ export default async function handler(req: Request) {
     let mustChange = false;
     try {
       const sql = getSql();
-      const rows = await sql`SELECT must_change_password FROM user_passwords WHERE email = ${email}` as { must_change_password: boolean }[];
-      if (rows.length > 0 && rows[0].must_change_password) {
+      const rows = await sql`SELECT must_change_password, password_hash FROM user_passwords WHERE lower(email) = ${email}` as { must_change_password: boolean; password_hash: string }[];
+      if (rows.length > 0) {
+        if (rows[0].must_change_password || rows[0].password_hash === 'optional-on-first-login') {
+          mustChange = true;
+        }
+      } else if (optionalFirstTime) {
         mustChange = true;
       }
     } catch {
