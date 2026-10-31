@@ -2,9 +2,11 @@ import { useState, useMemo } from 'react';
 import {
   Box, Breadcrumbs, Button, Card, CardContent, Chip, Grid, Link, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Typography, Alert, Divider, Tabs,
-  Tab, Stack, Avatar, LinearProgress, alpha, Paper
+  Tab, Stack, Avatar, LinearProgress, alpha, Paper, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import InventoryIcon from '@mui/icons-material/Inventory2';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import GavelIcon from '@mui/icons-material/Gavel';
@@ -13,10 +15,13 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import StarIcon from '@mui/icons-material/Star';
 import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
-import { useAppSelector } from '../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, usePermissions } from '../../hooks/storeHooks';
 import { StatusChip } from '../../components/StatusChip';
 import { formatCurrency, formatDate, getEmployeeName } from '../../utils/format';
 import { CATEGORY_LABELS } from '../../data/demoData';
+import { EmployeeFormDialog } from './EmployeeFormDialog';
+import { deleteEmployee } from '../../services/api/entities';
+import { reloadFromApi } from '../../components/DataBootstrap';
 
 const EXPENSE_STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error' | 'primary' | 'info'> = {
   draft: 'default', submitted: 'warning', approved: 'primary', rejected: 'error', paid: 'success',
@@ -40,7 +45,12 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const { can } = usePermissions();
   const [activeTab, setActiveTab] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const employee = useAppSelector(s => s.employees.items.find(e => e.id === id));
   const departments = useAppSelector(s => s.departments.items);
@@ -97,7 +107,19 @@ export function EmployeeDetailPage() {
             </Stack>
           </Box>
         </Stack>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          {can('employee:write') && (
+            <>
+              <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setEditOpen(true)}>
+                Edit Employee
+              </Button>
+              <Button startIcon={<DeleteOutlineIcon />} variant="outlined" color="error" onClick={() => setDeleteOpen(true)}>
+                Delete
+              </Button>
+            </>
+          )}
+          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
+        </Stack>
       </Stack>
 
       {/* Tabs */}
@@ -312,6 +334,54 @@ export function EmployeeDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <EmployeeFormDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        employee={employee}
+      />
+
+      <Dialog
+        open={deleteOpen}
+        onClose={() => !isDeleting && setDeleteOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Employee</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete{' '}
+            <strong>{getEmployeeName(employee.firstName, employee.lastName)}</strong>?
+          </Typography>
+          {assets.length > 0 && (
+            <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 1 }}>
+              Warning: This employee currently has {assets.length} assigned asset(s). Those assets will become unassigned.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={isDeleting}
+            onClick={async () => {
+              setIsDeleting(true);
+              try {
+                await deleteEmployee(employee.id);
+                await reloadFromApi(dispatch);
+                navigate('/employees');
+              } finally {
+                setIsDeleting(false);
+              }
+            }}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

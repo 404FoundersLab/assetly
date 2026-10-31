@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { HRLayout } from './components/layout/HRLayout';
 import { ExecDocsLayout } from './components/layout/ExecDocsLayout';
+import { TasksLayout } from './components/layout/TasksLayout';
 import { EmployeePortalLayout } from './components/layout/EmployeePortalLayout';
 import { DataBootstrap } from './components/DataBootstrap';
 import { GlobalLoadingBar } from './components/Loader';
@@ -68,6 +69,7 @@ import { MeetingsPage } from './features/exe-docs/meetings/MeetingsPage';
 import { CompletedReportPage } from './features/exe-docs/meetings/CompletedReportPage';
 import { CompliancePage } from './features/exe-docs/compliance/CompliancePage';
 import { ProductIdeasPage } from './features/tasks/ProductIdeasPage';
+import { TasksPage } from './features/tasks/TasksPage';
 
 export default function App() {
   return (
@@ -125,13 +127,13 @@ export default function App() {
 
         {/* Attendance */}
         <Route path="attendance" element={<AttendancePage />} />
-        <Route path="attendance/my" element={<MyAttendancePage />} />
+        <Route path="attendance/my" element={<Navigate to="/portal?tab=attendance" replace />} />
         <Route path="attendance/team" element={<TeamAttendancePage />} />
         <Route path="attendance/reports" element={<AttendanceReportsPage />} />
 
         {/* Leaves */}
         <Route path="leaves" element={<LeavesPage />} />
-        <Route path="leaves/my" element={<MyLeavesPage />} />
+        <Route path="leaves/my" element={<Navigate to="/portal?tab=leaves" replace />} />
         <Route path="leaves/requests" element={<LeaveRequestsPage />} />
         <Route path="leaves/balance" element={<LeaveBalancePage />} />
         <Route path="leaves/types" element={<LeaveTypesPage />} />
@@ -193,7 +195,6 @@ export default function App() {
         <Route path="settings" element={<ModuleRoute module="settings:write"><SettingsPage /></ModuleRoute>} />
         <Route path="settings/users" element={<ModuleRoute module="user:manage"><TenantUsersPage /></ModuleRoute>} />
         <Route path="analytics" element={<ModuleRoute module="module:assets"><AnalyticsPage /></ModuleRoute>} />
-        <Route path="tasks/product-ideas" element={<ModuleRoute module="module:tasks"><ProductIdeasPage /></ModuleRoute>} />
       </Route>
 
       <Route
@@ -232,6 +233,18 @@ export default function App() {
         <Route path="meetings" element={<MeetingsPage />} />
         <Route path="meetings/details" element={<CompletedReportPage />} />
         <Route path="compliance" element={<CompliancePage />} />
+      </Route>
+
+      <Route
+        path="/tasks"
+        element={
+          <ProtectedRoute>
+            <TasksLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<TasksPage />} />
+        <Route path="product-ideas" element={<ModuleRoute module="module:tasks"><ProductIdeasPage /></ModuleRoute>} />
       </Route>
 
       <Route path="*" element={<AuthRedirect />} />

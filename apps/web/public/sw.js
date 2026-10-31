@@ -49,8 +49,11 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       }).catch(() => {
-        // Return cached page or app fallback if offline
-        return cachedResponse;
+        if (cachedResponse) return cachedResponse;
+        if (event.request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
+        return new Response('Offline', { status: 503, statusText: 'Offline', headers: { 'Content-Type': 'text/plain' } });
       });
 
       return cachedResponse || fetchPromise;

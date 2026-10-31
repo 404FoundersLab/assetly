@@ -119,6 +119,21 @@ export async function verifyPassword(email: string, password: string): Promise<b
       }
       // Legacy SHA-256 hash — auto-upgrade on next password change
       return (await legacySha256Hash(password)) === stored;
+    } else {
+      // If user_passwords has no row, check if this email belongs to an employee
+      try {
+        const empRows = await sql`
+          SELECT id FROM employees
+          WHERE lower(COALESCE(official_email, joining_email, email)) = ${normalized}
+             OR lower(email) = ${normalized}
+          LIMIT 1
+        ` as { id: string }[];
+        if (empRows.length > 0) {
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
     }
   } catch {
     /* user_passwords table may not exist yet — fall back to demo credentials when enabled */
@@ -136,7 +151,7 @@ export async function signAuthToken(user: {
   lastName: string;
   tenantId?: string;
   employeeId?: string;
-}): Promise<string> {
+}, opts?: { mfaPending?: boolean }): Promise<string> {
   const isGuest = isPortfolioGuestEmail(user.email);
   return new SignJWT({
     email: user.email,
@@ -145,27 +160,36 @@ export async function signAuthToken(user: {
     lastName: user.lastName,
     ...(user.tenantId ? { tenantId: user.tenantId } : {}),
     ...(user.employeeId ? { employeeId: user.employeeId } : {}),
+    ...(opts?.mfaPending ? { mfaPending: true } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
-    .setExpirationTime(isGuest ? '4h' : '8h')
+    .setExpirationTime(opts?.mfaPending ? '15m' : isGuest ? '4h' : '8h')
     .sign(secret());
 }
 
-export async function verifyAuthToken(req: Request): Promise<AuthUser | null> {
+/** Tokens issued while MFA enrollment is pending are rejected unless `allowMfaPending` is set. */
+export async function verifyAuthToken(
+  req: Request,
+  allowMfaPending = false,
+): Promise<AuthUser | null> {
   const header = req.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) return null;
   try {
     const { payload } = await jwtVerify(header.slice(7), secret());
+    if (payload.mfaPending && !allowMfaPending) return null;
     return payload as AuthUser;
   } catch {
     return null;
   }
 }
 
-export async function requireAuth(req: Request): Promise<AuthUser | Response> {
-  const user = await verifyAuthToken(req);
+export async function requireAuth(
+  req: Request,
+  opts?: { allowMfaPending?: boolean },
+): Promise<AuthUser | Response> {
+  const user = await verifyAuthToken(req, opts?.allowMfaPending);
   if (!user?.sub) return error('Unauthorized', 401);
   if (isPortfolioGuestEmail(user.email)) {
     user.role = 'viewer';

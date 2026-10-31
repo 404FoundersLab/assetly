@@ -11,12 +11,15 @@ import chatIngest from '../api/chat/ingest';
 import authLogin from '../api/auth/login';
 import authChangePassword from '../api/auth/change-password';
 import authDemoStatus from '../api/auth/demo-status';
+import authMfa from '../api/auth/mfa';
+import authMfaAdmin from '../api/auth/mfa-admin';
 import assetsIndex from '../api/assets/index';
 import assetsImport from '../api/assets/import';
 import assetsAssign from '../api/assets/assign';
 import assetsReturn from '../api/assets/return';
 import assetsById from '../api/assets/[id]';
 import employeesIndex from '../api/employees/index';
+import employeesBulkDelete from '../api/employees/bulk-delete';
 import employeesById from '../api/employees/[id]';
 import departmentsIndex from '../api/departments/index';
 import departmentsById from '../api/departments/[id]';
@@ -49,6 +52,7 @@ import billingWebhooksRazorpay from '../api/billing/webhooks-razorpay';
 import hrLeave from '../api/hr/leave';
 import hrLeaveById from '../api/hr/leave/[id]';
 import hrBalances from '../api/hr/balances';
+import warrantyLookup from '../api/warranty/lookup';
 
 type ApiHandler = (req: Request) => Promise<Response>;
 
@@ -89,10 +93,13 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/auth/login') return authLogin;
   if (pathname === '/api/auth/change-password') return authChangePassword;
   if (pathname === '/api/auth/demo-status') return authDemoStatus;
+  if (pathname === '/api/auth/mfa') return authMfa;
+  if (pathname === '/api/auth/mfa-admin') return authMfaAdmin;
   if (pathname === '/api/assets/import') return assetsImport;
   if (pathname === '/api/assets/assign') return assetsAssign;
   if (pathname === '/api/assets/return') return assetsReturn;
   if (pathname === '/api/assets') return assetsIndex;
+  if (pathname === '/api/employees/bulk-delete') return employeesBulkDelete;
   if (pathname === '/api/employees') return employeesIndex;
   if (pathname === '/api/departments') return departmentsIndex;
   if (pathname === '/api/vendors') return vendorsIndex;
@@ -102,6 +109,7 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (pathname === '/api/hr/leave') return hrLeave;
   if (/^\/api\/hr\/leave\/[^/]+$/.test(pathname)) return hrLeaveById;
   if (pathname === '/api/hr/balances') return hrBalances;
+  if (pathname === '/api/warranty/lookup') return warrantyLookup;
   if (pathname === '/api/endpoints') return endpointsIndex;
   if (pathname === '/api/endpoints/register') return endpointsRegister;
   if (pathname === '/api/endpoints/telemetry') return endpointsTelemetry;

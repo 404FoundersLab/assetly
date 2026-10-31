@@ -27,6 +27,14 @@ export const SYSTEM_MODULES: readonly SystemModuleConfig[] = [
     route: '/hr',
   },
   {
+    id: 'module:tasks',
+    name: 'Work & Task Management',
+    description: 'Track employee work tasks, team Kanban boards, deliverables, milestones, and unified support ticket lifecycles.',
+    badge: 'PRODUCTIVITY',
+    color: '#8B5CF6',
+    route: '/tasks',
+  },
+  {
     id: 'module:docs',
     name: 'Executive Doc Vault',
     description: 'Corporate governance charters, board meeting records, compliance audits, and executive document library.',
@@ -41,14 +49,6 @@ export const SYSTEM_MODULES: readonly SystemModuleConfig[] = [
     badge: 'FINANCE & CAPEX',
     color: '#F59E0B',
     route: '/it-spend',
-  },
-  {
-    id: 'module:tasks',
-    name: 'Work & Task Management',
-    description: 'Team task boards, project planning, product opportunity research, and shared assignments.',
-    badge: 'TEAM WORKSPACE',
-    color: '#176B5B',
-    route: '/tasks/product-ideas',
   },
 ] as const;
 

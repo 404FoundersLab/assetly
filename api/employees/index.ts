@@ -31,7 +31,9 @@ export default async function handler(req: Request) {
       }
 
       const id = body.id && String(body.id) ? String(body.id) : crypto.randomUUID();
-      const rows = await sql`
+      let rows: DbEmployee[];
+      try {
+        rows = await sql`
         INSERT INTO employees (
           id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
           job_title, department_id, status, hire_date
@@ -46,6 +48,50 @@ export default async function handler(req: Request) {
         )
         RETURNING *
       ` as DbEmployee[];
+      } catch (insertErr: unknown) {
+        const errMsg = insertErr instanceof Error ? insertErr.message : String(insertErr);
+        if (errMsg.includes('joining_email') || errMsg.includes('column') || (insertErr as { code?: string })?.code === '42703') {
+          try {
+            await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS joining_email TEXT`;
+            await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS official_email TEXT`;
+            await sql`UPDATE employees SET joining_email = email WHERE joining_email IS NULL`;
+
+            rows = await sql`
+        INSERT INTO employees (
+          id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
+          job_title, department_id, status, hire_date
+        ) VALUES (
+          ${id}, ${auth.tenantId!},
+          ${body.employeeNumber ? String(body.employeeNumber) : null},
+          ${firstName}, ${lastName}, ${joiningEmail}, ${joiningEmail}, NULL,
+          ${body.jobTitle ? String(body.jobTitle) : null},
+          ${body.departmentId ? String(body.departmentId) : null},
+          ${body.status ? String(body.status) : 'active'},
+          ${body.hireDate ? String(body.hireDate) : null}
+        )
+        RETURNING *
+      ` as DbEmployee[];
+          } catch {
+            rows = await sql`
+              INSERT INTO employees (
+                id, tenant_id, employee_number, first_name, last_name, email,
+                job_title, department_id, status, hire_date
+              ) VALUES (
+                ${id}, ${auth.tenantId!},
+                ${body.employeeNumber ? String(body.employeeNumber) : null},
+                ${firstName}, ${lastName}, ${joiningEmail},
+                ${body.jobTitle ? String(body.jobTitle) : null},
+                ${body.departmentId ? String(body.departmentId) : null},
+                ${body.status ? String(body.status) : 'active'},
+                ${body.hireDate ? String(body.hireDate) : null}
+              )
+              RETURNING *
+            ` as DbEmployee[];
+          }
+        } else {
+          throw insertErr;
+        }
+      }
 
       await insertAuditLog({
         userId: auth.sub,
@@ -62,16 +108,28 @@ export default async function handler(req: Request) {
         await sql`
           INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
           VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
-          ON CONFLICT (tenant_id, email) DO NOTHING
+          ON CONFLICT (email) DO NOTHING
         `;
+      } catch {
+        try {
+          await sql`
+            INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+            VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
+            ON CONFLICT (tenant_id, email) DO NOTHING
+          `;
+        } catch {
+          /* user may already exist */
+        }
+      }
 
+      try {
         await sql`
           INSERT INTO user_passwords (email, password_hash, must_change_password)
           VALUES (${joiningEmail}, 'optional-on-first-login', true)
-          ON CONFLICT (email) DO UPDATE SET must_change_password = true
+          ON CONFLICT (email) DO UPDATE SET password_hash = 'optional-on-first-login', must_change_password = true
         `;
       } catch {
-        /* user may already exist */
+        /* user_passwords table might not have email constraint or already updated */
       }
 
       return json(mapEmployee(rows[0]), 201);

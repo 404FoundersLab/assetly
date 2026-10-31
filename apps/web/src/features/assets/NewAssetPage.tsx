@@ -10,11 +10,16 @@ import {
   Typography,
   alpha,
   Autocomplete,
+  Stack,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import { createFilterOptions } from '@mui/material/Autocomplete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SyncIcon from '@mui/icons-material/Sync';
+import LaunchIcon from '@mui/icons-material/Launch';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/storeHooks';
 
@@ -22,11 +27,14 @@ import { PageHeader } from '../../components/PageHeader';
 import { AssetQrPanel } from '../../components/AssetQrPanel';
 import { LoadingButton } from '../../components/Loader';
 import { reloadFromApi } from '../../components/DataBootstrap';
+import { lookupWarranty } from '../../services/api/warranty';
+import { ApiError } from '../../services/api/client';
 
 import { createAsset as createAssetApi } from '../../services/api/assets';
 import { uploadImage } from '../../services/api/entities';
 import { EmployeeFormDialog } from '../employees/EmployeeFormDialog';
 import { STATUS_LABELS } from '../../data/demoData';
+import { safeRandomUUID } from '../../utils/uuid';
 import { useAssetCategories } from '../../hooks/useAssetCategories';
 import { DEVICE_FAMILY_META, isDeviceFamily } from '../../constants/deviceFamilies';
 import {
@@ -110,7 +118,55 @@ export function NewAssetPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [createdItem, setCreatedItem] = useState<CreatedAsset | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [syncingWarranty, setSyncingWarranty] = useState(false);
+  const [warrantyMsg, setWarrantyMsg] = useState<{ text: string; severity: 'success' | 'info' | 'error' } | null>(null);
+
+  const isLaptop = form.category?.toLowerCase() === 'laptop';
+  const mfg = (form.manufacturer || '').toLowerCase();
+  const isLenovo = isLaptop && (mfg.includes('lenovo') || form.model?.toLowerCase().includes('thinkpad') || form.serialNumber?.startsWith('1S') || !form.manufacturer);
+  const isDell = isLaptop && (mfg.includes('dell') || (form.serialNumber?.length === 7 && /^[A-Z0-9]{7}$/i.test(form.serialNumber ?? '')) || !form.manufacturer);
+
+  const handleFetchLenovo = async () => {
+    if (!form.serialNumber?.trim()) {
+      setWarrantyMsg({ text: 'Please enter a Serial Number first in Hardware Details', severity: 'error' });
+      return;
+    }
+    setSyncingWarranty(true);
+    setWarrantyMsg(null);
+    try {
+      const data = await lookupWarranty(form.serialNumber, 'lenovo');
+      if (data.endDate) {
+        set('warrantyExpiresAt', data.endDate);
+        if (data.productName && !form.model) {
+          set('model', data.productName);
+        }
+        setWarrantyMsg({
+          text: `Fetched! Warranty: ${data.endDate} (${data.planName || 'Active'}). You can still edit this date manually.`,
+          severity: 'success',
+        });
+      } else {
+        setWarrantyMsg({ text: 'Lenovo responded but no expiration date found.', severity: 'info' });
+      }
+    } catch (err: any) {
+      setWarrantyMsg({ text: err?.message || 'Failed to fetch Lenovo warranty', severity: 'error' });
+    } finally {
+      setSyncingWarranty(false);
+    }
+  };
+
+  const handleOpenDell = () => {
+    if (form.serialNumber?.trim()) {
+      navigator.clipboard.writeText(form.serialNumber.trim());
+      setWarrantyMsg({
+        text: `Service Tag "${form.serialNumber.trim()}" copied to clipboard! Paste it into Dell Support Services.`,
+        severity: 'info',
+      });
+    }
+    window.open('https://www.dell.com/support/contractservices/en-in', '_blank', 'noopener,noreferrer');
+  };
 
   const set = (field: keyof AssetFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -135,7 +191,20 @@ export function NewAssetPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !form.assetTag.trim() || !form.name.trim()) return;
+    setErrorMsg(null);
+
+    if (!user) {
+      setErrorMsg('You must be signed in to add an asset.');
+      return;
+    }
+    if (!form.assetTag.trim()) {
+      setErrorMsg('Asset Tag is required.');
+      return;
+    }
+    if (!form.name.trim()) {
+      setErrorMsg('Asset Name is required.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -151,11 +220,17 @@ export function NewAssetPage() {
 
       let imageUrl = form.imageUrl;
       if (imageUrl && imageFile) {
-        const uploaded = await uploadImage(imageUrl, imageFile.name);
-        imageUrl = uploaded.url;
+        try {
+          const uploaded = await uploadImage(imageUrl, imageFile.name);
+          imageUrl = uploaded.url;
+        } catch (imgErr) {
+          console.warn('Image upload failed, continuing with asset save:', imgErr);
+        }
       }
+
+      const assetId = safeRandomUUID();
       const created = await createAssetApi({
-        id: crypto.randomUUID(),
+        id: assetId,
         tenantId: user.tenantId,
         assetTag: form.assetTag.trim(),
         name: form.name.trim(),
@@ -186,13 +261,28 @@ export function NewAssetPage() {
           userName: assignedBy,
           action: 'CREATE',
           entityType: 'asset',
-          entityId: 'new',
+          entityId: assetId,
           entityLabel: form.assetTag.trim(),
           details: `Created ${form.name.trim()}${imageFile ? ' with image' : ''}`,
         },
       });
-      await reloadFromApi(dispatch);
+
+      try {
+        await reloadFromApi(dispatch);
+      } catch (reloadErr) {
+        console.warn('Cache reload warning:', reloadErr);
+      }
+
+      setSaveSuccess(`Asset "${created.name}" (${created.assetTag}) created successfully!`);
       setCreatedItem({ id: created.id, assetTag: created.assetTag, name: created.name });
+    } catch (err: unknown) {
+      console.error('Failed to create asset:', err);
+      const msg = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to save asset. Please try again.';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -200,6 +290,8 @@ export function NewAssetPage() {
 
   const resetForAnother = () => {
     setCreatedItem(null);
+    setErrorMsg(null);
+    setSaveSuccess(null);
     setForm(createEmptyAssetForm(typeSlugs[0] ?? 'laptop'));
     setImageFile(null);
     setImagePreview(null);
@@ -208,6 +300,9 @@ export function NewAssetPage() {
   if (createdItem) {
     return (
       <Box sx={{ maxWidth: 520, mx: 'auto' }}>
+        <Alert severity="success" sx={{ mb: 2.5, borderRadius: '12px', fontWeight: 600 }}>
+          Asset saved successfully! Your QR code has been generated.
+        </Alert>
         <Card sx={{ textAlign: 'center', p: { xs: 3, sm: 4 } }}>
           <Box
             sx={{
@@ -271,6 +366,11 @@ export function NewAssetPage() {
         ]}
       />
 
+      {errorMsg && (
+        <Alert severity="error" sx={{ mb: 2.5, borderRadius: '12px' }} onClose={() => setErrorMsg(null)}>
+          {errorMsg}
+        </Alert>
+      )}
       <Box component="form" onSubmit={handleSubmit}>
         <FormSection title="Identity">
           <Grid container spacing={2}>
@@ -471,6 +571,38 @@ export function NewAssetPage() {
                 onChange={(e) => set('warrantyExpiresAt', e.target.value)}
               />
             </Grid>
+            {isLaptop && (isLenovo || isDell) && (
+              <Grid item xs={12}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {isLenovo && (
+                    <LoadingButton
+                      size="small"
+                      variant="outlined"
+                      startIcon={<SyncIcon />}
+                      loading={syncingWarranty}
+                      onClick={handleFetchLenovo}
+                    >
+                      Fetch Lenovo Warranty
+                    </LoadingButton>
+                  )}
+                  {isDell && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<LaunchIcon />}
+                      onClick={handleOpenDell}
+                    >
+                      Check Dell Support ↗
+                    </Button>
+                  )}
+                </Stack>
+                {warrantyMsg && (
+                  <Alert severity={warrantyMsg.severity} sx={{ mt: 1, py: 0 }} onClose={() => setWarrantyMsg(null)}>
+                    {warrantyMsg.text}
+                  </Alert>
+                )}
+              </Grid>
+            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 select
@@ -654,6 +786,16 @@ export function NewAssetPage() {
         </Box>
       </Box>
       <EmployeeFormDialog open={showEmployeeForm} onClose={() => setShowEmployeeForm(false)} />
+      <Snackbar
+        open={Boolean(saveSuccess)}
+        autoHideDuration={5000}
+        onClose={() => setSaveSuccess(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSaveSuccess(null)} sx={{ borderRadius: '10px' }}>
+          {saveSuccess}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -21,6 +21,7 @@ import usersReducer from './usersSlice';
 import ticketsReducer from './ticketsSlice';
 import assetCategoriesReducer from './assetCategoriesSlice';
 import productIdeasReducer from './productIdeasSlice';
+import tasksReducer from './tasksSlice';
 
 const appReducer = combineReducers({
   auth: authReducer,
@@ -41,6 +42,7 @@ const appReducer = combineReducers({
   users: usersReducer,
   tickets: ticketsReducer,
   assetCategories: assetCategoriesReducer,
+  tasks: tasksReducer,
   productIdeas: productIdeasReducer,
 });
 

@@ -45,7 +45,7 @@ export function LeaveBalancePage() {
   const user = useAuthUser();
 
   const rawBalances = useAppSelector((s) => s.hr?.leaveBalances);
-  const balances = rawBalances && rawBalances.length > 0 ? rawBalances : initialLeaveBalances;
+  const balances = rawBalances || [];
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
 

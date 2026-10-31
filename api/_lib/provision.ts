@@ -44,6 +44,8 @@ const TENANT_SCHEMA_STATEMENTS = [
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
+    joining_email TEXT,
+    official_email TEXT,
     job_title VARCHAR(255),
     department_id UUID REFERENCES departments(id),
     status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -81,6 +83,12 @@ const TENANT_SCHEMA_STATEMENTS = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, asset_tag)
   )`,
+
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS department VARCHAR(255)`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS specs TEXT`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS image_url TEXT`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS repair_cost NUMERIC(12,2) DEFAULT 0`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS qr_code_data VARCHAR(500)`,
 
   `CREATE INDEX IF NOT EXISTS idx_assets_tenant ON assets(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(tenant_id, status)`,
@@ -269,6 +277,23 @@ const TENANT_SCHEMA_STATEMENTS = [
     result TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS remote_desktop_sessions (
+    endpoint_id UUID PRIMARY KEY REFERENCES endpoints(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT FALSE,
+    last_frame TEXT,
+    command_result TEXT,
+    input_queue JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS remote_signals (
+    id BIGSERIAL PRIMARY KEY,
+    endpoint_id UUID NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
+    direction VARCHAR(10) NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
   )`,
 ];
 

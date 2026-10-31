@@ -33,11 +33,12 @@ import { APP_NAME, COMPANY_NAME } from '../../constants/brand';
 import { ThemeModeToggle } from '../../components/ThemeModeToggle';
 import { LoadingButton } from '../../components/Loader';
 import { isApiEnabled } from '../../services/api/config';
-import { apiLogin, changePassword } from '../../services/api/auth';
+import { apiLogin, changePassword, storeToken } from '../../services/api/auth';
+import { MfaEnrollPanel } from './MfaEnrollPanel';
+import type { Tenant, User } from '../../types';
 import { ApiError, checkApiHealth, loginErrorMessage } from '../../services/api/client';
 import { getHomeRouteForRole } from '../../utils/routing';
 import { apiUrl } from '../../services/api/config';
-import { DEMO_TENANT, DEMO_USERS } from '../../data/demoData';
 
 /** Full demo admin — only when DEMO_AUTH_ENABLED is on (do not use on a public portfolio). */
 const DEMO_LOGIN = {
@@ -83,6 +84,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [enroll, setEnroll] = useState<{ user: User; tenant: Tenant } | null>(null);
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoAuthEnabled, setDemoAuthEnabled] = useState(
@@ -157,55 +161,34 @@ export function LoginPage() {
       });
   }, []);
 
-  const completeLogin = async (loginEmail: string, loginPassword: string) => {
-    if (!isApiEnabled()) {
-      const demoUser = DEMO_USERS[loginEmail.toLowerCase()];
-      if (demoUser && demoUser.password === loginPassword) {
-        dispatch(
-          setSession({
-            user: demoUser.user,
-            tenant: DEMO_TENANT,
-            token: 'mock-jwt-token-local',
-          }),
-        );
-        return;
-      }
-      throw new Error('Invalid email or password');
+  const completeLogin = async (loginEmail: string, loginPassword: string, code?: string) => {
+    const data = await apiLogin(loginEmail, loginPassword, code);
+    if (data.mfaRequired) {
+      setMfaRequired(true);
+      return;
     }
-
-    try {
-      const data = await apiLogin(loginEmail, loginPassword);
-      if (data.requirePasswordSetup) {
-        (window as any).__pendingUser = data.user;
-        (window as any).__pendingTenant = data.tenant;
-        (window as any).__pendingToken = data.token;
-        (await import('../../services/api/auth')).storeToken(data.token);
-        dispatch(setPendingSession({ user: data.user, tenant: data.tenant, token: data.token }));
-        return;
-      }
-      dispatch(
-        setSession({
-          user: data.user,
-          tenant: data.tenant,
-          token: data.token,
-        }),
-      );
-    } catch (err) {
-      if (demoAuthEnabled) {
-        const demoUser = DEMO_USERS[loginEmail.toLowerCase()];
-        if (demoUser && demoUser.password === loginPassword) {
-          dispatch(
-            setSession({
-              user: demoUser.user,
-              tenant: DEMO_TENANT,
-              token: 'mock-jwt-token-local',
-            }),
-          );
-          return;
-        }
-      }
-      throw err;
+    if (data.mfaEnrollRequired) {
+      storeToken(data.token);
+      setEnroll({ user: data.user, tenant: data.tenant });
+      return;
     }
+    setMfaRequired(false);
+    setMfaCode('');
+    if (data.requirePasswordSetup) {
+      (window as any).__pendingUser = data.user;
+      (window as any).__pendingTenant = data.tenant;
+      (window as any).__pendingToken = data.token;
+      (await import('../../services/api/auth')).storeToken(data.token);
+      dispatch(setPendingSession({ user: data.user, tenant: data.tenant, token: data.token }));
+      return;
+    }
+    dispatch(
+      setSession({
+        user: data.user,
+        tenant: data.tenant,
+        token: data.token,
+      }),
+    );
   };
 
   const handleGuestLogin = async () => {
@@ -322,7 +305,7 @@ export function LoginPage() {
         const user = (window as any).__pendingUser;
         const tenant = (window as any).__pendingTenant;
 
-        await changePassword(token, password);
+        await changePassword('', password);
         delete (window as any).__pendingUser;
         delete (window as any).__pendingTenant;
         delete (window as any).__pendingToken;
@@ -337,14 +320,14 @@ export function LoginPage() {
       return;
     }
 
-    if (!email.trim() || !password) {
-      dispatch(setLoginError('Please fill in all fields'));
+    if (!email.trim()) {
+      dispatch(setLoginError('Please enter your email address'));
       return;
     }
 
     setLoading(true);
     try {
-      await completeLogin(email.trim(), password);
+      await completeLogin(email.trim(), password, mfaRequired ? mfaCode : undefined);
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -691,7 +674,19 @@ export function LoginPage() {
               </Alert>
             )}
 
-            {requirePasswordSetup ? (
+            {enroll ? (
+              <MfaEnrollPanel
+                onCancel={() => {
+                  storeToken(null);
+                  setEnroll(null);
+                  setPassword('');
+                }}
+                onComplete={(token) => {
+                  dispatch(setSession({ user: enroll.user, tenant: enroll.tenant, token }));
+                  setEnroll(null);
+                }}
+              />
+            ) : requirePasswordSetup ? (
               <Box component="form" onSubmit={handleSubmit}>
                 <Typography variant="body2" sx={{ mb: 2 }}>
                   Welcome, <strong>{pendingUserEmail}</strong>! Since this is your first time logging in, please set a password for your account.
@@ -832,6 +827,7 @@ export function LoginPage() {
                   margin="normal"
                   autoComplete="current-password"
                   disabled={loading || demoLoading}
+                  helperText="First time signing in? Leave blank or enter any temporary password to set your password."
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
@@ -846,6 +842,22 @@ export function LoginPage() {
                     ),
                   }}
                 />
+
+                {mfaRequired && (
+                  <TextField
+                    fullWidth
+                    autoFocus
+                    label="Authenticator code"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    margin="normal"
+                    required
+                    autoComplete="one-time-code"
+                    inputProps={{ inputMode: 'numeric', maxLength: 6 }}
+                    disabled={loading || demoLoading}
+                    helperText="Enter the 6-digit code from your authenticator app."
+                  />
+                )}
 
                 <LoadingButton
                   type="submit"

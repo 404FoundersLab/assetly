@@ -41,6 +41,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import DescriptionIcon from '@mui/icons-material/Description';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
@@ -93,7 +94,6 @@ const HR_NAVIGATION: HRNavItem[] = [
     label: 'Attendance',
     icon: <AccessTimeIcon sx={{ fontSize: 20 }} />,
     children: [
-      { to: '/hr/attendance/my', label: 'My Attendance', icon: <PersonIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/attendance/team', label: 'Team Attendance', icon: <GroupsIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/attendance/reports', label: 'Attendance Reports', icon: <AssessmentIcon sx={{ fontSize: 18 }} /> },
     ],
@@ -104,7 +104,6 @@ const HR_NAVIGATION: HRNavItem[] = [
     label: 'Leave',
     icon: <BeachAccessIcon sx={{ fontSize: 20 }} />,
     children: [
-      { to: '/hr/leaves/my', label: 'My Leaves', icon: <PersonIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/leaves/requests', label: 'Leave Requests', icon: <PendingActionsIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/leaves/balance', label: 'Leave Balance', icon: <AccountBalanceWalletIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/leaves/types', label: 'Leave Types', icon: <PolicyIcon sx={{ fontSize: 18 }} /> },
@@ -145,6 +144,12 @@ const HR_NAVIGATION: HRNavItem[] = [
     to: '/hr/reports',
     label: 'Reports',
     icon: <BarChartIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'single',
+    to: '/tasks',
+    label: 'Work & Tasks',
+    icon: <TaskAltIcon sx={{ fontSize: 20 }} />,
   },
   {
     type: 'single',

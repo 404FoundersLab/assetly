@@ -32,6 +32,7 @@ import ChecklistIcon from '@mui/icons-material/Checklist';
 import LayersIcon from '@mui/icons-material/Layers';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { useAppDispatch, useAuthUser, usePermissions, useTenant } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
 import { logout } from '../../store/authSlice';
@@ -228,6 +229,15 @@ export function LandingPage() {
       tag: 'PEOPLE OPS',
     },
     {
+      title: 'Work & Task Management',
+      description: 'Employee sprint deliverables, team Kanban boards, checklist tracking, and unified support tickets.',
+      icon: <TaskAltIcon sx={{ fontSize: 28 }} />,
+      path: '/tasks',
+      permission: 'module:tasks' as const,
+      color: '#8B5CF6',
+      tag: 'PRODUCTIVITY',
+    },
+    {
       title: 'Executive Doc Vault',
       description: 'Secure corporate governance, compliance charters, board reviews, and onboarding archives.',
       icon: <FolderIcon sx={{ fontSize: 28 }} />,
@@ -244,15 +254,6 @@ export function LandingPage() {
       permission: 'module:finance' as const,
       color: '#F59E0B',
       tag: 'FINANCE & CAPEX',
-    },
-    {
-      title: 'Work & Task Management',
-      description: 'Plan projects, track team tasks, and validate product opportunities with shared assignments.',
-      icon: <ChecklistIcon sx={{ fontSize: 28 }} />,
-      path: '/tasks/product-ideas',
-      permission: 'module:tasks' as const,
-      color: '#176B5B',
-      tag: 'TEAM WORKSPACE',
     },
   ];
 

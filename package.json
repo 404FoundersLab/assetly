@@ -22,7 +22,9 @@
     "migrate:device-types": "tsx scripts/migrate-014.ts",
     "migrate:device-families": "tsx scripts/migrate-015.ts",
     "migrate:hide-infra-requests": "tsx scripts/migrate-016.ts",
-    "migrate:product-opportunity-assignments": "tsx scripts/migrate-022.ts"
+    "migrate:product-opportunity-assignments": "tsx scripts/migrate-022.ts",
+    "migrate:email-lifecycle": "tsx scripts/migrate-012.ts",
+    "migrate:assets-columns": "tsx scripts/migrate-assets-columns.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

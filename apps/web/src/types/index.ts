@@ -225,6 +225,59 @@ export interface SupportTicket {
   departmentName?:  string;
 }
 
+export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskType = 'task' | 'ticket' | 'feature' | 'bug' | 'operational';
+
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  departmentId: string;
+  departmentName?: string;
+  managerId?: string;
+  managerName?: string;
+  status: 'active' | 'planning' | 'completed' | 'on_hold';
+  priority: TaskPriority;
+  startDate: string;
+  endDate: string;
+  color: string;
+  memberEmployeeIds?: string[];
+}
+
+export interface EmployeeTask {
+  id: string;
+  title: string;
+  description: string;
+  projectId?: string;
+  projectName?: string;
+  assignedEmployeeId: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeAvatar?: string;
+  reporterId?: string;
+  reporterName?: string;
+  departmentId?: string;
+  departmentName?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  type: TaskType;
+  dueDate: string; // YYYY-MM-DD
+  estimatedHours: number;
+  loggedHours: number;
+  tags: string[];
+  checklist: TaskChecklistItem[];
+  ticketReferenceId?: string; // e.g. 'TICK-102' or linked SupportTicket.id
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditLog {
   id: string;
   tenantId: string;
@@ -314,8 +367,8 @@ export const PERMISSIONS = {
   'module:assets': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer'],
   'module:hr': ['platform_admin', 'tenant_admin', 'hr_admin'],
   'module:finance': ['platform_admin', 'tenant_admin', 'finance_admin'],
-  'module:tasks': ['platform_admin', 'tenant_admin', 'it_admin', 'hr_admin', 'finance_admin', 'viewer'],
   'module:docs': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'finance_admin', 'viewer'],
+  'module:tasks': ['platform_admin', 'tenant_admin', 'it_admin', 'hr_admin', 'finance_admin', 'viewer', 'employee'],
   'asset:read': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer'],
   'asset:write': ['platform_admin', 'tenant_admin', 'it_admin'],
   'asset:delete': ['platform_admin', 'tenant_admin'],

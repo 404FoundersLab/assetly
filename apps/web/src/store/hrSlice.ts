@@ -394,8 +394,8 @@ export const initialLeaveRequests: LeaveRequest[] = [
 ];
 
 const initialState: HRState = {
-  leaveRequests: initialLeaveRequests,
-  leaveBalances: initialLeaveBalances,
+  leaveRequests: [],
+  leaveBalances: [],
   leaveTypes: initialLeaveTypes,
   policies: [
     { id: 'pol-1', name: 'Annual Leave', code: 'AL', maxDays: 25, description: 'Paid vacation days allocated yearly.' },
@@ -586,9 +586,9 @@ const hrSlice = createSlice({
         return {
           ...initialState,
           ...action.payload.hr,
-          leaveBalances: action.payload.hr.leaveBalances?.length ? action.payload.hr.leaveBalances : initialLeaveBalances,
+          leaveBalances: action.payload.hr.leaveBalances || [],
           leaveTypes: action.payload.hr.leaveTypes?.length ? action.payload.hr.leaveTypes : initialLeaveTypes,
-          leaveRequests: action.payload.hr.leaveRequests?.length ? action.payload.hr.leaveRequests : initialLeaveRequests,
+          leaveRequests: action.payload.hr.leaveRequests || [],
         };
       }
       return state;

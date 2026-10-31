@@ -12,6 +12,7 @@ import {
 import InventoryIcon from '@mui/icons-material/Inventory2';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import PeopleIcon from '@mui/icons-material/People';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -154,6 +155,7 @@ export function DashboardPage() {
   const showRequests = can('request:review');
 
   const expiring30 = assets.filter((a) => daysUntil(a.warrantyExpiresAt) <= 30 && daysUntil(a.warrantyExpiresAt) >= 0);
+  const expired = assets.filter((a) => daysUntil(a.warrantyExpiresAt) < 0);
   const deployed = assets.filter((a) => a.status === 'deployed').length;
   const isEmpty = assets.length === 0;
 
@@ -165,7 +167,29 @@ export function DashboardPage() {
       />
 
       {/* Quick Stat Cards */}
-      <Grid container spacing={2.5} mb={3.5}>
+      <Grid
+        container
+        spacing={0}
+        mb={3.5}
+        sx={{
+          display: 'grid',
+          gap: 2.5,
+          width: '100%',
+          m: 0,
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            lg: 'repeat(' + (showRequests ? 5 : 4) + ', minmax(0, 1fr))',
+          },
+          '& > .MuiGrid-item': {
+            maxWidth: 'none !important',
+            flexBasis: 'auto !important',
+            width: 'auto !important',
+            p: '0 !important',
+            m: 0,
+          },
+        }}
+      >
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Assets"
@@ -186,6 +210,17 @@ export function DashboardPage() {
             color="#F59E0B"
             badgeText={expiring30.length > 0 ? 'Action needed' : 'All clear'}
             onClick={() => navigate('/assets?warranty=30')}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Warranty Expired"
+            value={expired.length}
+            subtitle="Past warranty date"
+            icon={<ErrorOutlineIcon />}
+            color="#EF4444"
+            badgeText={expired.length > 0 ? 'Expired' : 'All clear'}
+            onClick={() => navigate('/assets?warranty=expired')}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>

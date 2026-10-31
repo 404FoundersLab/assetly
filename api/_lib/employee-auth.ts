@@ -23,16 +23,26 @@ export async function resolveEmployeeIdByLoginEmail(
   const normalized = loginEmail.trim().toLowerCase();
   if (!normalized) return null;
 
-  const rows = (await sql`
-    SELECT id FROM employees
-    WHERE tenant_id = ${tenantId}
-      AND (
-        lower(COALESCE(official_email, joining_email, email)) = ${normalized}
-        OR (official_email IS NULL AND lower(joining_email) = ${normalized})
-        OR lower(email) = ${normalized}
-      )
-    LIMIT 1
-  `) as { id: string }[];
+  let rows: { id: string }[];
+  try {
+    rows = (await sql`
+      SELECT id FROM employees
+      WHERE tenant_id = ${tenantId}
+        AND (
+          lower(COALESCE(official_email, joining_email, email)) = ${normalized}
+          OR (official_email IS NULL AND lower(joining_email) = ${normalized})
+          OR lower(email) = ${normalized}
+        )
+      LIMIT 1
+    `) as { id: string }[];
+  } catch {
+    rows = (await sql`
+      SELECT id FROM employees
+      WHERE tenant_id = ${tenantId}
+        AND lower(email) = ${normalized}
+      LIMIT 1
+    `) as { id: string }[];
+  }
 
   return rows[0]?.id ?? null;
 }
@@ -105,6 +115,12 @@ export async function migrateEmployeeLoginEmail(
       SET password_hash = ${password_hash}, updated_at = NOW(), must_change_password = ${must_change_password ?? false}
     `;
     await sql`DELETE FROM user_passwords WHERE email = ${from}`;
+  } else {
+    await sql`
+      INSERT INTO user_passwords (email, password_hash, updated_at, must_change_password)
+      VALUES (${to}, 'optional-on-first-login', NOW(), true)
+      ON CONFLICT (email) DO NOTHING
+    `;
   }
 
   return { ok: true };

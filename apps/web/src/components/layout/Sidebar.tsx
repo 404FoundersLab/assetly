@@ -35,8 +35,8 @@ import AutoGraphIcon from '@mui/icons-material/AutoGraph';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import HomeIcon from '@mui/icons-material/Home';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import LayersIcon from '@mui/icons-material/Layers';
-import ChecklistIcon from '@mui/icons-material/Checklist';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
@@ -55,15 +55,10 @@ type NavItem = {
 
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
-    label: 'Work & Task Management',
-    items: [
-      { to: '/tasks/product-ideas', label: 'Product Ideas & Validation', icon: <ChecklistIcon fontSize="small" />, permission: 'module:tasks' },
-    ],
-  },
-  {
     label: 'Overview',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, permission: 'module:assets' },
+      { to: '/tasks', label: 'Work & Tasks', icon: <TaskAltIcon fontSize="small" />, permission: 'module:tasks' },
       { to: '/analytics', label: 'AI & Analytics', icon: <AutoGraphIcon fontSize="small" />, permission: 'module:assets' },
       { to: '/requests', label: 'Requests', icon: <AssignmentIcon fontSize="small" />, permission: 'request:review' },
     ],
