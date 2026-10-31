@@ -43,6 +43,7 @@ import { ProjectWiseTasksView } from './components/ProjectWiseTasksView';
 import { EmployeeWorkloadBoardView } from './components/EmployeeWorkloadBoardView';
 import { TaskModal } from './components/TaskModal';
 import { ProjectModal } from './components/ProjectModal';
+import { TicketModal } from './components/TicketModal';
 
 export function TasksPage() {
   const theme = useTheme();
@@ -91,6 +92,7 @@ export function TasksPage() {
   const [modalInitialEmployeeId, setModalInitialEmployeeId] = useState<string | undefined>(undefined);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
 
   // Current logged in user's matching employee ID
   const currentEmployee = useMemo(() => {
@@ -202,23 +204,24 @@ export function TasksPage() {
         }
         actions={
           <Stack direction="row" spacing={1.5}>
-            {!isEmployeeRole && (
-              <Button
-                variant="outlined"
-                startIcon={<ConfirmationNumberIcon sx={{ fontSize: 18 }} />}
-                onClick={() => setActiveTab(4)}
-                sx={{
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  borderColor: '#EC4899',
-                  color: '#EC4899',
-                  '&:hover': { borderColor: '#DB2777', bgcolor: 'rgba(236, 72, 153, 0.08)' },
-                }}
-              >
-                Ticket Tracker
-              </Button>
-            )}
+            <Button
+              variant="outlined"
+              startIcon={<ConfirmationNumberIcon sx={{ fontSize: 18 }} />}
+              onClick={() => {
+                setActiveTab(isEmployeeRole ? 3 : 4);
+                setTicketModalOpen(true);
+              }}
+              sx={{
+                borderRadius: '10px',
+                fontWeight: 700,
+                textTransform: 'none',
+                borderColor: '#EC4899',
+                color: '#EC4899',
+                '&:hover': { borderColor: '#DB2777', bgcolor: 'rgba(236, 72, 153, 0.08)' },
+              }}
+            >
+              New Ticket
+            </Button>
             {canManageProjects && (
               <Button
                 variant="outlined"
@@ -522,7 +525,7 @@ export function TasksPage() {
           )}
 
           {activeTab === 3 && (
-            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} />
+            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} onOpenCreateTicket={() => setTicketModalOpen(true)} />
           )}
         </>
       ) : (
@@ -577,7 +580,7 @@ export function TasksPage() {
 
           {activeTab === 4 && (
             // Ticket Tracker
-            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} />
+            <TicketTrackerView onConvertToTask={handleConvertTicketToTask} onOpenCreateTicket={() => setTicketModalOpen(true)} />
           )}
 
           {activeTab === 5 && (
@@ -606,6 +609,12 @@ export function TasksPage() {
           setProjectModalOpen(false);
           setSelectedProject(null);
         }}
+      />
+
+      {/* Ticket Create Dialog */}
+      <TicketModal
+        open={ticketModalOpen}
+        onClose={() => setTicketModalOpen(false)}
       />
     </Box>
   );
