@@ -62,7 +62,7 @@ export function LeaveRequestsPage() {
   const user = useAuthUser();
 
   const rawRequests = useAppSelector((s) => s.hr?.leaveRequests);
-  const requests = rawRequests && rawRequests.length > 0 ? rawRequests : initialLeaveRequests;
+  const requests = rawRequests || [];
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
 

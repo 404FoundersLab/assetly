@@ -71,9 +71,9 @@ export function MyLeavesPage() {
   const user = useAuthUser();
 
   const rawRequests = useAppSelector((s) => s.hr?.leaveRequests);
-  const allRequests = rawRequests && rawRequests.length > 0 ? rawRequests : initialLeaveRequests;
+  const allRequests = rawRequests || [];
   const rawBalances = useAppSelector((s) => s.hr?.leaveBalances);
-  const allBalances = rawBalances && rawBalances.length > 0 ? rawBalances : initialLeaveBalances;
+  const allBalances = rawBalances || [];
   const rawTypes = useAppSelector((s) => s.hr?.leaveTypes);
   const leaveTypes = rawTypes && rawTypes.length > 0 ? rawTypes : initialLeaveTypes;
   const employees = useAppSelector((s) => s.employees.items);
