@@ -68,12 +68,20 @@ export const INITIAL_TICKETS: SupportTicket[] = [
   },
 ];
 
-export const DUMMY_TICKET_IDS = new Set(['TICK-101', 'TICK-204', 'TICK-302', 'TICK-405']);
+export const DUMMY_TICKET_TITLES = new Set([
+  'Intermittent VPN Handshake timeouts on European Frankfurt Gateway',
+  'Redis session store latency degradation in staging environment',
+  'High memory consumption in EDR background agent daemon',
+  'Dual 4K Monitor DisplayPort adapter signal flickering',
+]);
+
+// Retain empty set for backward compatibility
+export const DUMMY_TICKET_IDS = new Set<string>();
 
 const TICKETS_STORAGE_KEY = 'assetly_tickets_store_v2';
 
 export function isDummyTicket(t: SupportTicket): boolean {
-  return DUMMY_TICKET_IDS.has(t.id) || t.tenantId === '11111111-1111-1111-1111-111111111111';
+  return DUMMY_TICKET_TITLES.has(t.title);
 }
 
 function loadPersistedTickets(): SupportTicket[] {
