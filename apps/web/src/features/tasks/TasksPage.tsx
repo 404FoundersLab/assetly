@@ -110,9 +110,39 @@ export function TasksPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
 
+  // Include tenant admin in the assignable employee list
+  const allAssignees = useMemo(() => {
+    const list = [...employees];
+    if (user && (user.role === 'tenant_admin' || user.role === 'platform_admin' || user.role === 'it_admin')) {
+      const alreadyPresent = list.some(
+        (e) =>
+          e.id === user.id ||
+          (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.email && e.joiningEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+      if (!alreadyPresent) {
+        list.unshift({
+          id: user.id,
+          tenantId: user.tenantId || '',
+          employeeNumber: 'ADMIN',
+          firstName: user.firstName || 'Tenant',
+          lastName: user.lastName ? `${user.lastName} (Admin)` : '(Admin)',
+          email: user.email || '',
+          joiningEmail: user.email || '',
+          officialEmail: user.email || '',
+          jobTitle: 'Tenant Administrator',
+          departmentId: departments[0]?.id || '',
+          status: 'active',
+          hireDate: '',
+        });
+      }
+    }
+    return list;
+  }, [employees, user, departments]);
+
   // Current logged in user's matching employee ID
   const currentEmployee = useMemo(() => {
-    return employees.find(
+    return allAssignees.find(
       (e) =>
         e.id === user?.employeeId ||
         (user?.id && e.id === user.id) ||
@@ -120,7 +150,7 @@ export function TasksPage() {
         e.joiningEmail?.toLowerCase() === user?.email?.toLowerCase() ||
         (user?.firstName && (e.firstName?.toLowerCase().includes(user.firstName.toLowerCase()) || e.lastName?.toLowerCase().includes(user.firstName.toLowerCase())))
     );
-  }, [employees, user]);
+  }, [allAssignees, user]);
 
   // Filtering
   const filteredTasks = useMemo(() => {
@@ -428,7 +458,7 @@ export function TasksPage() {
                 onChange={(e) => setFilterAssignee(e.target.value)}
               >
                 <MenuItem value="all">All Employees</MenuItem>
-                {employees.map((emp) => (
+                {allAssignees.map((emp) => (
                   <MenuItem key={emp.id} value={emp.id}>
                     {emp.firstName} {emp.lastName}
                   </MenuItem>
@@ -571,7 +601,7 @@ export function TasksPage() {
           {activeTab === 1 && (
             // By Employee (Workload Board)
             <EmployeeWorkloadBoardView
-              employees={employees}
+              employees={allAssignees}
               tasks={filteredTasks}
               onEditTask={handleOpenEditModal}
               onAddTaskToEmployee={(empId, empName) =>

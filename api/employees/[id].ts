@@ -173,6 +173,35 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'DELETE') {
+      const empRows = await sql`
+        SELECT email, joining_email, official_email
+        FROM employees
+        WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+      ` as { email?: string; joining_email?: string; official_email?: string }[];
+
+      if (empRows.length > 0) {
+        const emp = empRows[0];
+        const emails = [emp.email, emp.joining_email, emp.official_email]
+          .filter(Boolean)
+          .map((e) => e!.trim().toLowerCase());
+        if (emails.length > 0) {
+          try {
+            await sql`
+              DELETE FROM users
+              WHERE tenant_id = ${auth.tenantId!}
+                AND role = 'employee'
+                AND LOWER(email) = ANY(${emails}::text[])
+            `;
+          } catch {}
+          try {
+            await sql`
+              DELETE FROM user_passwords
+              WHERE LOWER(email) = ANY(${emails}::text[])
+            `;
+          } catch {}
+        }
+      }
+
       await sql`DELETE FROM employees WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
       await insertAuditLog({
         userId: auth.sub,

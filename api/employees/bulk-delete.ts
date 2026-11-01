@@ -25,6 +25,14 @@ export default async function handler(req: Request) {
       await sql`DELETE FROM asset_assignments WHERE tenant_id = ${auth.tenantId!}`;
       await sql`DELETE FROM employees WHERE tenant_id = ${auth.tenantId!}`;
 
+      // Purge corresponding employee user records and passwords
+      await sql`
+        DELETE FROM user_passwords WHERE user_id IN (
+          SELECT id FROM users WHERE tenant_id = ${auth.tenantId!} AND role = 'employee'
+        )
+      `;
+      await sql`DELETE FROM users WHERE tenant_id = ${auth.tenantId!} AND role = 'employee'`;
+
       await insertAuditLog({
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
@@ -70,6 +78,35 @@ export default async function handler(req: Request) {
       DELETE FROM asset_assignments
       WHERE tenant_id = ${auth.tenantId!} AND employee_id = ANY(${targetUuids}::uuid[])
     `;
+
+    // Delete corresponding employee user records
+    const empRows = (await sql`
+      SELECT email, joining_email, official_email
+      FROM employees
+      WHERE tenant_id = ${auth.tenantId!} AND id = ANY(${targetUuids}::uuid[])
+    `) as { email?: string; joining_email?: string; official_email?: string }[];
+
+    const emails = empRows
+      .flatMap((r) => [r.email, r.joining_email, r.official_email])
+      .filter(Boolean)
+      .map((e) => e!.trim().toLowerCase());
+
+    if (emails.length > 0) {
+      try {
+        await sql`
+          DELETE FROM users
+          WHERE tenant_id = ${auth.tenantId!}
+            AND role = 'employee'
+            AND LOWER(email) = ANY(${emails}::text[])
+        `;
+      } catch {}
+      try {
+        await sql`
+          DELETE FROM user_passwords
+          WHERE LOWER(email) = ANY(${emails}::text[])
+        `;
+      } catch {}
+    }
 
     const deleted = (await sql`
       DELETE FROM employees

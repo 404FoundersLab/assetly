@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -23,7 +23,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import GroupsIcon from '@mui/icons-material/Groups';
 import type { Project, TaskPriority } from '../../../types';
-import { useAppDispatch, useAppSelector } from '../../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, useAuthUser } from '../../../hooks/storeHooks';
 import { addProject, updateProject, deleteProject } from '../../../store/tasksSlice';
 
 interface ProjectModalProps {
@@ -50,9 +50,40 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
+  const user = useAuthUser();
 
   const departments = useAppSelector((s) => s.departments.items);
   const employees = useAppSelector((s) => s.employees.items);
+
+  // Include tenant admin in the assignable employee list
+  const assignableEmployees = useMemo(() => {
+    const list = [...employees];
+    if (user && (user.role === 'tenant_admin' || user.role === 'platform_admin' || user.role === 'it_admin')) {
+      const alreadyPresent = list.some(
+        (e) =>
+          e.id === user.id ||
+          (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.email && e.joiningEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+      if (!alreadyPresent) {
+        list.unshift({
+          id: user.id,
+          tenantId: user.tenantId || '',
+          employeeNumber: 'ADMIN',
+          firstName: user.firstName || 'Tenant',
+          lastName: user.lastName ? `${user.lastName} (Admin)` : '(Admin)',
+          email: user.email || '',
+          joiningEmail: user.email || '',
+          officialEmail: user.email || '',
+          jobTitle: 'Tenant Administrator',
+          departmentId: departments[0]?.id || '',
+          status: 'active',
+          hireDate: '',
+        });
+      }
+    }
+    return list;
+  }, [employees, user, departments]);
 
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -409,7 +440,7 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
             </Grid>
 
             {/* Assigned Team Members */}
-            {employees.length > 0 && (
+            {assignableEmployees.length > 0 && (
               <Grid item xs={12}>
                 <TextField
                   select
@@ -425,7 +456,7 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
                     renderValue: (selected: any) => (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {selected.map((empId: string) => {
-                          const emp = employees.find((e) => e.id === empId);
+                          const emp = assignableEmployees.find((e) => e.id === empId);
                           return (
                             <Chip
                               key={empId}
@@ -441,7 +472,7 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
                   size="small"
                   helperText="Select employees involved in this project"
                 >
-                  {employees.map((emp) => (
+                  {assignableEmployees.map((emp) => (
                     <MenuItem key={emp.id} value={emp.id}>
                       {emp.firstName} {emp.lastName} ({emp.jobTitle || 'Employee'})
                     </MenuItem>

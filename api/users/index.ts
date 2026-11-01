@@ -30,7 +30,19 @@ export default async function handler(req: Request) {
       if (auth.role === PLATFORM_ADMIN_ROLE) {
         rows = await sql`SELECT * FROM users ORDER BY created_at DESC` as DbUser[];
       } else {
-        rows = await sql`SELECT * FROM users WHERE tenant_id = ${auth.tenantId || ''} ORDER BY created_at DESC` as DbUser[];
+        rows = await sql`
+          SELECT u.* FROM users u
+          WHERE u.tenant_id = ${auth.tenantId || ''}
+            AND (
+              u.role != 'employee'
+              OR EXISTS (
+                SELECT 1 FROM employees e
+                WHERE e.tenant_id = u.tenant_id
+                  AND (LOWER(e.email) = LOWER(u.email) OR LOWER(e.joining_email) = LOWER(u.email) OR LOWER(e.official_email) = LOWER(u.email))
+              )
+            )
+          ORDER BY u.created_at DESC
+        ` as DbUser[];
       }
       return json(rows.map(mapUser));
     }
