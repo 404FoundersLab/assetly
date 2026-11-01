@@ -515,15 +515,6 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
                               New Ticket
                             </Button>
                           )}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<RestartAltIcon />}
-                            onClick={handleRestoreDemoTickets}
-                            sx={{ textTransform: 'none', fontWeight: 700 }}
-                          >
-                            Load Demo Tickets
-                          </Button>
                         </Stack>
                       </Box>
                     ) : (

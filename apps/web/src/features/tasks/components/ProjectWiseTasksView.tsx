@@ -145,6 +145,43 @@ export function ProjectWiseTasksView({
 
       {/* Projects List with Tasks */}
       <Stack spacing={3.5}>
+        {projects.length === 0 && (
+          <Card
+            sx={{
+              py: 6,
+              px: 3,
+              textAlign: 'center',
+              borderRadius: '16px',
+              border: '1px dashed',
+              borderColor: theme.palette.divider,
+              bgcolor: isDark ? 'rgba(30, 41, 59, 0.4)' : '#FFFFFF',
+            }}
+          >
+            <FolderIcon sx={{ fontSize: 44, color: 'text.secondary', opacity: 0.5, mb: 1 }} />
+            <Typography variant="h6" fontWeight={700} gutterBottom>
+              No Projects Created Yet
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 450, mx: 'auto', mb: 2.5 }}>
+              Create your first project to organize work deliverables and track milestones for your team.
+            </Typography>
+            {canManageProjects && onOpenCreateProject && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={onOpenCreateProject}
+                sx={{
+                  borderRadius: '10px',
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  bgcolor: '#8B5CF6',
+                  '&:hover': { bgcolor: '#7C3AED' },
+                }}
+              >
+                Create New Project
+              </Button>
+            )}
+          </Card>
+        )}
         {filteredProjects.map((project) => {
           const projectTasks = tasks.filter((t) => t.projectId === project.id);
           const totalTasks = projectTasks.length;

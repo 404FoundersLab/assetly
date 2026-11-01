@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -35,6 +35,10 @@ import PersonIcon from '@mui/icons-material/Person';
 import { PageHeader } from '../../components/PageHeader';
 import { useAppDispatch, useAppSelector, useAuthUser } from '../../hooks/storeHooks';
 import type { EmployeeTask, Project, SupportTicket, TaskPriority, TaskStatus, TaskType } from '../../types';
+import { purgeDummyData } from '../../store/tasksSlice';
+import { purgeDummyTickets, replaceAllTickets } from '../../store/ticketsSlice';
+import { fetchTickets } from '../../services/api/tickets';
+import { isApiEnabled } from '../../services/api/config';
 import { KanbanBoardView } from './components/KanbanBoardView';
 import { TaskListView } from './components/TaskListView';
 import { TicketTrackerView } from './components/TicketTrackerView';
@@ -59,6 +63,18 @@ export function TasksPage() {
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
   const tickets = useAppSelector((s) => s.tickets.items);
+
+  useEffect(() => {
+    dispatch(purgeDummyData());
+    dispatch(purgeDummyTickets());
+    if (isApiEnabled()) {
+      fetchTickets()
+        .then((data) => {
+          dispatch(replaceAllTickets(data));
+        })
+        .catch(() => {});
+    }
+  }, [dispatch]);
 
   // Tabs:
   // For normal employee:
