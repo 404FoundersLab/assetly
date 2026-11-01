@@ -333,14 +333,6 @@ export const INITIAL_TASKS: EmployeeTask[] = [
   },
 ];
 
-export const DUMMY_PROJECT_IDS = new Set([
-  'PRJ-101',
-  'PRJ-102',
-  'PRJ-103',
-  'PRJ-104',
-  'PRJ-105',
-]);
-
 export const DUMMY_PROJECT_NAMES = new Set([
   'Cloud & Redis HA Infrastructure',
   'HRMS Leave & Workflow Automation',
@@ -349,37 +341,134 @@ export const DUMMY_PROJECT_NAMES = new Set([
   'Design System & UI/UX Refresh 2026',
 ]);
 
-export const DUMMY_TASK_IDS = new Set([
-  'TSK-101',
-  'TSK-102',
-  'TSK-103',
-  'TSK-104',
-  'TSK-105',
-  'TSK-106',
-  'TSK-107',
-  'TSK-108',
+export const DUMMY_TASK_TITLES = new Set([
+  'Migrate Redis session cache cluster to High-Availability tier',
+  'Resolve VPN handshake timeouts for remote European regional team',
+  'Build automated Leave Approval escalation bot for Slack & Email',
+  'Annual Statutory HR Equal Opportunity Compliance Audit Filing',
+  'Fix memory leak in Endpoints Telemetry WebSocket listener',
+  'Design Dark-Mode Accessible Color Tokens for Design System',
+  'Reconcile Q3 Financial CapEx & IT Spend Audit',
+  'Configure automated Endpoint Security quarantine policies',
 ]);
 
-const PROJECTS_STORAGE_KEY = 'assetly_projects_store_v2';
-const TASKS_STORAGE_KEY = 'assetly_tasks_store_v2';
+// Retain empty sets for backward compatibility if imported
+export const DUMMY_PROJECT_IDS = new Set<string>();
+export const DUMMY_TASK_IDS = new Set<string>();
+
+const PROJECTS_STORAGE_KEY = 'assetly_projects_store_v3';
+const TASKS_STORAGE_KEY = 'assetly_tasks_store_v3';
 
 export function isDummyProject(p: Project): boolean {
-  return DUMMY_PROJECT_IDS.has(p.id) || DUMMY_PROJECT_NAMES.has(p.name);
+  return DUMMY_PROJECT_NAMES.has(p.name);
 }
 
 export function isDummyTask(t: EmployeeTask): boolean {
-  return DUMMY_TASK_IDS.has(t.id) || (t.projectId ? DUMMY_PROJECT_IDS.has(t.projectId) : false);
+  return DUMMY_TASK_TITLES.has(t.title);
 }
 
+export const DEFAULT_USER_PROJECTS: Project[] = [
+  {
+    id: 'PRJ-101',
+    name: 'Assetly',
+    code: 'A',
+    description: 'Asset management, HR, Finance CRM',
+    departmentId: '',
+    departmentName: 'Full stack Devloper',
+    managerName: 'Pramodkumar S V',
+    status: 'active',
+    priority: 'high',
+    startDate: '2026-07-01',
+    endDate: '2026-11-29',
+    color: '#10B981',
+    memberEmployeeIds: [],
+  },
+  {
+    id: 'PRJ-102',
+    name: 'Schoolstack',
+    code: 'S',
+    description: 'CRM',
+    departmentId: '',
+    departmentName: 'Full stack Devloper',
+    managerName: 'Abantika',
+    status: 'active',
+    priority: 'medium',
+    startDate: '2026-10-01',
+    endDate: '2026-11-30',
+    color: '#06B6D4',
+    memberEmployeeIds: [],
+  },
+];
+
+export const DEFAULT_USER_TASKS: EmployeeTask[] = [
+  {
+    id: 'TSK-101',
+    title: 'Verify HR Portal functionality',
+    description: 'Verification of HR People & Culture portal functionality, employee onboarding and attendance modules',
+    projectId: 'PRJ-101',
+    projectName: 'Assetly',
+    assignedEmployeeId: '44444444-4444-4444-4444-444444444401',
+    assignedEmployeeName: 'Pramodkumar S',
+    status: 'done',
+    priority: 'medium',
+    type: 'bug',
+    departmentName: 'Full stack Devloper',
+    dueDate: '2026-10-10',
+    estimatedHours: 8,
+    loggedHours: 0,
+    tags: ['HR', 'Verification'],
+    checklist: [
+      { id: 'chk-1', text: 'Verify employee profile management', completed: true },
+      { id: 'chk-2', text: 'Verify leave approval workflows', completed: true },
+    ],
+    createdAt: '2026-07-01',
+    updatedAt: '2026-10-10',
+  },
+  {
+    id: 'TSK-102',
+    title: 'Verification of Asset Management Module',
+    description: 'End-to-end verification of hardware asset allocation, inventory tracking, and audit logging',
+    projectId: 'PRJ-101',
+    projectName: 'Assetly',
+    assignedEmployeeId: '44444444-4444-4444-4444-444444444401',
+    assignedEmployeeName: 'Pramodkumar S',
+    status: 'done',
+    priority: 'medium',
+    type: 'bug',
+    departmentName: 'Full stack Devloper',
+    dueDate: '2026-11-06',
+    estimatedHours: 8,
+    loggedHours: 0,
+    tags: ['Asset', 'Verification'],
+    checklist: [
+      { id: 'chk-3', text: 'Verify device assignment flow', completed: true },
+      { id: 'chk-4', text: 'Verify barcode scanning & audit logs', completed: true },
+    ],
+    createdAt: '2026-07-01',
+    updatedAt: '2026-10-10',
+  },
+];
+
 function loadPersistedProjects(): Project[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined') return DEFAULT_USER_PROJECTS;
   try {
-    const raw = localStorage.getItem(PROJECTS_STORAGE_KEY);
-    if (!raw) return [];
-    const list: Project[] = JSON.parse(raw);
-    return list.filter((p) => !isDummyProject(p));
+    const rawV3 = localStorage.getItem(PROJECTS_STORAGE_KEY);
+    if (rawV3) {
+      const list: Project[] = JSON.parse(rawV3);
+      return list.filter((p) => !isDummyProject(p));
+    }
+    const rawV2 = localStorage.getItem('assetly_projects_store_v2');
+    if (rawV2) {
+      const list: Project[] = JSON.parse(rawV2).filter((p: Project) => !isDummyProject(p));
+      if (list.length > 0) {
+        savePersistedProjects(list);
+        return list;
+      }
+    }
+    savePersistedProjects(DEFAULT_USER_PROJECTS);
+    return DEFAULT_USER_PROJECTS;
   } catch {
-    return [];
+    return DEFAULT_USER_PROJECTS;
   }
 }
 
@@ -388,18 +477,30 @@ function savePersistedProjects(projects: Project[]) {
   try {
     const clean = projects.filter((p) => !isDummyProject(p));
     localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(clean));
+    localStorage.setItem('assetly_projects_store_v2', JSON.stringify(clean));
   } catch {}
 }
 
 function loadPersistedTasks(): EmployeeTask[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined') return DEFAULT_USER_TASKS;
   try {
-    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
-    if (!raw) return [];
-    const list: EmployeeTask[] = JSON.parse(raw);
-    return list.filter((t) => !isDummyTask(t));
+    const rawV3 = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (rawV3) {
+      const list: EmployeeTask[] = JSON.parse(rawV3);
+      return list.filter((t) => !isDummyTask(t));
+    }
+    const rawV2 = localStorage.getItem('assetly_tasks_store_v2');
+    if (rawV2) {
+      const list: EmployeeTask[] = JSON.parse(rawV2).filter((t: EmployeeTask) => !isDummyTask(t));
+      if (list.length > 0) {
+        savePersistedTasks(list);
+        return list;
+      }
+    }
+    savePersistedTasks(DEFAULT_USER_TASKS);
+    return DEFAULT_USER_TASKS;
   } catch {
-    return [];
+    return DEFAULT_USER_TASKS;
   }
 }
 
@@ -408,6 +509,7 @@ function savePersistedTasks(tasks: EmployeeTask[]) {
   try {
     const clean = tasks.filter((t) => !isDummyTask(t));
     localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(clean));
+    localStorage.setItem('assetly_tasks_store_v2', JSON.stringify(clean));
   } catch {}
 }
 
@@ -432,11 +534,25 @@ const tasksSlice = createSlice({
     purgeDummyData: (state) => {
       state.projects = state.projects.filter((p) => !isDummyProject(p));
       state.items = state.items.filter((t) => !isDummyTask(t));
+      if (state.projects.length === 0) {
+        state.projects = [...DEFAULT_USER_PROJECTS];
+      }
+      if (state.items.length === 0) {
+        state.items = [...DEFAULT_USER_TASKS];
+      }
       savePersistedProjects(state.projects);
       savePersistedTasks(state.items);
     },
     addTask: (state, action: PayloadAction<Omit<EmployeeTask, 'id' | 'createdAt' | 'updatedAt'>>) => {
-      const nextId = `TSK-${100 + state.items.length + 1}`;
+      let maxNum = 100;
+      for (const t of state.items) {
+        const match = t.id.match(/^TSK-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      const nextId = `TSK-${maxNum + 1}`;
       const now = new Date().toISOString().split('T')[0];
       const newTask: EmployeeTask = {
         ...action.payload,
@@ -564,8 +680,8 @@ const tasksSlice = createSlice({
       if (action.payload?.tasks) {
         const pList = (action.payload.tasks.projects || []).filter((p: Project) => !isDummyProject(p));
         const tList = (action.payload.tasks.items || []).filter((t: EmployeeTask) => !isDummyTask(t));
-        state.projects = pList;
-        state.items = tList;
+        state.projects = pList.length > 0 ? pList : (state.projects.length > 0 ? state.projects : DEFAULT_USER_PROJECTS);
+        state.items = tList.length > 0 ? tList : (state.items.length > 0 ? state.items : DEFAULT_USER_TASKS);
         savePersistedProjects(state.projects);
         savePersistedTasks(state.items);
       }
