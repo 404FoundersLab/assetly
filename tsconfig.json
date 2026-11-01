@@ -9,7 +9,7 @@
     "esModuleInterop": true,
     "noEmit": true,
     "isolatedModules": true,
-    "lib": ["ES2022"]
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["api/**/*.ts"]
 }

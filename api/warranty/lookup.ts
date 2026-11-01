@@ -156,7 +156,7 @@ async function lookupDell(serviceTag: string): Promise<WarrantyLookupResponse> {
           );
 
           if (apiRes.ok) {
-            const apiData = await apiRes.json();
+            const apiData: any = await apiRes.json();
             const entitlements = Array.isArray(apiData) ? apiData[0]?.entitlements : apiData?.entitlements;
             if (Array.isArray(entitlements) && entitlements.length > 0) {
               const latest = entitlements.sort((a: any, b: any) =>

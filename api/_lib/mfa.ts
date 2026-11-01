@@ -31,7 +31,7 @@ function base32Decode(input: string): Uint8Array {
 async function hotp(secret: string, counter: number): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
-    base32Decode(secret) as BufferSource,
+    base32Decode(secret) as any,
     { name: 'HMAC', hash: 'SHA-1' },
     false,
     ['sign'],
