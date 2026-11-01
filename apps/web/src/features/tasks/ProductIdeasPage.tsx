@@ -32,6 +32,8 @@ import {
 } from '@mui/material';
 import Grid2 from '@mui/material/Grid2';
 import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
@@ -132,7 +134,7 @@ export function ProductIdeasPage() {
   const opportunities = useAppSelector((state) => state.productIdeas.opportunities);
   const todos = useAppSelector((state) => state.productIdeas.todos);
   const users = useAppSelector((state) => state.users.items);
-  const canManageUsers = can('user:manage');
+  const canManageUsers = can('user:manage') || currentUser?.role === 'tenant_admin' || currentUser?.role === 'platform_admin';
   const usersFetchStarted = useRef(false);
   const [activeTab, setActiveTab] = useState(0);
   const [search, setSearch] = useState('');
@@ -170,12 +172,94 @@ export function ProductIdeasPage() {
   }, [dispatch]);
 
   const assignableUsers = useMemo(() => {
-    const tenantUsers = users.filter((user) => user.tenantId === currentUser?.tenantId);
+    const tenantUsers = users.filter(
+      (user) => !currentUser?.tenantId || !user.tenantId || user.tenantId === currentUser.tenantId
+    );
     if (currentUser && !tenantUsers.some((user) => user.id === currentUser.id)) {
       return [...tenantUsers, currentUser];
     }
-    return tenantUsers;
+    return tenantUsers.length > 0 ? tenantUsers : (currentUser ? [currentUser] : []);
   }, [currentUser, users]);
+
+  const [reassignOpportunity, setReassignOpportunity] = useState<ProductOpportunity | null>(null);
+  const [reassignUserIds, setReassignUserIds] = useState<string[]>([]);
+  const [reassignWorkStatus, setReassignWorkStatus] = useState<OpportunityWorkStatus>('not_started');
+  const [reassignNextStep, setReassignNextStep] = useState<string>('');
+
+  const handleOpenReassignModal = (opportunity: ProductOpportunity) => {
+    setReassignOpportunity(opportunity);
+    setReassignUserIds(opportunity.assigneeIds ? [...opportunity.assigneeIds] : []);
+    setReassignWorkStatus(opportunity.workStatus ?? 'not_started');
+    setReassignNextStep(opportunity.nextStep ?? '');
+  };
+
+  const handleSaveReassign = () => {
+    if (!reassignOpportunity) return;
+    const newAssigneeIds = reassignUserIds;
+    const newWorkStatus = newAssigneeIds.length === 0 ? 'not_started' : reassignWorkStatus;
+    const assignedUser = assignableUsers.find((u) => newAssigneeIds.includes(u.id));
+    const userName = assignedUser ? getUserDisplayName(assignedUser) || assignedUser.email : '';
+    const userEmail = assignedUser?.email || '';
+
+    const updated: ProductOpportunity = {
+      ...reassignOpportunity,
+      assigneeIds: newAssigneeIds,
+      workStatus: newWorkStatus,
+      nextStep: reassignNextStep.trim(),
+    };
+    dispatch(updateOpportunity(updated));
+    if (selectedOpportunity?.id === reassignOpportunity.id) {
+      setSelectedOpportunity(updated);
+    }
+    if (isApiEnabled()) {
+      void saveProductOpportunityAssignments({
+        opportunityId: updated.id,
+        assigneeIds: newAssigneeIds,
+        workStatus: newWorkStatus,
+        nextStep: reassignNextStep.trim(),
+      })
+        .then((assignments) => {
+          const enriched = assignments.map((a) => ({
+            ...a,
+            userName: a.userName || userName,
+            userEmail: a.userEmail || userEmail,
+          }));
+          dispatch(replaceOpportunityAssignments({ opportunityId: updated.id, assignments: enriched }));
+          setAssignmentSyncError('');
+        })
+        .catch((error: unknown) => {
+          setAssignmentSyncError(error instanceof Error ? error.message : 'Assignment changes could not be saved to server.');
+        });
+    }
+    setReassignOpportunity(null);
+  };
+
+  const handleMakeUnassigned = (opportunity: ProductOpportunity) => {
+    const updated: ProductOpportunity = {
+      ...opportunity,
+      assigneeIds: [],
+      workStatus: 'not_started',
+    };
+    dispatch(updateOpportunity(updated));
+    if (selectedOpportunity?.id === opportunity.id) {
+      setSelectedOpportunity(updated);
+    }
+    if (isApiEnabled()) {
+      void saveProductOpportunityAssignments({
+        opportunityId: updated.id,
+        assigneeIds: [],
+        workStatus: 'not_started',
+        nextStep: opportunity.nextStep ?? '',
+      })
+        .then((assignments) => {
+          dispatch(replaceOpportunityAssignments({ opportunityId: updated.id, assignments }));
+          setAssignmentSyncError('');
+        })
+        .catch((error: unknown) => {
+          setAssignmentSyncError(error instanceof Error ? error.message : 'Could not unassign on server.');
+        });
+    }
+  };
 
   const doneCount = todos.filter((todo) => todo.status === 'done').length;
   const doingCount = todos.filter((todo) => todo.status === 'doing').length;
@@ -201,16 +285,51 @@ export function ProductIdeasPage() {
       return matchesCategory && matchesShortlist && matchesSearch;
     });
   }, [categoryFilter, opportunities, search, shortlistOnly]);
-  const assignmentRows = useMemo(() => opportunities.flatMap((opportunity) => {
-    const assigneeIds = opportunity.assigneeIds ?? [];
-    return assigneeIds.map((userId) => ({
-      key: `${opportunity.id}-${userId}`,
-      opportunity,
-      user: assignableUsers.find((candidate) => candidate.id === userId) ?? null,
-      assignment: assignmentPeople.find((item) => item.opportunityId === opportunity.id && item.userId === userId),
-      userId,
-    }));
-  }), [assignableUsers, assignmentPeople, opportunities]);
+  const assignmentRows = useMemo(() => {
+    const rows: {
+      key: string;
+      opportunity: ProductOpportunity;
+      user: (typeof assignableUsers)[0] | null;
+      assignment: (typeof assignmentPeople)[0] | undefined;
+      userId: string;
+    }[] = [];
+
+    const processedKeys = new Set<string>();
+
+    for (const opportunity of opportunities) {
+      const assigneeIds = opportunity.assigneeIds ?? [];
+      for (const userId of assigneeIds) {
+        const key = `${opportunity.id}-${userId}`;
+        processedKeys.add(key);
+        rows.push({
+          key,
+          opportunity,
+          user: assignableUsers.find((candidate) => candidate.id === userId) ?? null,
+          assignment: assignmentPeople.find((item) => item.opportunityId === opportunity.id && item.userId === userId),
+          userId,
+        });
+      }
+    }
+
+    for (const assignment of assignmentPeople) {
+      const key = `${assignment.opportunityId}-${assignment.userId}`;
+      if (!processedKeys.has(key)) {
+        processedKeys.add(key);
+        const opportunity = opportunities.find((o) => o.id === assignment.opportunityId);
+        if (opportunity) {
+          rows.push({
+            key,
+            opportunity,
+            user: assignableUsers.find((candidate) => candidate.id === assignment.userId) ?? null,
+            assignment,
+            userId: assignment.userId,
+          });
+        }
+      }
+    }
+
+    return rows;
+  }, [assignableUsers, assignmentPeople, opportunities]);
   const assignmentCount = assignmentRows.length;
 
   const openNewOpportunity = () => {
@@ -253,7 +372,13 @@ export function ProductIdeasPage() {
 
   const handleAssignToMeAndStart = (opportunity: ProductOpportunity) => {
     if (!currentUser) return;
-    dispatch(assignOpportunityAndStart({ opportunityId: opportunity.id, userId: currentUser.id }));
+    const userName = getUserDisplayName(currentUser) || currentUser.email || '';
+    dispatch(assignOpportunityAndStart({
+      opportunityId: opportunity.id,
+      userId: currentUser.id,
+      userName,
+      userEmail: currentUser.email,
+    }));
     const updatedOpportunity: ProductOpportunity = {
       ...opportunity,
       assigneeIds: [...new Set([...(opportunity.assigneeIds ?? []), currentUser.id])],
@@ -269,7 +394,12 @@ export function ProductIdeasPage() {
         nextStep: updatedOpportunity.nextStep ?? '',
       })
         .then((assignments) => {
-          dispatch(replaceOpportunityAssignments({ opportunityId: opportunity.id, assignments }));
+          const enriched = assignments.map((a) => ({
+            ...a,
+            userName: a.userName || userName,
+            userEmail: a.userEmail || currentUser.email || '',
+          }));
+          dispatch(replaceOpportunityAssignments({ opportunityId: opportunity.id, assignments: enriched }));
           setAssignmentSyncError('');
         })
         .catch((error: unknown) => setAssignmentSyncError(error instanceof Error ? error.message : 'Assignment could not be shared with your team.'));
@@ -390,7 +520,32 @@ export function ProductIdeasPage() {
         <Tab icon={<GroupsOutlinedIcon fontSize="small" />} iconPosition="start" label={`Assignments (${assignmentCount})`} />
       </Tabs>
 
-      {assignmentSyncError && <Alert severity="warning" sx={{ mb: 2 }}>{assignmentSyncError}</Alert>}
+      {assignmentSyncError && (
+        <Alert
+          severity="warning"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                setAssignmentSyncError('');
+                void fetchProductOpportunityAssignments()
+                  .then((assignments) => {
+                    dispatch(replaceOpportunityAssignments({ assignments }));
+                  })
+                  .catch((err: unknown) => {
+                    setAssignmentSyncError(err instanceof Error ? err.message : 'Sync failed');
+                  });
+              }}
+            >
+              Retry Sync
+            </Button>
+          }
+          sx={{ mb: 2 }}
+        >
+          {assignmentSyncError}
+        </Alert>
+      )}
 
       {activeTab === 0 && (
         <Grid2 container spacing={2.5}>
@@ -560,7 +715,33 @@ export function ProductIdeasPage() {
                       <TableCell>{opportunity.targetCustomers}</TableCell>
                       <TableCell><Chip size="small" label={statusMeta.label} color={statusMeta.color} variant="outlined" /></TableCell>
                       <TableCell>{opportunity.nextStep || 'No next step set'}</TableCell>
-                      <TableCell align="right"><Button size="small" startIcon={<PersonAddAlt1OutlinedIcon />} onClick={() => handleAssignToMeAndStart(opportunity)} disabled={!canStartWork}>{actionLabel}</Button></TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                          <Button size="small" startIcon={<PersonAddAlt1OutlinedIcon />} onClick={() => handleAssignToMeAndStart(opportunity)} disabled={!canStartWork}>{actionLabel}</Button>
+                          {canManageUsers && (
+                            <>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<PersonOutlineIcon />}
+                                onClick={() => handleOpenReassignModal(opportunity)}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Edit Assignee
+                              </Button>
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="text"
+                                onClick={() => handleMakeUnassigned(opportunity)}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Unassign
+                              </Button>
+                            </>
+                          )}
+                        </Stack>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -609,6 +790,15 @@ export function ProductIdeasPage() {
               <Button variant="outlined" startIcon={<PersonAddAlt1OutlinedIcon />} onClick={() => handleAssignToMeAndStart(selectedOpportunity)} disabled={!currentUser || ((selectedOpportunity.assigneeIds ?? []).includes(currentUser.id) && selectedOpportunity.workStatus === 'in_progress')}>
                 {(selectedOpportunity.assigneeIds ?? []).includes(currentUser?.id ?? '') ? 'Start working' : 'Assign to me & start'}
               </Button>
+              {canManageUsers && (
+                <Button
+                  variant="outlined"
+                  startIcon={<PersonOutlineIcon />}
+                  onClick={() => handleOpenReassignModal(selectedOpportunity)}
+                >
+                  Edit Assignee
+                </Button>
+              )}
               <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => openEditOpportunity(selectedOpportunity)}>Edit opportunity</Button>
             </DialogActions>
           </>
@@ -695,6 +885,139 @@ export function ProductIdeasPage() {
             <Button type="submit" variant="contained">{editingOpportunityId ? 'Save changes' : 'Add to catalog'}</Button>
           </DialogActions>
         </Box>
+      </Dialog>
+
+      {/* Reassign / Edit Assignee Dialog */}
+      <Dialog
+        open={reassignOpportunity !== null}
+        onClose={() => setReassignOpportunity(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        {reassignOpportunity && (
+          <>
+            <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6" fontWeight={800}>
+                Edit Assignee & Work Status
+              </Typography>
+              <IconButton size="small" onClick={() => setReassignOpportunity(null)}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent sx={{ pt: 2 }}>
+              <Stack spacing={2.5}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    bgcolor: alpha(theme.palette.primary.main, 0.06),
+                    border: 1,
+                    borderColor: alpha(theme.palette.primary.main, 0.2),
+                  }}
+                >
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">
+                    OPPORTUNITY
+                  </Typography>
+                  <Typography variant="subtitle1" fontWeight={800}>
+                    {reassignOpportunity.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {reassignOpportunity.targetCustomers}
+                  </Typography>
+                </Box>
+
+                <FormControl fullWidth>
+                  <InputLabel id="reassign-teammate-label">Assignee</InputLabel>
+                  <Select
+                    labelId="reassign-teammate-label"
+                    label="Assignee"
+                    value={reassignUserIds[0] || 'unassigned'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'unassigned') {
+                        setReassignUserIds([]);
+                        setReassignWorkStatus('not_started');
+                      } else {
+                        setReassignUserIds([val]);
+                        if (reassignWorkStatus === 'not_started') {
+                          setReassignWorkStatus('in_progress');
+                        }
+                      }
+                    }}
+                  >
+                    <MenuItem value="unassigned">
+                      <em>Unassigned (No teammate assigned)</em>
+                    </MenuItem>
+                    {assignableUsers.map((u) => (
+                      <MenuItem key={u.id} value={u.id}>
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ width: '100%' }}>
+                          <Box>
+                            <Typography variant="body2" fontWeight={600}>
+                              {getUserDisplayName(u) || u.email}
+                            </Typography>
+                            {u.email && (
+                              <Typography variant="caption" color="text.secondary">
+                                {u.email}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Chip
+                            size="small"
+                            label={u.role || 'User'}
+                            sx={{ height: 20, fontSize: '0.65rem', textTransform: 'capitalize' }}
+                          />
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <InputLabel id="reassign-work-status-label">Work Status</InputLabel>
+                  <Select
+                    labelId="reassign-work-status-label"
+                    label="Work Status"
+                    value={reassignWorkStatus}
+                    onChange={(e) => setReassignWorkStatus(e.target.value as OpportunityWorkStatus)}
+                  >
+                    {WORK_STATUSES.map((status) => (
+                      <MenuItem key={status.value} value={status.value}>
+                        {status.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  fullWidth
+                  label="Assigned Next Step"
+                  value={reassignNextStep}
+                  onChange={(e) => setReassignNextStep(e.target.value)}
+                  placeholder="e.g. Talk to 3 local business owners this week"
+                  size="small"
+                />
+              </Stack>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+              <Button
+                color="error"
+                variant="text"
+                onClick={() => {
+                  setReassignUserIds([]);
+                  setReassignWorkStatus('not_started');
+                }}
+              >
+                Make Unassigned
+              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button onClick={() => setReassignOpportunity(null)}>Cancel</Button>
+                <Button variant="contained" onClick={handleSaveReassign}>
+                  Save Assignment
+                </Button>
+              </Stack>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
 
       <Dialog open={todoDialogOpen} onClose={() => setTodoDialogOpen(false)} fullWidth maxWidth="xs">

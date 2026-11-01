@@ -53,6 +53,7 @@ import hrLeave from '../api/hr/leave';
 import hrLeaveById from '../api/hr/leave/[id]';
 import hrBalances from '../api/hr/balances';
 import warrantyLookup from '../api/warranty/lookup';
+import productOpportunitiesAssignments from '../api/product-opportunities/assignments';
 
 type ApiHandler = (req: Request) => Promise<Response>;
 
@@ -110,6 +111,7 @@ function resolveHandler(pathname: string): ApiHandler | null {
   if (/^\/api\/hr\/leave\/[^/]+$/.test(pathname)) return hrLeaveById;
   if (pathname === '/api/hr/balances') return hrBalances;
   if (pathname === '/api/warranty/lookup') return warrantyLookup;
+  if (pathname === '/api/product-opportunities/assignments') return productOpportunitiesAssignments;
   if (pathname === '/api/endpoints') return endpointsIndex;
   if (pathname === '/api/endpoints/register') return endpointsRegister;
   if (pathname === '/api/endpoints/telemetry') return endpointsTelemetry;
