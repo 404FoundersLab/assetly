@@ -134,6 +134,7 @@ export function ProductIdeasPage() {
   const opportunities = useAppSelector((state) => state.productIdeas.opportunities);
   const todos = useAppSelector((state) => state.productIdeas.todos);
   const users = useAppSelector((state) => state.users.items);
+  const employees = useAppSelector((state) => state.employees.items);
   const canManageUsers = can('user:manage') || currentUser?.role === 'tenant_admin' || currentUser?.role === 'platform_admin';
   const usersFetchStarted = useRef(false);
   const [activeTab, setActiveTab] = useState(0);
@@ -171,15 +172,36 @@ export function ProductIdeasPage() {
     return () => { active = false; };
   }, [dispatch]);
 
-  const assignableUsers = useMemo(() => {
-    const tenantUsers = users.filter(
-      (user) => !currentUser?.tenantId || !user.tenantId || user.tenantId === currentUser.tenantId
+  const activeEmployeeEmails = useMemo(() => {
+    return new Set(
+      employees.flatMap((e) =>
+        [e.email, e.joiningEmail, e.officialEmail]
+          .filter(Boolean)
+          .map((em) => em!.trim().toLowerCase())
+      )
     );
+  }, [employees]);
+  const activeEmployeeIds = useMemo(() => new Set(employees.map((e) => e.id)), [employees]);
+
+  const assignableUsers = useMemo(() => {
+    const tenantUsers = users.filter((user) => {
+      if (currentUser?.tenantId && user.tenantId && user.tenantId !== currentUser.tenantId) {
+        return false;
+      }
+      // If user is an employee, verify they exist in active employees
+      if (user.role === 'employee') {
+        const emailMatch = user.email && activeEmployeeEmails.has(user.email.trim().toLowerCase());
+        const idMatch = user.id && activeEmployeeIds.has(user.id);
+        const empIdMatch = user.employeeId && activeEmployeeIds.has(user.employeeId);
+        return Boolean(emailMatch || idMatch || empIdMatch);
+      }
+      return true;
+    });
     if (currentUser && !tenantUsers.some((user) => user.id === currentUser.id)) {
       return [...tenantUsers, currentUser];
     }
     return tenantUsers.length > 0 ? tenantUsers : (currentUser ? [currentUser] : []);
-  }, [currentUser, users]);
+  }, [currentUser, users, activeEmployeeEmails, activeEmployeeIds]);
 
   const [reassignOpportunity, setReassignOpportunity] = useState<ProductOpportunity | null>(null);
   const [reassignUserIds, setReassignUserIds] = useState<string[]>([]);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -35,18 +35,48 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
 
   const employees = useAppSelector((s) => s.employees.items);
 
+  // Include tenant admin in the assignable employee list
+  const assignableEmployees = useMemo(() => {
+    const list = [...employees];
+    if (user && (user.role === 'tenant_admin' || user.role === 'platform_admin' || user.role === 'it_admin')) {
+      const alreadyPresent = list.some(
+        (e) =>
+          e.id === user.id ||
+          (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.email && e.joiningEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+      if (!alreadyPresent) {
+        list.unshift({
+          id: user.id,
+          tenantId: user.tenantId || '',
+          employeeNumber: 'ADMIN',
+          firstName: user.firstName || 'Tenant',
+          lastName: user.lastName ? `${user.lastName} (Admin)` : '(Admin)',
+          email: user.email || '',
+          joiningEmail: user.email || '',
+          officialEmail: user.email || '',
+          jobTitle: 'Tenant Administrator',
+          departmentId: '',
+          status: 'active',
+          hireDate: '',
+        });
+      }
+    }
+    return list;
+  }, [employees, user]);
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<TicketCategory>('software');
   const [priority, setPriority] = useState<TicketPriority>('medium');
   const [status, setStatus] = useState<TicketStatus>('open');
-  const [employeeId, setEmployeeId] = useState(employees[0]?.id || '');
+  const [employeeId, setEmployeeId] = useState(assignableEmployees[0]?.id || employees[0]?.id || '');
   const [assignedTo, setAssignedTo] = useState('');
 
   const handleSave = () => {
     if (!title.trim()) return;
 
-    const emp = employees.find((e) => e.id === employeeId);
+    const emp = assignableEmployees.find((e) => e.id === employeeId);
     const employeeName = emp ? `${emp.firstName} ${emp.lastName}` : (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Staff Member');
     const employeeEmail = emp?.email || user?.email || '';
     const departmentName = emp?.jobTitle ? `${emp.jobTitle} Dept` : 'General';
@@ -192,7 +222,7 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
               onChange={(e) => setEmployeeId(e.target.value)}
               size="small"
             >
-              {employees.map((emp) => (
+              {assignableEmployees.map((emp) => (
                 <MenuItem key={emp.id} value={emp.id}>
                   {emp.firstName} {emp.lastName} ({emp.jobTitle})
                 </MenuItem>

@@ -333,9 +333,87 @@ export const INITIAL_TASKS: EmployeeTask[] = [
   },
 ];
 
+export const DUMMY_PROJECT_IDS = new Set([
+  'PRJ-101',
+  'PRJ-102',
+  'PRJ-103',
+  'PRJ-104',
+  'PRJ-105',
+]);
+
+export const DUMMY_PROJECT_NAMES = new Set([
+  'Cloud & Redis HA Infrastructure',
+  'HRMS Leave & Workflow Automation',
+  'Endpoint Security & Zero-Trust Fleet Hardening',
+  'Q3 Financial CapEx & IT Spend Audit',
+  'Design System & UI/UX Refresh 2026',
+]);
+
+export const DUMMY_TASK_IDS = new Set([
+  'TSK-101',
+  'TSK-102',
+  'TSK-103',
+  'TSK-104',
+  'TSK-105',
+  'TSK-106',
+  'TSK-107',
+  'TSK-108',
+]);
+
+const PROJECTS_STORAGE_KEY = 'assetly_projects_store_v2';
+const TASKS_STORAGE_KEY = 'assetly_tasks_store_v2';
+
+export function isDummyProject(p: Project): boolean {
+  return DUMMY_PROJECT_IDS.has(p.id) || DUMMY_PROJECT_NAMES.has(p.name);
+}
+
+export function isDummyTask(t: EmployeeTask): boolean {
+  return DUMMY_TASK_IDS.has(t.id) || (t.projectId ? DUMMY_PROJECT_IDS.has(t.projectId) : false);
+}
+
+function loadPersistedProjects(): Project[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(PROJECTS_STORAGE_KEY);
+    if (!raw) return [];
+    const list: Project[] = JSON.parse(raw);
+    return list.filter((p) => !isDummyProject(p));
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedProjects(projects: Project[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const clean = projects.filter((p) => !isDummyProject(p));
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(clean));
+  } catch {}
+}
+
+function loadPersistedTasks(): EmployeeTask[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (!raw) return [];
+    const list: EmployeeTask[] = JSON.parse(raw);
+    return list.filter((t) => !isDummyTask(t));
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedTasks(tasks: EmployeeTask[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const clean = tasks.filter((t) => !isDummyTask(t));
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(clean));
+  } catch {}
+}
+
 const initialState: TasksState = {
-  items: INITIAL_TASKS,
-  projects: INITIAL_PROJECTS,
+  items: loadPersistedTasks(),
+  projects: loadPersistedProjects(),
   selectedTaskId: null,
   filterAssigneeId: 'all',
   filterDepartmentId: 'all',
@@ -351,6 +429,12 @@ const tasksSlice = createSlice({
   name: 'tasks',
   initialState,
   reducers: {
+    purgeDummyData: (state) => {
+      state.projects = state.projects.filter((p) => !isDummyProject(p));
+      state.items = state.items.filter((t) => !isDummyTask(t));
+      savePersistedProjects(state.projects);
+      savePersistedTasks(state.items);
+    },
     addTask: (state, action: PayloadAction<Omit<EmployeeTask, 'id' | 'createdAt' | 'updatedAt'>>) => {
       const nextId = `TSK-${100 + state.items.length + 1}`;
       const now = new Date().toISOString().split('T')[0];
@@ -361,6 +445,7 @@ const tasksSlice = createSlice({
         updatedAt: now,
       };
       state.items.unshift(newTask);
+      savePersistedTasks(state.items);
     },
     updateTask: (state, action: PayloadAction<EmployeeTask>) => {
       const index = state.items.findIndex((t) => t.id === action.payload.id);
@@ -369,6 +454,7 @@ const tasksSlice = createSlice({
           ...action.payload,
           updatedAt: new Date().toISOString().split('T')[0],
         };
+        savePersistedTasks(state.items);
       }
     },
     updateTaskStatus: (state, action: PayloadAction<{ id: string; status: TaskStatus }>) => {
@@ -376,6 +462,7 @@ const tasksSlice = createSlice({
       if (task) {
         task.status = action.payload.status;
         task.updatedAt = new Date().toISOString().split('T')[0];
+        savePersistedTasks(state.items);
       }
     },
     deleteTask: (state, action: PayloadAction<string>) => {
@@ -383,6 +470,7 @@ const tasksSlice = createSlice({
       if (state.selectedTaskId === action.payload) {
         state.selectedTaskId = null;
       }
+      savePersistedTasks(state.items);
     },
     toggleChecklistItem: (state, action: PayloadAction<{ taskId: string; itemId: string }>) => {
       const task = state.items.find((t) => t.id === action.payload.taskId);
@@ -391,6 +479,7 @@ const tasksSlice = createSlice({
         if (item) {
           item.completed = !item.completed;
           task.updatedAt = new Date().toISOString().split('T')[0];
+          savePersistedTasks(state.items);
         }
       }
     },
@@ -399,6 +488,7 @@ const tasksSlice = createSlice({
       if (task) {
         task.loggedHours = Math.round((task.loggedHours + action.payload.additionalHours) * 10) / 10;
         task.updatedAt = new Date().toISOString().split('T')[0];
+        savePersistedTasks(state.items);
       }
     },
     setSelectedTaskId: (state, action: PayloadAction<string | null>) => {
@@ -439,10 +529,14 @@ const tasksSlice = createSlice({
       }
       const nextId = `PRJ-${maxNum + 1}`;
       state.projects.push({ ...action.payload, id: nextId });
+      savePersistedProjects(state.projects);
     },
     updateProject: (state, action: PayloadAction<Project>) => {
       const idx = state.projects.findIndex((p) => p.id === action.payload.id);
-      if (idx !== -1) state.projects[idx] = action.payload;
+      if (idx !== -1) {
+        state.projects[idx] = action.payload;
+        savePersistedProjects(state.projects);
+      }
     },
     deleteProject: (state, action: PayloadAction<string>) => {
       state.projects = state.projects.filter((p) => p.id !== action.payload);
@@ -452,6 +546,8 @@ const tasksSlice = createSlice({
           t.projectName = undefined;
         }
       });
+      savePersistedProjects(state.projects);
+      savePersistedTasks(state.items);
     },
     resetFilters: (state) => {
       state.filterAssigneeId = 'all';
@@ -463,9 +559,22 @@ const tasksSlice = createSlice({
       state.searchQuery = '';
     },
   },
+  extraReducers: (builder) => {
+    builder.addCase('persist/REHYDRATE', (state, action: any) => {
+      if (action.payload?.tasks) {
+        const pList = (action.payload.tasks.projects || []).filter((p: Project) => !isDummyProject(p));
+        const tList = (action.payload.tasks.items || []).filter((t: EmployeeTask) => !isDummyTask(t));
+        state.projects = pList;
+        state.items = tList;
+        savePersistedProjects(state.projects);
+        savePersistedTasks(state.items);
+      }
+    });
+  },
 });
 
 export const {
+  purgeDummyData,
   addTask,
   updateTask,
   updateTaskStatus,

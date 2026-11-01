@@ -79,6 +79,36 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
   const tasks = useAppSelector((s) => s.tasks.items);
   const employees = useAppSelector((s) => s.employees.items);
 
+  // Include tenant admin in the assignable employee list
+  const assignableEmployees = useMemo(() => {
+    const list = [...employees];
+    if (user && (user.role === 'tenant_admin' || user.role === 'platform_admin' || user.role === 'it_admin')) {
+      const alreadyPresent = list.some(
+        (e) =>
+          e.id === user.id ||
+          (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.email && e.joiningEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+      if (!alreadyPresent) {
+        list.unshift({
+          id: user.id,
+          tenantId: user.tenantId || '',
+          employeeNumber: 'ADMIN',
+          firstName: user.firstName || 'Tenant',
+          lastName: user.lastName ? `${user.lastName} (Admin)` : '(Admin)',
+          email: user.email || '',
+          joiningEmail: user.email || '',
+          officialEmail: user.email || '',
+          jobTitle: 'Tenant Administrator',
+          departmentId: '',
+          status: 'active',
+          hireDate: '',
+        });
+      }
+    }
+    return list;
+  }, [employees, user]);
+
   const canManage =
     user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
 
@@ -515,15 +545,6 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
                               New Ticket
                             </Button>
                           )}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<RestartAltIcon />}
-                            onClick={handleRestoreDemoTickets}
-                            sx={{ textTransform: 'none', fontWeight: 700 }}
-                          >
-                            Load Demo Tickets
-                          </Button>
                         </Stack>
                       </Box>
                     ) : (
@@ -620,7 +641,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
                 displayEmpty
               >
                 <MenuItem value="">Unassigned</MenuItem>
-                {employees.map((emp) => (
+                {assignableEmployees.map((emp) => (
                   <MenuItem key={emp.id} value={emp.id}>
                     {emp.firstName} {emp.lastName} ({emp.jobTitle})
                   </MenuItem>

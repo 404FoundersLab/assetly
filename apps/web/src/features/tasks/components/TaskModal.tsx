@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -56,6 +56,36 @@ export function TaskModal({
   const tickets = useAppSelector((s) => s.tickets.items);
   const projects = useAppSelector((s) => s.tasks.projects);
 
+  // Include tenant admin in the assignable employee list
+  const assignableEmployees = useMemo(() => {
+    const list = [...employees];
+    if (user && (user.role === 'tenant_admin' || user.role === 'platform_admin' || user.role === 'it_admin')) {
+      const alreadyPresent = list.some(
+        (e) =>
+          e.id === user.id ||
+          (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.email && e.joiningEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+      if (!alreadyPresent) {
+        list.unshift({
+          id: user.id,
+          tenantId: user.tenantId || '',
+          employeeNumber: 'ADMIN',
+          firstName: user.firstName || 'Tenant',
+          lastName: user.lastName ? `${user.lastName} (Admin)` : '(Admin)',
+          email: user.email || '',
+          joiningEmail: user.email || '',
+          officialEmail: user.email || '',
+          jobTitle: 'Tenant Administrator',
+          departmentId: departments[0]?.id || '',
+          status: 'active',
+          hireDate: '',
+        });
+      }
+    }
+    return list;
+  }, [employees, user, departments]);
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<TaskStatus>('todo');
@@ -102,7 +132,7 @@ export function TaskModal({
         };
         setPriority(prioMap[linkedTicket.priority] || 'medium');
         setType('ticket');
-        setAssignedEmployeeId(linkedTicket.employeeId || initialEmployeeId || employees[0]?.id || '');
+        setAssignedEmployeeId(linkedTicket.employeeId || initialEmployeeId || assignableEmployees[0]?.id || '');
         if (linkedTicket.departmentName) {
           const dept = departments.find(
             (d) => d.name.toLowerCase() === linkedTicket.departmentName?.toLowerCase()
@@ -125,7 +155,7 @@ export function TaskModal({
         setStatus(initialStatus);
         setPriority('medium');
         setType(initialTicketRef ? 'ticket' : 'task');
-        setAssignedEmployeeId(initialEmployeeId || employees[0]?.id || '');
+        setAssignedEmployeeId(initialEmployeeId || assignableEmployees[0]?.id || '');
         setDepartmentId(departments[0]?.id || '');
         setProjectId(initialProjectId || '');
         const defaultDue = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
@@ -137,7 +167,7 @@ export function TaskModal({
         setChecklist([]);
       }
     }
-  }, [task, initialStatus, initialTicketRef, initialProjectId, initialEmployeeId, employees, departments, tickets]);
+  }, [task, initialStatus, initialTicketRef, initialProjectId, initialEmployeeId, assignableEmployees, departments, tickets]);
 
   const handleAddChecklistItem = () => {
     if (!newChecklistText.trim()) return;
@@ -163,7 +193,7 @@ export function TaskModal({
   const handleSave = () => {
     if (!title.trim()) return;
 
-    const assignedEmp = employees.find((e) => e.id === assignedEmployeeId);
+    const assignedEmp = assignableEmployees.find((e) => e.id === assignedEmployeeId);
     const assignedName = assignedEmp ? `${assignedEmp.firstName} ${assignedEmp.lastName}` : 'Unassigned';
     const dept = departments.find((d) => d.id === departmentId);
     const project = projects.find((p) => p.id === projectId);
@@ -364,7 +394,10 @@ export function TaskModal({
               value={assignedEmployeeId}
               onChange={(e) => setAssignedEmployeeId(e.target.value)}
             >
-              {employees.map((emp) => (
+              <MenuItem value="">
+                <em>Unassigned (No employee assigned)</em>
+              </MenuItem>
+              {assignableEmployees.map((emp) => (
                 <MenuItem key={emp.id} value={emp.id}>
                   {emp.firstName} {emp.lastName} ({emp.jobTitle})
                 </MenuItem>

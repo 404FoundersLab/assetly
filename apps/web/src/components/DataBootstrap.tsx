@@ -13,6 +13,8 @@ import { DEFAULT_DEVICE_TYPES } from '../constants/deviceTypes';
 import { replaceAllAuditLogs } from '../store/auditSlice';
 import { replaceAllRequests } from '../store/requestsSlice';
 import { fetchAssetRequests } from '../services/api/requests';
+import { replaceAllTickets } from '../store/ticketsSlice';
+import { fetchTickets } from '../services/api/tickets';
 import { setBootstrapReady, startLoading, stopLoading } from '../store/uiSlice';
 import { logout, updateTenantSession } from '../store/authSlice';
 import type { AppDispatch } from '../store';
@@ -92,6 +94,12 @@ export function DataBootstrap() {
             if (!cancelled) dispatch(replaceAllRequests(requests));
           } catch {
             /* requests load is non-blocking */
+          }
+          try {
+            const tickets = await fetchTickets();
+            if (!cancelled) dispatch(replaceAllTickets(tickets));
+          } catch {
+            /* tickets load is non-blocking */
           }
         }
 

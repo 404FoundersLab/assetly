@@ -68,13 +68,41 @@ export const INITIAL_TICKETS: SupportTicket[] = [
   },
 ];
 
+export const DUMMY_TICKET_IDS = new Set(['TICK-101', 'TICK-204', 'TICK-302', 'TICK-405']);
+
+const TICKETS_STORAGE_KEY = 'assetly_tickets_store_v2';
+
+export function isDummyTicket(t: SupportTicket): boolean {
+  return DUMMY_TICKET_IDS.has(t.id) || t.tenantId === '11111111-1111-1111-1111-111111111111';
+}
+
+function loadPersistedTickets(): SupportTicket[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(TICKETS_STORAGE_KEY);
+    if (!raw) return [];
+    const list: SupportTicket[] = JSON.parse(raw);
+    return list.filter((t) => !isDummyTicket(t));
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedTickets(tickets: SupportTicket[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const clean = tickets.filter((t) => !isDummyTicket(t));
+    localStorage.setItem(TICKETS_STORAGE_KEY, JSON.stringify(clean));
+  } catch {}
+}
+
 interface TicketsState {
   items: SupportTicket[];
   seeded: boolean;
 }
 
 const initialState: TicketsState = {
-  items: INITIAL_TICKETS,
+  items: loadPersistedTickets(),
   seeded: true,
 };
 
@@ -82,9 +110,14 @@ const ticketsSlice = createSlice({
   name: 'tickets',
   initialState,
   reducers: {
+    purgeDummyTickets: (state) => {
+      state.items = state.items.filter((t) => !isDummyTicket(t));
+      savePersistedTickets(state.items);
+    },
     replaceAllTickets: (state, action: PayloadAction<SupportTicket[]>) => {
-      state.items = action.payload;
+      state.items = action.payload.filter((t) => !isDummyTicket(t));
       state.seeded = true;
+      savePersistedTickets(state.items);
     },
     addTicket: (
       state,
@@ -108,6 +141,7 @@ const ticketsSlice = createSlice({
       };
       state.items.unshift(newTicket);
       state.seeded = true;
+      savePersistedTickets(state.items);
     },
     updateTicket: (state, action: PayloadAction<SupportTicket>) => {
       const idx = state.items.findIndex((t) => t.id === action.payload.id);
@@ -123,18 +157,30 @@ const ticketsSlice = createSlice({
         });
       }
       state.seeded = true;
+      savePersistedTickets(state.items);
     },
     deleteTicket: (state, action: PayloadAction<string>) => {
       state.items = state.items.filter((t) => t.id !== action.payload);
       state.seeded = true;
+      savePersistedTickets(state.items);
     },
     deleteAllTickets: (state) => {
       state.items = [];
       state.seeded = true;
+      savePersistedTickets(state.items);
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase('persist/REHYDRATE', (state, action: any) => {
+      if (action.payload?.tickets) {
+        const list = (action.payload.tickets.items || []).filter((t: SupportTicket) => !isDummyTicket(t));
+        state.items = list;
+        savePersistedTickets(state.items);
+      }
+    });
   },
 });
 
-export const { replaceAllTickets, addTicket, updateTicket, deleteTicket, deleteAllTickets } =
+export const { purgeDummyTickets, replaceAllTickets, addTicket, updateTicket, deleteTicket, deleteAllTickets } =
   ticketsSlice.actions;
 export default ticketsSlice.reducer;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -35,6 +35,10 @@ import PersonIcon from '@mui/icons-material/Person';
 import { PageHeader } from '../../components/PageHeader';
 import { useAppDispatch, useAppSelector, useAuthUser } from '../../hooks/storeHooks';
 import type { EmployeeTask, Project, SupportTicket, TaskPriority, TaskStatus, TaskType } from '../../types';
+import { purgeDummyData } from '../../store/tasksSlice';
+import { purgeDummyTickets, replaceAllTickets } from '../../store/ticketsSlice';
+import { fetchTickets } from '../../services/api/tickets';
+import { isApiEnabled } from '../../services/api/config';
 import { KanbanBoardView } from './components/KanbanBoardView';
 import { TaskListView } from './components/TaskListView';
 import { TicketTrackerView } from './components/TicketTrackerView';
@@ -59,6 +63,18 @@ export function TasksPage() {
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
   const tickets = useAppSelector((s) => s.tickets.items);
+
+  useEffect(() => {
+    dispatch(purgeDummyData());
+    dispatch(purgeDummyTickets());
+    if (isApiEnabled()) {
+      fetchTickets()
+        .then((data) => {
+          dispatch(replaceAllTickets(data));
+        })
+        .catch(() => {});
+    }
+  }, [dispatch]);
 
   // Tabs:
   // For normal employee:
@@ -94,9 +110,39 @@ export function TasksPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
 
+  // Include tenant admin in the assignable employee list
+  const allAssignees = useMemo(() => {
+    const list = [...employees];
+    if (user && (user.role === 'tenant_admin' || user.role === 'platform_admin' || user.role === 'it_admin')) {
+      const alreadyPresent = list.some(
+        (e) =>
+          e.id === user.id ||
+          (user.email && e.email?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.email && e.joiningEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+      if (!alreadyPresent) {
+        list.unshift({
+          id: user.id,
+          tenantId: user.tenantId || '',
+          employeeNumber: 'ADMIN',
+          firstName: user.firstName || 'Tenant',
+          lastName: user.lastName ? `${user.lastName} (Admin)` : '(Admin)',
+          email: user.email || '',
+          joiningEmail: user.email || '',
+          officialEmail: user.email || '',
+          jobTitle: 'Tenant Administrator',
+          departmentId: departments[0]?.id || '',
+          status: 'active',
+          hireDate: '',
+        });
+      }
+    }
+    return list;
+  }, [employees, user, departments]);
+
   // Current logged in user's matching employee ID
   const currentEmployee = useMemo(() => {
-    return employees.find(
+    return allAssignees.find(
       (e) =>
         e.id === user?.employeeId ||
         (user?.id && e.id === user.id) ||
@@ -104,7 +150,7 @@ export function TasksPage() {
         e.joiningEmail?.toLowerCase() === user?.email?.toLowerCase() ||
         (user?.firstName && (e.firstName?.toLowerCase().includes(user.firstName.toLowerCase()) || e.lastName?.toLowerCase().includes(user.firstName.toLowerCase())))
     );
-  }, [employees, user]);
+  }, [allAssignees, user]);
 
   // Filtering
   const filteredTasks = useMemo(() => {
@@ -412,7 +458,7 @@ export function TasksPage() {
                 onChange={(e) => setFilterAssignee(e.target.value)}
               >
                 <MenuItem value="all">All Employees</MenuItem>
-                {employees.map((emp) => (
+                {allAssignees.map((emp) => (
                   <MenuItem key={emp.id} value={emp.id}>
                     {emp.firstName} {emp.lastName}
                   </MenuItem>
@@ -555,7 +601,7 @@ export function TasksPage() {
           {activeTab === 1 && (
             // By Employee (Workload Board)
             <EmployeeWorkloadBoardView
-              employees={employees}
+              employees={allAssignees}
               tasks={filteredTasks}
               onEditTask={handleOpenEditModal}
               onAddTaskToEmployee={(empId, empName) =>
