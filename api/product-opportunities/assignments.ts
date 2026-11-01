@@ -23,14 +23,15 @@ interface DbAssignment {
 }
 
 function mapAssignment(row: DbAssignment) {
+  const name = [row.first_name, row.last_name].filter(Boolean).join(' ');
   return {
     opportunityId: row.opportunity_id,
     userId: row.user_id,
     workStatus: row.work_status,
     workStartedAt: row.work_started_at,
     nextStep: row.next_step,
-    userName: [row.first_name, row.last_name].filter(Boolean).join(' '),
-    userEmail: row.email,
+    userName: name || row.email || 'Teammate',
+    userEmail: row.email || '',
   };
 }
 
@@ -93,7 +94,7 @@ async function getAssignments(sql: any, tenantId: string, opportunityId?: string
         SELECT a.opportunity_id, a.user_id, a.work_status, a.work_started_at, a.next_step,
           u.first_name, u.last_name, u.email
         FROM product_opportunity_assignments a
-        JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
+        LEFT JOIN users u ON u.id = a.user_id
         WHERE a.tenant_id = ${tenantId} AND a.opportunity_id = ${opportunityId}
         ORDER BY a.user_id
       ` as DbAssignment[]
@@ -101,7 +102,7 @@ async function getAssignments(sql: any, tenantId: string, opportunityId?: string
         SELECT a.opportunity_id, a.user_id, a.work_status, a.work_started_at, a.next_step,
           u.first_name, u.last_name, u.email
         FROM product_opportunity_assignments a
-        JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
+        LEFT JOIN users u ON u.id = a.user_id
         WHERE a.tenant_id = ${tenantId}
         ORDER BY a.updated_at DESC, a.opportunity_id, a.user_id
       ` as DbAssignment[];

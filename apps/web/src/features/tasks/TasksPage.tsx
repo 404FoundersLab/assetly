@@ -81,7 +81,7 @@ export function TasksPage() {
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
-  const [myTasksOnly, setMyTasksOnly] = useState(isEmployeeRole);
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -99,8 +99,10 @@ export function TasksPage() {
     return employees.find(
       (e) =>
         e.id === user?.employeeId ||
+        (user?.id && e.id === user.id) ||
         e.email?.toLowerCase() === user?.email?.toLowerCase() ||
-        e.joiningEmail?.toLowerCase() === user?.email?.toLowerCase()
+        e.joiningEmail?.toLowerCase() === user?.email?.toLowerCase() ||
+        (user?.firstName && (e.firstName?.toLowerCase().includes(user.firstName.toLowerCase()) || e.lastName?.toLowerCase().includes(user.firstName.toLowerCase())))
     );
   }, [employees, user]);
 
@@ -128,6 +130,8 @@ export function TasksPage() {
       const myTaskMatch =
         !myTasksOnly ||
         (currentEmployee && t.assignedEmployeeId === currentEmployee.id) ||
+        (user?.id && t.assignedEmployeeId === user.id) ||
+        (user?.email && t.assignedEmployeeName?.toLowerCase() === user.email.toLowerCase()) ||
         (user?.firstName && t.assignedEmployeeName?.toLowerCase().includes(user.firstName.toLowerCase()));
 
       // Department
@@ -186,7 +190,7 @@ export function TasksPage() {
     setFilterDepartment('all');
     setFilterPriority('all');
     setFilterType('all');
-    setMyTasksOnly(isEmployeeRole);
+    setMyTasksOnly(false);
   };
 
   const handleConvertTicketToTask = (ticket: SupportTicket) => {
@@ -457,19 +461,17 @@ export function TasksPage() {
           {/* My Tasks Switch & Reset */}
           <Grid item xs={12} md={isEmployeeRole ? 4 : 2}>
             <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
-              {!isEmployeeRole && (
-                <FormControlLabel
-                  control={
-                    <Switch
-                      size="small"
-                      checked={myTasksOnly}
-                      onChange={(e) => setMyTasksOnly(e.target.checked)}
-                      color="primary"
-                    />
-                  }
-                  label={<Typography variant="caption" fontWeight={700}>My Tasks</Typography>}
-                />
-              )}
+              <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={myTasksOnly}
+                    onChange={(e) => setMyTasksOnly(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={<Typography variant="caption" fontWeight={700}>My Tasks Only</Typography>}
+              />
 
               {(search || filterAssignee !== 'all' || filterProject !== 'all' || filterDepartment !== 'all' || filterPriority !== 'all' || filterType !== 'all') && (
                 <Button
@@ -511,7 +513,17 @@ export function TasksPage() {
 
           {activeTab === 1 && (
             <TaskListView
-              tasks={filteredTasks}
+              tasks={
+                myTasksOnly
+                  ? filteredTasks
+                  : filteredTasks.filter(
+                      (t) =>
+                        (currentEmployee && t.assignedEmployeeId === currentEmployee.id) ||
+                        (user?.id && t.assignedEmployeeId === user.id) ||
+                        (user?.email && t.assignedEmployeeName?.toLowerCase() === user.email.toLowerCase()) ||
+                        (user?.firstName && t.assignedEmployeeName?.toLowerCase().includes(user.firstName.toLowerCase()))
+                    )
+              }
               onEditTask={handleOpenEditModal}
             />
           )}

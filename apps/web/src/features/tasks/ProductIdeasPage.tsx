@@ -197,6 +197,10 @@ export function ProductIdeasPage() {
     if (!reassignOpportunity) return;
     const newAssigneeIds = reassignUserIds;
     const newWorkStatus = newAssigneeIds.length === 0 ? 'not_started' : reassignWorkStatus;
+    const assignedUser = assignableUsers.find((u) => newAssigneeIds.includes(u.id));
+    const userName = assignedUser ? getUserDisplayName(assignedUser) || assignedUser.email : '';
+    const userEmail = assignedUser?.email || '';
+
     const updated: ProductOpportunity = {
       ...reassignOpportunity,
       assigneeIds: newAssigneeIds,
@@ -215,7 +219,12 @@ export function ProductIdeasPage() {
         nextStep: reassignNextStep.trim(),
       })
         .then((assignments) => {
-          dispatch(replaceOpportunityAssignments({ opportunityId: updated.id, assignments }));
+          const enriched = assignments.map((a) => ({
+            ...a,
+            userName: a.userName || userName,
+            userEmail: a.userEmail || userEmail,
+          }));
+          dispatch(replaceOpportunityAssignments({ opportunityId: updated.id, assignments: enriched }));
           setAssignmentSyncError('');
         })
         .catch((error: unknown) => {
@@ -276,16 +285,51 @@ export function ProductIdeasPage() {
       return matchesCategory && matchesShortlist && matchesSearch;
     });
   }, [categoryFilter, opportunities, search, shortlistOnly]);
-  const assignmentRows = useMemo(() => opportunities.flatMap((opportunity) => {
-    const assigneeIds = opportunity.assigneeIds ?? [];
-    return assigneeIds.map((userId) => ({
-      key: `${opportunity.id}-${userId}`,
-      opportunity,
-      user: assignableUsers.find((candidate) => candidate.id === userId) ?? null,
-      assignment: assignmentPeople.find((item) => item.opportunityId === opportunity.id && item.userId === userId),
-      userId,
-    }));
-  }), [assignableUsers, assignmentPeople, opportunities]);
+  const assignmentRows = useMemo(() => {
+    const rows: {
+      key: string;
+      opportunity: ProductOpportunity;
+      user: (typeof assignableUsers)[0] | null;
+      assignment: (typeof assignmentPeople)[0] | undefined;
+      userId: string;
+    }[] = [];
+
+    const processedKeys = new Set<string>();
+
+    for (const opportunity of opportunities) {
+      const assigneeIds = opportunity.assigneeIds ?? [];
+      for (const userId of assigneeIds) {
+        const key = `${opportunity.id}-${userId}`;
+        processedKeys.add(key);
+        rows.push({
+          key,
+          opportunity,
+          user: assignableUsers.find((candidate) => candidate.id === userId) ?? null,
+          assignment: assignmentPeople.find((item) => item.opportunityId === opportunity.id && item.userId === userId),
+          userId,
+        });
+      }
+    }
+
+    for (const assignment of assignmentPeople) {
+      const key = `${assignment.opportunityId}-${assignment.userId}`;
+      if (!processedKeys.has(key)) {
+        processedKeys.add(key);
+        const opportunity = opportunities.find((o) => o.id === assignment.opportunityId);
+        if (opportunity) {
+          rows.push({
+            key,
+            opportunity,
+            user: assignableUsers.find((candidate) => candidate.id === assignment.userId) ?? null,
+            assignment,
+            userId: assignment.userId,
+          });
+        }
+      }
+    }
+
+    return rows;
+  }, [assignableUsers, assignmentPeople, opportunities]);
   const assignmentCount = assignmentRows.length;
 
   const openNewOpportunity = () => {
@@ -328,7 +372,13 @@ export function ProductIdeasPage() {
 
   const handleAssignToMeAndStart = (opportunity: ProductOpportunity) => {
     if (!currentUser) return;
-    dispatch(assignOpportunityAndStart({ opportunityId: opportunity.id, userId: currentUser.id }));
+    const userName = getUserDisplayName(currentUser) || currentUser.email || '';
+    dispatch(assignOpportunityAndStart({
+      opportunityId: opportunity.id,
+      userId: currentUser.id,
+      userName,
+      userEmail: currentUser.email,
+    }));
     const updatedOpportunity: ProductOpportunity = {
       ...opportunity,
       assigneeIds: [...new Set([...(opportunity.assigneeIds ?? []), currentUser.id])],
@@ -344,7 +394,12 @@ export function ProductIdeasPage() {
         nextStep: updatedOpportunity.nextStep ?? '',
       })
         .then((assignments) => {
-          dispatch(replaceOpportunityAssignments({ opportunityId: opportunity.id, assignments }));
+          const enriched = assignments.map((a) => ({
+            ...a,
+            userName: a.userName || userName,
+            userEmail: a.userEmail || currentUser.email || '',
+          }));
+          dispatch(replaceOpportunityAssignments({ opportunityId: opportunity.id, assignments: enriched }));
           setAssignmentSyncError('');
         })
         .catch((error: unknown) => setAssignmentSyncError(error instanceof Error ? error.message : 'Assignment could not be shared with your team.'));
