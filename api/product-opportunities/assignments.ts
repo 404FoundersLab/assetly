@@ -68,41 +68,48 @@ function parseAssignmentInput(body: AssignmentBody): AssignmentInput | Response 
 async function ensureAssignmentsTable(sql: any): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS product_opportunity_assignments (
-      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      tenant_id UUID NOT NULL,
       opportunity_id TEXT NOT NULL,
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      work_status TEXT NOT NULL DEFAULT 'in_progress'
-        CHECK (work_status IN ('not_started', 'in_progress', 'done')),
+      user_id UUID NOT NULL,
+      work_status TEXT NOT NULL DEFAULT 'in_progress',
       work_started_at TIMESTAMPTZ,
       next_step TEXT NOT NULL DEFAULT '',
-      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-      updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_by UUID,
+      updated_by UUID,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (tenant_id, opportunity_id, user_id)
     );
   `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_product_opportunity_assignments_user
-      ON product_opportunity_assignments (tenant_id, user_id, updated_at DESC);
-  `;
+  try {
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_product_opportunity_assignments_user
+        ON product_opportunity_assignments (tenant_id, user_id, updated_at DESC);
+    `;
+  } catch {}
 }
 
 async function getAssignments(sql: any, tenantId: string, opportunityId?: string): Promise<Response> {
   const rows = opportunityId
     ? await sql`
         SELECT a.opportunity_id, a.user_id, a.work_status, a.work_started_at, a.next_step,
-          u.first_name, u.last_name, u.email
+          COALESCE(u.first_name, e.first_name, '') as first_name,
+          COALESCE(u.last_name, e.last_name, '') as last_name,
+          COALESCE(u.email, e.email, '') as email
         FROM product_opportunity_assignments a
         LEFT JOIN users u ON u.id = a.user_id
+        LEFT JOIN employees e ON e.id = a.user_id
         WHERE a.tenant_id = ${tenantId} AND a.opportunity_id = ${opportunityId}
         ORDER BY a.user_id
       ` as DbAssignment[]
     : await sql`
         SELECT a.opportunity_id, a.user_id, a.work_status, a.work_started_at, a.next_step,
-          u.first_name, u.last_name, u.email
+          COALESCE(u.first_name, e.first_name, '') as first_name,
+          COALESCE(u.last_name, e.last_name, '') as last_name,
+          COALESCE(u.email, e.email, '') as email
         FROM product_opportunity_assignments a
         LEFT JOIN users u ON u.id = a.user_id
+        LEFT JOIN employees e ON e.id = a.user_id
         WHERE a.tenant_id = ${tenantId}
         ORDER BY a.updated_at DESC, a.opportunity_id, a.user_id
       ` as DbAssignment[];
@@ -125,10 +132,22 @@ async function validateAssigneePermissions(
   }
 
   if (input.assigneeIds.length === 0) return null;
+  if (canManageUsers(auth.role)) return null;
+
   const users = await sql`
-    SELECT id FROM users WHERE id = ANY(${input.assigneeIds}::uuid[]) AND tenant_id = ${auth.tenantId}
+    SELECT id FROM users WHERE id = ANY(${input.assigneeIds}::uuid[]) AND (tenant_id = ${auth.tenantId} OR tenant_id IS NULL)
   ` as { id: string }[];
-  return users.length === input.assigneeIds.length ? null : error('Assignee must belong to your organization', 403);
+  if (users.length === input.assigneeIds.length) return null;
+
+  try {
+    const employees = await sql`
+      SELECT id FROM employees WHERE id = ANY(${input.assigneeIds}::uuid[]) AND tenant_id = ${auth.tenantId}
+    ` as { id: string }[];
+    const foundIds = new Set([...users.map((u) => u.id), ...employees.map((e) => e.id)]);
+    if (input.assigneeIds.every((id) => foundIds.has(id))) return null;
+  } catch {}
+
+  return error('Assignee must belong to your organization', 403);
 }
 
 async function persistAssignments(sql: any, auth: AuthUser, input: AssignmentInput, existingIds: string[]): Promise<void> {
@@ -188,6 +207,12 @@ export default async function handler(req: Request) {
   try {
     const sql = await getTenantSql(auth.tenantId);
     try {
+      await ensureAssignmentsTable(sql);
+    } catch {
+      // Table might already exist or concurrent creation
+    }
+
+    try {
       return req.method === 'GET'
         ? await getAssignments(sql, auth.tenantId)
         : await handlePut(req, sql, auth);
@@ -206,17 +231,6 @@ export default async function handler(req: Request) {
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Request failed';
-    if (message.includes('product_opportunity_assignments') && message.includes('does not exist')) {
-      try {
-        const sql = await getTenantSql(auth.tenantId);
-        await ensureAssignmentsTable(sql);
-        return req.method === 'GET'
-          ? await getAssignments(sql, auth.tenantId)
-          : await handlePut(req, sql, auth);
-      } catch {
-        return error('Database migration needed. Run migration 022 for product opportunity assignments.', 500);
-      }
-    }
     return error(message, 500);
   }
 }

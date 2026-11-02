@@ -1,7 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { initialOpportunities, initialTodos, ProductOpportunity, ProductOpportunityAssignment, ProjectTodo } from '../features/tasks/productIdeasData';
+import { initialOpportunities, ProductOpportunity, ProductOpportunityAssignment, ProjectTodo } from '../features/tasks/productIdeasData';
 
 const SHARED_ASSIGNMENTS_STORAGE_KEY = 'assetly_shared_opportunity_assignments';
+const TODOS_STORAGE_KEY = 'assetly_product_todos_v1';
+const DUMMY_TODO_IDS = new Set(['todo-01', 'todo-02', 'todo-03', 'todo-04', 'todo-05']);
 
 function loadPersistedAssignments(): ProductOpportunityAssignment[] {
   if (typeof window === 'undefined') return [];
@@ -17,6 +19,28 @@ function savePersistedAssignments(assignments: ProductOpportunityAssignment[]) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(SHARED_ASSIGNMENTS_STORAGE_KEY, JSON.stringify(assignments));
+  } catch {
+    // ignore
+  }
+}
+
+function loadPersistedTodos(): ProjectTodo[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(TODOS_STORAGE_KEY);
+    if (!raw) return [];
+    const list: ProjectTodo[] = JSON.parse(raw);
+    return list.filter((t) => !DUMMY_TODO_IDS.has(t.id));
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedTodos(todos: ProjectTodo[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const clean = todos.filter((t) => !DUMMY_TODO_IDS.has(t.id));
+    localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(clean));
   } catch {
     // ignore
   }
@@ -45,7 +69,7 @@ const initialOpportunitiesWithAssignments = initialOpportunities.map((opp) => {
 
 const initialState: ProductIdeasState = {
   opportunities: initialOpportunitiesWithAssignments,
-  todos: initialTodos,
+  todos: loadPersistedTodos(),
   assignments: initialAssignments,
 };
 
@@ -113,7 +137,11 @@ const productIdeasSlice = createSlice({
           ...assignments,
         ];
       } else {
-        state.assignments = assignments;
+        if (Array.isArray(assignments) && assignments.length > 0) {
+          state.assignments = assignments;
+        } else if (state.assignments.length === 0) {
+          state.assignments = [];
+        }
       }
       savePersistedAssignments(state.assignments);
 
@@ -135,14 +163,36 @@ const productIdeasSlice = createSlice({
     },
     addTodo: (state, action: PayloadAction<{ title: string; dueDate: string }>) => {
       state.todos.push({ ...action.payload, id: `todo-${Date.now()}`, status: 'todo' });
+      savePersistedTodos(state.todos);
     },
     updateTodoStatus: (state, action: PayloadAction<{ id: string; status: ProjectTodo['status'] }>) => {
       const todo = state.todos.find((item) => item.id === action.payload.id);
-      if (todo) todo.status = action.payload.status;
+      if (todo) {
+        todo.status = action.payload.status;
+        savePersistedTodos(state.todos);
+      }
     },
     deleteTodo: (state, action: PayloadAction<string>) => {
       state.todos = state.todos.filter((item) => item.id !== action.payload);
+      savePersistedTodos(state.todos);
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase('persist/REHYDRATE', (state, action: any) => {
+      if (action.payload?.productIdeas) {
+        const storedTodos = (action.payload.productIdeas.todos || []).filter((t: ProjectTodo) => !DUMMY_TODO_IDS.has(t.id));
+        if (storedTodos.length > 0) {
+          state.todos = storedTodos;
+        }
+        savePersistedTodos(state.todos);
+
+        const storedAssignments = action.payload.productIdeas.assignments;
+        if (Array.isArray(storedAssignments) && storedAssignments.length > 0) {
+          state.assignments = storedAssignments;
+          savePersistedAssignments(state.assignments);
+        }
+      }
+    });
   },
 });
 

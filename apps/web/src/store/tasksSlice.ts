@@ -721,8 +721,18 @@ const tasksSlice = createSlice({
       if (action.payload?.tasks) {
         const pList = (action.payload.tasks.projects || []).filter((p: Project) => !isDummyProject(p));
         const tList = (action.payload.tasks.items || []).filter((t: EmployeeTask) => !isDummyTask(t));
-        state.projects = pList.length > 0 ? pList : (state.projects.length > 0 ? state.projects : DEFAULT_USER_PROJECTS);
-        state.items = tList.length > 0 ? tList : (state.items.length > 0 ? state.items : DEFAULT_USER_TASKS);
+        if (pList.length > 0) {
+          state.projects = pList.map((p: Project) => ({
+            ...p,
+            tenantId: p.tenantId || (p.name === 'Assetly' || p.name === 'Schoolstack' ? '404founderslab' : '404founderslab'),
+          }));
+        }
+        if (tList.length > 0) {
+          state.items = tList.map((t: EmployeeTask) => ({
+            ...t,
+            tenantId: t.tenantId || (t.projectName === 'Assetly' || t.projectId === 'PRJ-101' ? '404founderslab' : '404founderslab'),
+          }));
+        }
         savePersistedProjects(state.projects);
         savePersistedTasks(state.items);
       }

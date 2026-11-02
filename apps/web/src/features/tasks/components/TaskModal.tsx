@@ -211,13 +211,13 @@ export function TaskModal({
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
-    const currentTenantId = user?.tenantId || tenant?.id || tenant?.slug || '';
+    const currentTenantId = project?.tenantId || user?.tenantId || tenant?.id || tenant?.slug || '';
 
     if (task) {
       dispatch(
         updateTask({
           ...task,
-          tenantId: task.tenantId || currentTenantId,
+          tenantId: task.tenantId || project?.tenantId || currentTenantId,
           title: title.trim(),
           description: description.trim(),
           projectId: projectId || undefined,
