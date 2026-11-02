@@ -35,13 +35,12 @@ export default async function handler(req: Request) {
         createdAt: r.created_at,
       }));
 
-      const unreadCount = notifications.filter((n) => !n.isRead).length;
-      return json({ notifications, unreadCount });
+      return json(notifications);
     }
 
     if (req.method === 'PUT') {
       const body = await parseBody<Record<string, unknown>>(req);
-      if (body.all) {
+      if (body.all || body.markAll) {
         await sql`
           UPDATE notifications
           SET is_read = true
@@ -52,6 +51,13 @@ export default async function handler(req: Request) {
           UPDATE notifications
           SET is_read = true
           WHERE id = ${String(body.id)} AND tenant_id = ${auth.tenantId!} AND user_id = ${auth.sub}
+        `;
+      } else if (Array.isArray(body.ids) && body.ids.length > 0) {
+        const idStrings = body.ids.map(String);
+        await sql`
+          UPDATE notifications
+          SET is_read = true
+          WHERE id = ANY(${idStrings}::uuid[]) AND tenant_id = ${auth.tenantId!} AND user_id = ${auth.sub}
         `;
       }
 

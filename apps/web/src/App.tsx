@@ -6,6 +6,7 @@ import { TasksLayout } from './components/layout/TasksLayout';
 import { EmployeePortalLayout } from './components/layout/EmployeePortalLayout';
 import { DataBootstrap } from './components/DataBootstrap';
 import { GlobalLoadingBar } from './components/Loader';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute, PublicRoute, AdminRoute, EmployeeRoute, SystemAdminRoute, ModuleRoute, AuthRedirect } from './components/ProtectedRoute';
 import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
@@ -79,7 +80,8 @@ export default function App() {
     <>
       <GlobalLoadingBar />
       <DataBootstrap />
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
       <Route
         path="/login"
         element={
@@ -258,6 +260,7 @@ export default function App() {
 
       <Route path="*" element={<AuthRedirect />} />
     </Routes>
+    </ErrorBoundary>
     </>
   );
 }

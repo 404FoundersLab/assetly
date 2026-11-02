@@ -150,7 +150,14 @@ export async function submitApprovalAction(
 }
 
 export async function fetchNotifications(unreadOnly = false): Promise<NotificationDto[]> {
-  return apiFetch<NotificationDto[]>(`/api/notifications?unreadOnly=${unreadOnly}`);
+  try {
+    const res = await apiFetch<any>(`/api/notifications?unreadOnly=${unreadOnly}`);
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.notifications)) return res.notifications;
+    return [];
+  } catch {
+    return [];
+  }
 }
 
 export async function markNotificationsRead(ids?: string[]): Promise<{ success: boolean }> {

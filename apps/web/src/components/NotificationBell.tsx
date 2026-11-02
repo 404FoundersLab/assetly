@@ -37,7 +37,9 @@ export function NotificationBell() {
   const loadNotifications = async () => {
     try {
       const data = await fetchNotifications();
-      setNotifications(data);
+      if (Array.isArray(data)) {
+        setNotifications(data);
+      }
     } catch {
       // Background notifications failure ignored
     }
@@ -51,7 +53,8 @@ export function NotificationBell() {
     return () => clearInterval(interval);
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const safeList = Array.isArray(notifications) ? notifications : [];
+  const unreadCount = safeList.filter((n) => !n.isRead).length;
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
@@ -163,14 +166,14 @@ export function NotificationBell() {
         </Box>
 
         <List sx={{ p: 0, overflowY: 'auto', maxHeight: 400 }}>
-          {notifications.length === 0 ? (
+          {safeList.length === 0 ? (
             <Box sx={{ p: 3, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
                 No notifications right now
               </Typography>
             </Box>
           ) : (
-            notifications.map((n) => (
+            safeList.map((n) => (
               <ListItem
                 key={n.id}
                 disablePadding
