@@ -33,9 +33,9 @@ import FolderIcon from '@mui/icons-material/Folder';
 import GroupsIcon from '@mui/icons-material/Groups';
 import PersonIcon from '@mui/icons-material/Person';
 import { PageHeader } from '../../components/PageHeader';
-import { useAppDispatch, useAppSelector, useAuthUser } from '../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, useAuthUser, useTenant } from '../../hooks/storeHooks';
 import type { EmployeeTask, Project, SupportTicket, TaskPriority, TaskStatus, TaskType } from '../../types';
-import { purgeDummyData } from '../../store/tasksSlice';
+import { isItemInTenant, purgeDummyData } from '../../store/tasksSlice';
 import { purgeDummyTickets, replaceAllTickets } from '../../store/ticketsSlice';
 import { fetchTickets } from '../../services/api/tickets';
 import { isApiEnabled } from '../../services/api/config';
@@ -58,11 +58,37 @@ export function TasksPage() {
   const isEmployeeRole = user?.role === 'employee';
   const canManageProjects = user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
 
-  const tasks = useAppSelector((s) => s.tasks.items);
-  const projects = useAppSelector((s) => s.tasks.projects);
+  const rawTasks = useAppSelector((s) => s.tasks.items);
+  const rawProjects = useAppSelector((s) => s.tasks.projects);
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
-  const tickets = useAppSelector((s) => s.tickets.items);
+  const rawTickets = useAppSelector((s) => s.tickets.items);
+  const tenant = useTenant();
+
+  // Tenant-scoped projects
+  const projects = useMemo(() => {
+    return rawProjects.filter((p) =>
+      isItemInTenant(p.tenantId, user?.tenantId, tenant?.slug, tenant?.id, tenant?.name)
+    );
+  }, [rawProjects, user, tenant]);
+
+  const validProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
+
+  // Tenant-scoped tasks (tasks assigned to tenant projects or explicitly scoped to tenant)
+  const tenantTasks = useMemo(() => {
+    return rawTasks.filter(
+      (t) =>
+        isItemInTenant(t.tenantId, user?.tenantId, tenant?.slug, tenant?.id, tenant?.name) ||
+        Boolean(t.projectId && validProjectIds.has(t.projectId))
+    );
+  }, [rawTasks, user, tenant, validProjectIds]);
+
+  // Tenant-scoped tickets
+  const tickets = useMemo(() => {
+    return rawTickets.filter((tk) =>
+      isItemInTenant(tk.tenantId, user?.tenantId, tenant?.slug, tenant?.id, tenant?.name)
+    );
+  }, [rawTickets, user, tenant]);
 
   useEffect(() => {
     dispatch(purgeDummyData());
@@ -154,7 +180,7 @@ export function TasksPage() {
 
   // Filtering
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    return tenantTasks.filter((t) => {
       // Search
       const searchMatch =
         !search ||
@@ -193,22 +219,22 @@ export function TasksPage() {
 
       return searchMatch && assigneeMatch && projectMatch && myTaskMatch && deptMatch && priorityMatch && typeMatch;
     });
-  }, [tasks, search, filterAssignee, filterProject, filterDepartment, filterPriority, filterType, myTasksOnly, currentEmployee, user]);
+  }, [tenantTasks, search, filterAssignee, filterProject, filterDepartment, filterPriority, filterType, myTasksOnly, currentEmployee, user]);
 
   // KPI Metrics
   const stats = useMemo(() => {
-    const total = tasks.length;
-    const inProgress = tasks.filter((t) => t.status === 'in_progress').length;
-    const inReview = tasks.filter((t) => t.status === 'in_review').length;
-    const done = tasks.filter((t) => t.status === 'done').length;
-    const overdue = tasks.filter(
+    const total = tenantTasks.length;
+    const inProgress = tenantTasks.filter((t) => t.status === 'in_progress').length;
+    const inReview = tenantTasks.filter((t) => t.status === 'in_review').length;
+    const done = tenantTasks.filter((t) => t.status === 'done').length;
+    const overdue = tenantTasks.filter(
       (t) => t.dueDate && t.status !== 'done' && new Date(t.dueDate) < new Date(new Date().toDateString())
     ).length;
     const openTicketsCount = tickets.filter((tk) => tk.status === 'open' || tk.status === 'in_progress').length;
     const activeProjectsCount = projects.filter((p) => p.status === 'active').length;
 
     return { total, inProgress, inReview, done, overdue, openTicketsCount, activeProjectsCount };
-  }, [tasks, tickets, projects]);
+  }, [tenantTasks, tickets, projects]);
 
   const handleOpenCreateModal = (
     initialStatus: TaskStatus = 'todo',
@@ -643,7 +669,7 @@ export function TasksPage() {
 
           {activeTab === 5 && (
             // Workload Analytics
-            <WorkAnalyticsView tasks={tasks} />
+            <WorkAnalyticsView tasks={tenantTasks} />
           )}
         </>
       )}

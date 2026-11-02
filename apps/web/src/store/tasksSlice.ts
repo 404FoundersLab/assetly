@@ -367,9 +367,33 @@ export function isDummyTask(t: EmployeeTask): boolean {
   return DUMMY_TASK_TITLES.has(t.title);
 }
 
+export function isItemInTenant(
+  itemTenantId: string | undefined,
+  userTenantId: string | undefined,
+  tenantSlug: string | undefined,
+  tenantId: string | undefined,
+  tenantName: string | undefined,
+): boolean {
+  if (!itemTenantId) return false;
+  const item = itemTenantId.trim().toLowerCase();
+  const clean = (s?: string) => (s ? s.trim().toLowerCase() : '');
+  const cleanAlpha = (s?: string) => (s ? s.toLowerCase().replace(/[^a-z0-9]/g, '') : '');
+
+  const targets = [clean(userTenantId), clean(tenantId), clean(tenantSlug), clean(tenantName)].filter(Boolean);
+  if (targets.some((t) => t === item)) return true;
+
+  const itemAlpha = cleanAlpha(item);
+  if (itemAlpha) {
+    const alphaTargets = [cleanAlpha(userTenantId), cleanAlpha(tenantId), cleanAlpha(tenantSlug), cleanAlpha(tenantName)].filter(Boolean);
+    if (alphaTargets.some((t) => t === itemAlpha)) return true;
+  }
+  return false;
+}
+
 export const DEFAULT_USER_PROJECTS: Project[] = [
   {
     id: 'PRJ-101',
+    tenantId: '404founderslab',
     name: 'Assetly',
     code: 'A',
     description: 'Asset management, HR, Finance CRM',
@@ -385,6 +409,7 @@ export const DEFAULT_USER_PROJECTS: Project[] = [
   },
   {
     id: 'PRJ-102',
+    tenantId: '404founderslab',
     name: 'Schoolstack',
     code: 'S',
     description: 'CRM',
@@ -403,6 +428,7 @@ export const DEFAULT_USER_PROJECTS: Project[] = [
 export const DEFAULT_USER_TASKS: EmployeeTask[] = [
   {
     id: 'TSK-101',
+    tenantId: '404founderslab',
     title: 'Verify HR Portal functionality',
     description: 'Verification of HR People & Culture portal functionality, employee onboarding and attendance modules',
     projectId: 'PRJ-101',
@@ -426,6 +452,7 @@ export const DEFAULT_USER_TASKS: EmployeeTask[] = [
   },
   {
     id: 'TSK-102',
+    tenantId: '404founderslab',
     title: 'Verification of Asset Management Module',
     description: 'End-to-end verification of hardware asset allocation, inventory tracking, and audit logging',
     projectId: 'PRJ-101',
@@ -455,11 +482,21 @@ function loadPersistedProjects(): Project[] {
     const rawV3 = localStorage.getItem(PROJECTS_STORAGE_KEY);
     if (rawV3) {
       const list: Project[] = JSON.parse(rawV3);
-      return list.filter((p) => !isDummyProject(p));
+      return list
+        .filter((p) => !isDummyProject(p))
+        .map((p) => ({
+          ...p,
+          tenantId: p.tenantId || (p.name === 'Assetly' || p.name === 'Schoolstack' ? '404founderslab' : '404founderslab'),
+        }));
     }
     const rawV2 = localStorage.getItem('assetly_projects_store_v2');
     if (rawV2) {
-      const list: Project[] = JSON.parse(rawV2).filter((p: Project) => !isDummyProject(p));
+      const list: Project[] = JSON.parse(rawV2)
+        .filter((p: Project) => !isDummyProject(p))
+        .map((p: Project) => ({
+          ...p,
+          tenantId: p.tenantId || (p.name === 'Assetly' || p.name === 'Schoolstack' ? '404founderslab' : '404founderslab'),
+        }));
       if (list.length > 0) {
         savePersistedProjects(list);
         return list;
@@ -487,11 +524,21 @@ function loadPersistedTasks(): EmployeeTask[] {
     const rawV3 = localStorage.getItem(TASKS_STORAGE_KEY);
     if (rawV3) {
       const list: EmployeeTask[] = JSON.parse(rawV3);
-      return list.filter((t) => !isDummyTask(t));
+      return list
+        .filter((t) => !isDummyTask(t))
+        .map((t) => ({
+          ...t,
+          tenantId: t.tenantId || (t.projectName === 'Assetly' || t.projectId === 'PRJ-101' ? '404founderslab' : '404founderslab'),
+        }));
     }
     const rawV2 = localStorage.getItem('assetly_tasks_store_v2');
     if (rawV2) {
-      const list: EmployeeTask[] = JSON.parse(rawV2).filter((t: EmployeeTask) => !isDummyTask(t));
+      const list: EmployeeTask[] = JSON.parse(rawV2)
+        .filter((t: EmployeeTask) => !isDummyTask(t))
+        .map((t: EmployeeTask) => ({
+          ...t,
+          tenantId: t.tenantId || (t.projectName === 'Assetly' || t.projectId === 'PRJ-101' ? '404founderslab' : '404founderslab'),
+        }));
       if (list.length > 0) {
         savePersistedTasks(list);
         return list;
@@ -534,12 +581,6 @@ const tasksSlice = createSlice({
     purgeDummyData: (state) => {
       state.projects = state.projects.filter((p) => !isDummyProject(p));
       state.items = state.items.filter((t) => !isDummyTask(t));
-      if (state.projects.length === 0) {
-        state.projects = [...DEFAULT_USER_PROJECTS];
-      }
-      if (state.items.length === 0) {
-        state.items = [...DEFAULT_USER_TASKS];
-      }
       savePersistedProjects(state.projects);
       savePersistedTasks(state.items);
     },

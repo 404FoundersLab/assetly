@@ -40,7 +40,8 @@ import AddIcon from '@mui/icons-material/Add';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import type { SupportTicket, TicketCategory, TicketPriority, TicketStatus } from '../../../types';
-import { useAppDispatch, useAppSelector, useAuthUser } from '../../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, useAuthUser, useTenant } from '../../../hooks/storeHooks';
+import { isItemInTenant } from '../../../store/tasksSlice';
 import {
   updateTicket,
   deleteTicket,
@@ -74,6 +75,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
   const user = useAuthUser();
+  const tenant = useTenant();
 
   const tickets = useAppSelector((s) => s.tickets.items);
   const tasks = useAppSelector((s) => s.tasks.items);
@@ -112,8 +114,13 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
   const canManage =
     user?.role === 'tenant_admin' || user?.role === 'platform_admin' || user?.role === 'it_admin';
 
-  // Read strictly from store - do NOT fallback to INITIAL_TICKETS if user emptied/deleted them
-  const activeTicketsList: SupportTicket[] = Array.isArray(tickets) ? tickets : [];
+  // Read strictly from store and filter by active tenant
+  const activeTicketsList = useMemo(() => {
+    const list: SupportTicket[] = Array.isArray(tickets) ? tickets : [];
+    return list.filter((tk) =>
+      isItemInTenant(tk.tenantId, user?.tenantId, tenant?.slug, tenant?.id, tenant?.name)
+    );
+  }, [tickets, user, tenant]);
 
   // Search & Filtering State
   const [search, setSearch] = useState('');
@@ -185,7 +192,12 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
   };
 
   const handleRestoreDemoTickets = () => {
-    dispatch(replaceAllTickets(INITIAL_TICKETS));
+    const currentTenantId = user?.tenantId || tenant?.id || tenant?.slug || '11111111-1111-1111-1111-111111111111';
+    const demoWithTenant = INITIAL_TICKETS.map((t) => ({
+      ...t,
+      tenantId: currentTenantId,
+    }));
+    dispatch(replaceAllTickets(demoWithTenant));
     setSnackbarMessage('Initial demo tickets restored.');
   };
 

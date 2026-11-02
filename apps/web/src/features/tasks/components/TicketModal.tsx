@@ -18,7 +18,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import type { SupportTicket, TicketCategory, TicketPriority, TicketStatus } from '../../../types';
-import { useAppDispatch, useAppSelector, useAuthUser } from '../../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, useAuthUser, useTenant } from '../../../hooks/storeHooks';
 import { addTicket } from '../../../store/ticketsSlice';
 
 interface TicketModalProps {
@@ -32,6 +32,7 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
   const user = useAuthUser();
+  const tenant = useTenant();
 
   const employees = useAppSelector((s) => s.employees.items);
 
@@ -81,8 +82,9 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
     const employeeEmail = emp?.email || user?.email || '';
     const departmentName = emp?.jobTitle ? `${emp.jobTitle} Dept` : 'General';
 
+    const currentTenantId = user?.tenantId || tenant?.id || tenant?.slug || '11111111-1111-1111-1111-111111111111';
     const newTicketPayload: Omit<SupportTicket, 'id' | 'createdAt' | 'updatedAt'> = {
-      tenantId: user?.tenantId || '11111111-1111-1111-1111-111111111111',
+      tenantId: currentTenantId,
       employeeId: employeeId || '44444444-4444-4444-4444-444444444401',
       employeeName,
       employeeEmail,

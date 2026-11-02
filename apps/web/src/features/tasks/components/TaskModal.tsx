@@ -24,8 +24,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import type { EmployeeTask, TaskChecklistItem, TaskPriority, TaskStatus, TaskType } from '../../../types';
-import { useAppDispatch, useAppSelector, useAuthUser } from '../../../hooks/storeHooks';
-import { addTask, updateTask, deleteTask } from '../../../store/tasksSlice';
+import { useAppDispatch, useAppSelector, useAuthUser, useTenant } from '../../../hooks/storeHooks';
+import { addTask, updateTask, deleteTask, isItemInTenant } from '../../../store/tasksSlice';
 
 interface TaskModalProps {
   open: boolean;
@@ -50,11 +50,18 @@ export function TaskModal({
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
   const user = useAuthUser();
+  const tenant = useTenant();
 
   const employees = useAppSelector((s) => s.employees.items);
   const departments = useAppSelector((s) => s.departments.items);
   const tickets = useAppSelector((s) => s.tickets.items);
-  const projects = useAppSelector((s) => s.tasks.projects);
+  const rawProjects = useAppSelector((s) => s.tasks.projects);
+
+  const projects = useMemo(() => {
+    return rawProjects.filter((p) =>
+      isItemInTenant(p.tenantId, user?.tenantId, tenant?.slug, tenant?.id, tenant?.name)
+    );
+  }, [rawProjects, user, tenant]);
 
   // Include tenant admin in the assignable employee list
   const assignableEmployees = useMemo(() => {
@@ -204,10 +211,13 @@ export function TaskModal({
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
+    const currentTenantId = user?.tenantId || tenant?.id || tenant?.slug || '';
+
     if (task) {
       dispatch(
         updateTask({
           ...task,
+          tenantId: task.tenantId || currentTenantId,
           title: title.trim(),
           description: description.trim(),
           projectId: projectId || undefined,
@@ -231,6 +241,7 @@ export function TaskModal({
     } else {
       dispatch(
         addTask({
+          tenantId: currentTenantId,
           title: title.trim(),
           description: description.trim(),
           projectId: projectId || undefined,

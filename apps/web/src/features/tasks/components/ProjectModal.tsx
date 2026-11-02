@@ -23,7 +23,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import GroupsIcon from '@mui/icons-material/Groups';
 import type { Project, TaskPriority } from '../../../types';
-import { useAppDispatch, useAppSelector, useAuthUser } from '../../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, useAuthUser, useTenant } from '../../../hooks/storeHooks';
 import { addProject, updateProject, deleteProject } from '../../../store/tasksSlice';
 
 interface ProjectModalProps {
@@ -51,6 +51,7 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
   const user = useAuthUser();
+  const tenant = useTenant();
 
   const departments = useAppSelector((s) => s.departments.items);
   const employees = useAppSelector((s) => s.employees.items);
@@ -154,10 +155,13 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
     const departmentName = dept ? dept.name : undefined;
     const finalCode = (code.trim() || generateCode(name) || 'PRJ').toUpperCase();
 
+    const currentTenantId = user?.tenantId || tenant?.id || tenant?.slug || '';
+
     if (project) {
       dispatch(
         updateProject({
           ...project,
+          tenantId: project.tenantId || currentTenantId,
           name: name.trim(),
           code: finalCode,
           description: description.trim(),
@@ -175,6 +179,7 @@ export function ProjectModal({ open, project, onClose, onDeleted }: ProjectModal
     } else {
       dispatch(
         addProject({
+          tenantId: currentTenantId,
           name: name.trim(),
           code: finalCode,
           description: description.trim(),

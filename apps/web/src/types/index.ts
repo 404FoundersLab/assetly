@@ -237,6 +237,7 @@ export interface TaskChecklistItem {
 
 export interface Project {
   id: string;
+  tenantId?: string;
   name: string;
   code: string;
   description: string;
@@ -254,6 +255,7 @@ export interface Project {
 
 export interface EmployeeTask {
   id: string;
+  tenantId?: string;
   title: string;
   description: string;
   projectId?: string;
