@@ -543,7 +543,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
                           No support tickets in the system.
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          All tickets have been resolved or deleted. Create a new support ticket or restore initial demo tickets.
+                          All tickets have been resolved or deleted. Create a new support ticket to track IT requests and issues.
                         </Typography>
                         <Stack direction="row" spacing={1.5} justifyContent="center">
                           {onOpenCreateTicket && (
@@ -739,7 +739,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
             Are you sure you want to delete all <strong>{activeTicketsList.length}</strong> support tickets?
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            This will permanently remove all tickets from your dashboard. You can restore sample demo tickets at any time.
+            This will permanently remove all tickets from your dashboard.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
