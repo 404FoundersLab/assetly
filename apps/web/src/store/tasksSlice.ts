@@ -715,6 +715,209 @@ const tasksSlice = createSlice({
       state.filterType = 'all';
       state.searchQuery = '';
     },
+    syncOpportunityProject: (
+      state,
+      action: PayloadAction<{
+        tenantId: string;
+        opportunityId: string;
+        opportunityName: string;
+        description: string;
+        targetCustomers?: string;
+        category?: string;
+        managerName: string;
+        assignedUserId: string;
+      }>
+    ) => {
+      const {
+        tenantId,
+        opportunityName,
+        description,
+        targetCustomers,
+        category,
+        managerName,
+        assignedUserId,
+      } = action.payload;
+
+      const trimmedName = opportunityName.trim();
+      const existingProject = state.projects.find(
+        (p) => p.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const in30DaysStr = new Date(now.getTime() + 30 * 86400000).toISOString().split('T')[0];
+      const in14DaysStr = new Date(now.getTime() + 14 * 86400000).toISOString().split('T')[0];
+
+      if (existingProject) {
+        const isSameManager = !managerName || existingProject.managerName === managerName;
+        const isSameAssignee = !assignedUserId || ((existingProject.memberEmployeeIds?.length ?? 0) === 1 && existingProject.memberEmployeeIds?.[0] === assignedUserId);
+        const linkedTasks = state.items.filter((t) => t.projectId === existingProject.id);
+        const hasLinkedTasks = linkedTasks.length > 0;
+        const isLinkedTasksSynced = hasLinkedTasks && linkedTasks.every((t) => (!assignedUserId || t.assignedEmployeeId === assignedUserId) && (!managerName || t.assignedEmployeeName === managerName));
+
+        if (isSameManager && isSameAssignee && hasLinkedTasks && isLinkedTasksSynced && existingProject.tenantId) {
+          return;
+        }
+
+        existingProject.managerName = managerName || existingProject.managerName;
+        if (assignedUserId) {
+          existingProject.memberEmployeeIds = [assignedUserId];
+        }
+        existingProject.status = 'active';
+        if (!existingProject.tenantId) {
+          existingProject.tenantId = tenantId || '404founderslab';
+        }
+
+        if (linkedTasks.length > 0) {
+          linkedTasks.forEach((t) => {
+            if (managerName) t.assignedEmployeeName = managerName;
+            if (assignedUserId) t.assignedEmployeeId = assignedUserId;
+            t.status = 'in_progress';
+            t.updatedAt = todayStr;
+          });
+        } else {
+          let maxNum = 100;
+          for (const t of state.items) {
+            const match = t.id.match(/^TSK-(\d+)$/);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          }
+          const nextTaskId = `TSK-${maxNum + 1}`;
+          state.items.unshift({
+            id: nextTaskId,
+            tenantId: tenantId || existingProject.tenantId || '404founderslab',
+            title: `Validate ${trimmedName} with target customers`,
+            description: `Interview target customers (${targetCustomers || 'prospective clients'}), test willingness to pay, and validate core MVP scope.`,
+            projectId: existingProject.id,
+            projectName: existingProject.name,
+            assignedEmployeeId: assignedUserId,
+            assignedEmployeeName: managerName,
+            departmentName: 'Product Engineering',
+            reporterName: 'Product Lead',
+            status: 'in_progress',
+            priority: 'high',
+            type: 'feature',
+            dueDate: in14DaysStr,
+            estimatedHours: 16,
+            loggedHours: 0,
+            tags: ['Opportunity', 'Validation', category || 'Product'].filter(Boolean),
+            checklist: [
+              { id: `chk-${Date.now()}-1`, text: 'Conduct initial customer discovery interviews', completed: false },
+              { id: `chk-${Date.now()}-2`, text: 'Document willingness to pay and feature requirements', completed: false },
+              { id: `chk-${Date.now()}-3`, text: 'Finalize MVP scope and delivery roadmap', completed: false },
+            ],
+            createdAt: todayStr,
+            updatedAt: todayStr,
+          });
+        }
+      } else {
+        let maxProjectNum = 100;
+        for (const p of state.projects) {
+          const match = p.id.match(/^PRJ-(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxProjectNum) maxProjectNum = num;
+          }
+        }
+        const projectId = `PRJ-${maxProjectNum + 1}`;
+
+        const code = trimmedName
+          .split(/\s+/)
+          .map((w) => w[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 6) || 'PRJ';
+
+        const colorPresets = ['#10B981', '#6366F1', '#06B6D4', '#EC4899', '#F59E0B', '#8B5CF6'];
+        const chosenColor = colorPresets[Math.abs(trimmedName.length) % colorPresets.length];
+
+        const newProject: Project = {
+          id: projectId,
+          tenantId: tenantId || '404founderslab',
+          name: trimmedName,
+          code,
+          description: description || (targetCustomers ? `Target: ${targetCustomers}` : 'Product opportunity validation'),
+          departmentId: '',
+          departmentName: 'Product Engineering',
+          managerName: managerName || 'Lead',
+          status: 'active',
+          priority: 'high',
+          startDate: todayStr,
+          endDate: in30DaysStr,
+          color: chosenColor,
+          memberEmployeeIds: assignedUserId ? [assignedUserId] : [],
+        };
+        state.projects.push(newProject);
+
+        let maxTaskNum = 100;
+        for (const t of state.items) {
+          const match = t.id.match(/^TSK-(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxTaskNum) maxTaskNum = num;
+          }
+        }
+        const nextTaskId = `TSK-${maxTaskNum + 1}`;
+
+        state.items.unshift({
+          id: nextTaskId,
+          tenantId,
+          title: `Validate ${trimmedName} with target customers`,
+          description: `Interview target customers (${targetCustomers || 'prospective clients'}), test willingness to pay, and validate core MVP scope.`,
+          projectId: newProject.id,
+          projectName: newProject.name,
+          assignedEmployeeId: assignedUserId,
+          assignedEmployeeName: managerName,
+          departmentName: 'Product Engineering',
+          reporterName: 'Product Lead',
+          status: 'in_progress',
+          priority: 'high',
+          type: 'feature',
+          dueDate: in14DaysStr,
+          estimatedHours: 16,
+          loggedHours: 0,
+          tags: ['Opportunity', 'Validation', category || 'Product'].filter(Boolean),
+          checklist: [
+            { id: `chk-${Date.now()}-1`, text: 'Conduct initial customer discovery interviews', completed: false },
+            { id: `chk-${Date.now()}-2`, text: 'Document willingness to pay and feature requirements', completed: false },
+            { id: `chk-${Date.now()}-3`, text: 'Finalize MVP scope and delivery roadmap', completed: false },
+          ],
+          createdAt: todayStr,
+          updatedAt: todayStr,
+        });
+      }
+
+      savePersistedProjects(state.projects);
+      savePersistedTasks(state.items);
+    },
+    unassignOpportunityProject: (
+      state,
+      action: PayloadAction<{
+        opportunityName: string;
+      }>
+    ) => {
+      const p = state.projects.find(
+        (prj) => prj.name.trim().toLowerCase() === action.payload.opportunityName.trim().toLowerCase()
+      );
+      if (p) {
+        if (p.managerName === 'Unassigned' && (p.memberEmployeeIds?.length ?? 0) === 0) {
+          return;
+        }
+        p.managerName = 'Unassigned';
+        p.memberEmployeeIds = [];
+        state.items.forEach((t) => {
+          if (t.projectId === p.id) {
+            t.assignedEmployeeName = 'Unassigned';
+            t.assignedEmployeeId = '';
+            t.status = 'todo';
+          }
+        });
+        savePersistedProjects(state.projects);
+        savePersistedTasks(state.items);
+      }
+    },
   },
   extraReducers: (builder) => {
     builder.addCase('persist/REHYDRATE', (state, action: any) => {
@@ -761,6 +964,8 @@ export const {
   updateProject,
   deleteProject,
   resetFilters,
+  syncOpportunityProject,
+  unassignOpportunityProject,
 } = tasksSlice.actions;
 
 export default tasksSlice.reducer;

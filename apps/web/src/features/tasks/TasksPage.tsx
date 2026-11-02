@@ -35,9 +35,11 @@ import PersonIcon from '@mui/icons-material/Person';
 import { PageHeader } from '../../components/PageHeader';
 import { useAppDispatch, useAppSelector, useAuthUser, useTenant } from '../../hooks/storeHooks';
 import type { EmployeeTask, Project, SupportTicket, TaskPriority, TaskStatus, TaskType } from '../../types';
-import { isItemInTenant, purgeDummyData } from '../../store/tasksSlice';
+import { isItemInTenant, purgeDummyData, syncOpportunityProject } from '../../store/tasksSlice';
 import { purgeDummyTickets, replaceAllTickets } from '../../store/ticketsSlice';
+import { replaceOpportunityAssignments } from '../../store/productIdeasSlice';
 import { fetchTickets } from '../../services/api/tickets';
+import { fetchProductOpportunityAssignments } from '../../services/api/productOpportunities';
 import { isApiEnabled } from '../../services/api/config';
 import { KanbanBoardView } from './components/KanbanBoardView';
 import { TaskListView } from './components/TaskListView';
@@ -90,6 +92,9 @@ export function TasksPage() {
     );
   }, [rawTickets, user, tenant]);
 
+  const productAssignments = useAppSelector((s) => s.productIdeas.assignments);
+  const productOpportunities = useAppSelector((s) => s.productIdeas.opportunities);
+
   useEffect(() => {
     dispatch(purgeDummyData());
     dispatch(purgeDummyTickets());
@@ -99,8 +104,36 @@ export function TasksPage() {
           dispatch(replaceAllTickets(data));
         })
         .catch(() => {});
+      fetchProductOpportunityAssignments()
+        .then((assignments) => {
+          if (assignments && assignments.length > 0) {
+            dispatch(replaceOpportunityAssignments({ assignments }));
+          }
+        })
+        .catch(() => {});
     }
   }, [dispatch]);
+
+  useEffect(() => {
+    const currentTenantId = user?.tenantId || tenant?.id || tenant?.slug || '404founderslab';
+    for (const assignment of productAssignments) {
+      const opp = productOpportunities.find((o) => o.id === assignment.opportunityId);
+      if (opp && assignment.userId) {
+        dispatch(
+          syncOpportunityProject({
+            tenantId: currentTenantId,
+            opportunityId: opp.id,
+            opportunityName: opp.name,
+            description: opp.problemStatement || opp.targetCustomers || 'Product validation',
+            targetCustomers: opp.targetCustomers,
+            category: opp.category,
+            managerName: assignment.userName || 'Teammate',
+            assignedUserId: assignment.userId,
+          })
+        );
+      }
+    }
+  }, [productAssignments, productOpportunities, user, tenant, dispatch]);
 
   // Tabs:
   // For normal employee:

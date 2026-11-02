@@ -44,9 +44,10 @@ import PlaylistAddCheckOutlinedIcon from '@mui/icons-material/PlaylistAddCheckOu
 import StarOutlineIcon from '@mui/icons-material/StarOutline';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import { PageHeader } from '../../components/PageHeader';
-import { useAppDispatch, useAppSelector, useAuthUser, usePermissions } from '../../hooks/storeHooks';
+import { useAppDispatch, useAppSelector, useAuthUser, usePermissions, useTenant } from '../../hooks/storeHooks';
 import { fetchUsers } from '../../store/usersSlice';
 import { addOpportunity, addTodo, assignOpportunityAndStart, deleteTodo, replaceOpportunityAssignments, updateOpportunity, updateTodoStatus } from '../../store/productIdeasSlice';
+import { syncOpportunityProject, unassignOpportunityProject } from '../../store/tasksSlice';
 import { getUserDisplayName } from '../../utils/userDisplay';
 import { MARKET_COMPARISON, PRICING_TIERS, PRODUCT_CATEGORIES, OpportunityValidationStatus, OpportunityWorkStatus, ProductOpportunity, ProjectTodo } from './productIdeasData';
 import { fetchProductOpportunityAssignments, saveProductOpportunityAssignments } from '../../services/api/productOpportunities';
@@ -130,6 +131,7 @@ export function ProductIdeasPage() {
   const theme = useTheme();
   const dispatch = useAppDispatch();
   const currentUser = useAuthUser();
+  const tenant = useTenant();
   const { can } = usePermissions();
   const opportunities = useAppSelector((state) => state.productIdeas.opportunities);
   const todos = useAppSelector((state) => state.productIdeas.todos);
@@ -233,6 +235,25 @@ export function ProductIdeasPage() {
     if (selectedOpportunity?.id === reassignOpportunity.id) {
       setSelectedOpportunity(updated);
     }
+
+    const currentTenantId = currentUser?.tenantId || tenant?.id || tenant?.slug || '404founderslab';
+    if (newAssigneeIds.length > 0) {
+      dispatch(
+        syncOpportunityProject({
+          tenantId: currentTenantId,
+          opportunityId: updated.id,
+          opportunityName: updated.name,
+          description: updated.problemStatement || updated.targetCustomers || 'Product validation',
+          targetCustomers: updated.targetCustomers,
+          category: updated.category,
+          managerName: userName || 'Teammate',
+          assignedUserId: assignedUser?.id || newAssigneeIds[0],
+        })
+      );
+    } else {
+      dispatch(unassignOpportunityProject({ opportunityName: updated.name }));
+    }
+
     if (isApiEnabled()) {
       void saveProductOpportunityAssignments({
         opportunityId: updated.id,
@@ -263,6 +284,7 @@ export function ProductIdeasPage() {
       workStatus: 'not_started',
     };
     dispatch(updateOpportunity(updated));
+    dispatch(unassignOpportunityProject({ opportunityName: opportunity.name }));
     if (selectedOpportunity?.id === opportunity.id) {
       setSelectedOpportunity(updated);
     }
@@ -354,6 +376,28 @@ export function ProductIdeasPage() {
   }, [assignableUsers, assignmentPeople, opportunities]);
   const assignmentCount = assignmentRows.length;
 
+  useEffect(() => {
+    const currentTenantId = currentUser?.tenantId || tenant?.id || tenant?.slug || '';
+    for (const row of assignmentRows) {
+      if (row.opportunity && (row.user || row.assignment)) {
+        const userName = (row.user ? getUserDisplayName(row.user) : null) || row.assignment?.userName || row.user?.email || 'Teammate';
+        const userId = row.user?.id || row.assignment?.userId || '';
+        dispatch(
+          syncOpportunityProject({
+            tenantId: currentTenantId,
+            opportunityId: row.opportunity.id,
+            opportunityName: row.opportunity.name,
+            description: row.opportunity.problemStatement || row.opportunity.targetCustomers || 'Product validation',
+            targetCustomers: row.opportunity.targetCustomers,
+            category: row.opportunity.category,
+            managerName: userName,
+            assignedUserId: userId,
+          })
+        );
+      }
+    }
+  }, [assignmentRows, currentUser, tenant, dispatch]);
+
   const openNewOpportunity = () => {
     setEditingOpportunityId(null);
     setOpportunityForm(EMPTY_OPPORTUNITY);
@@ -408,6 +452,21 @@ export function ProductIdeasPage() {
       workStartedAt: opportunity.workStatus === 'in_progress' ? opportunity.workStartedAt : new Date().toISOString(),
     };
     setSelectedOpportunity((selected) => selected?.id === opportunity.id ? updatedOpportunity : selected);
+
+    const currentTenantId = currentUser?.tenantId || tenant?.id || tenant?.slug || '404founderslab';
+    dispatch(
+      syncOpportunityProject({
+        tenantId: currentTenantId,
+        opportunityId: opportunity.id,
+        opportunityName: opportunity.name,
+        description: opportunity.problemStatement || opportunity.targetCustomers || 'Product validation',
+        targetCustomers: opportunity.targetCustomers,
+        category: opportunity.category,
+        managerName: userName,
+        assignedUserId: currentUser.id,
+      })
+    );
+
     if (isApiEnabled()) {
       void saveProductOpportunityAssignments({
         opportunityId: opportunity.id,
@@ -430,11 +489,33 @@ export function ProductIdeasPage() {
 
   const handleSaveOpportunity = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const currentTenantId = currentUser?.tenantId || tenant?.id || tenant?.slug || '404founderslab';
     if (editingOpportunityId) {
       const current = opportunities.find((item) => item.id === editingOpportunityId);
       if (current) {
         const updated = { ...current, ...opportunityForm };
         dispatch(updateOpportunity(updated));
+
+        if (updated.assigneeIds && updated.assigneeIds.length > 0) {
+          const assignedUser = assignableUsers.find((u) => updated.assigneeIds?.includes(u.id));
+          const userName = assignedUser ? (getUserDisplayName(assignedUser) || assignedUser.email) : 'Teammate';
+          const assignedId = assignedUser?.id || updated.assigneeIds[0];
+          dispatch(
+            syncOpportunityProject({
+              tenantId: currentTenantId,
+              opportunityId: updated.id,
+              opportunityName: updated.name,
+              description: updated.problemStatement || updated.targetCustomers || 'Product validation',
+              targetCustomers: updated.targetCustomers,
+              category: updated.category,
+              managerName: userName,
+              assignedUserId: assignedId,
+            })
+          );
+        } else {
+          dispatch(unassignOpportunityProject({ opportunityName: updated.name }));
+        }
+
         const assignmentsChanged = (current.assigneeIds ?? []).join(',') !== opportunityForm.assigneeIds.join(',')
           || (current.workStatus ?? 'not_started') !== opportunityForm.workStatus
           || (current.nextStep ?? '') !== opportunityForm.nextStep;
@@ -454,6 +535,23 @@ export function ProductIdeasPage() {
       }
     } else {
       dispatch(addOpportunity(opportunityForm));
+      if (opportunityForm.assigneeIds && opportunityForm.assigneeIds.length > 0) {
+        const assignedUser = assignableUsers.find((u) => opportunityForm.assigneeIds.includes(u.id));
+        const userName = assignedUser ? (getUserDisplayName(assignedUser) || assignedUser.email) : 'Teammate';
+        const assignedId = assignedUser?.id || opportunityForm.assigneeIds[0];
+        dispatch(
+          syncOpportunityProject({
+            tenantId: currentTenantId,
+            opportunityId: opportunityForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            opportunityName: opportunityForm.name,
+            description: opportunityForm.problemStatement || opportunityForm.targetCustomers || 'Product validation',
+            targetCustomers: opportunityForm.targetCustomers,
+            category: opportunityForm.category,
+            managerName: userName,
+            assignedUserId: assignedId,
+          })
+        );
+      }
     }
     setEditingOpportunityId(null);
     setOpportunityForm(EMPTY_OPPORTUNITY);
