@@ -918,6 +918,21 @@ const tasksSlice = createSlice({
         savePersistedTasks(state.items);
       }
     },
+    deleteOpportunityProject: (
+      state,
+      action: PayloadAction<{
+        opportunityName: string;
+      }>
+    ) => {
+      const name = action.payload.opportunityName.trim().toLowerCase();
+      const proj = state.projects.find((p) => p.name.trim().toLowerCase() === name);
+      if (proj) {
+        state.projects = state.projects.filter((p) => p.id !== proj.id);
+        state.items = state.items.filter((t) => t.projectId !== proj.id);
+        savePersistedProjects(state.projects);
+        savePersistedTasks(state.items);
+      }
+    },
   },
   extraReducers: (builder) => {
     builder.addCase('persist/REHYDRATE', (state, action: any) => {
@@ -966,6 +981,7 @@ export const {
   resetFilters,
   syncOpportunityProject,
   unassignOpportunityProject,
+  deleteOpportunityProject,
 } = tasksSlice.actions;
 
 export default tasksSlice.reducer;

@@ -46,11 +46,29 @@ import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import { PageHeader } from '../../components/PageHeader';
 import { useAppDispatch, useAppSelector, useAuthUser, usePermissions, useTenant } from '../../hooks/storeHooks';
 import { fetchUsers } from '../../store/usersSlice';
-import { addOpportunity, addTodo, assignOpportunityAndStart, deleteTodo, replaceOpportunityAssignments, updateOpportunity, updateTodoStatus } from '../../store/productIdeasSlice';
-import { syncOpportunityProject, unassignOpportunityProject } from '../../store/tasksSlice';
+import {
+  addOpportunity,
+  addTodo,
+  assignOpportunityAndStart,
+  deleteOpportunity,
+  deleteTodo,
+  replaceOpportunityAssignments,
+  setOpportunities,
+  updateOpportunity,
+  updateTodoStatus,
+} from '../../store/productIdeasSlice';
+import { deleteOpportunityProject, syncOpportunityProject, unassignOpportunityProject } from '../../store/tasksSlice';
 import { getUserDisplayName } from '../../utils/userDisplay';
 import { MARKET_COMPARISON, PRICING_TIERS, PRODUCT_CATEGORIES, OpportunityValidationStatus, OpportunityWorkStatus, ProductOpportunity, ProjectTodo } from './productIdeasData';
-import { fetchProductOpportunityAssignments, saveProductOpportunityAssignments } from '../../services/api/productOpportunities';
+import {
+  batchCreateProductOpportunities,
+  createProductOpportunity,
+  deleteProductOpportunity,
+  fetchProductOpportunities,
+  fetchProductOpportunityAssignments,
+  saveProductOpportunityAssignments,
+  updateProductOpportunity,
+} from '../../services/api/productOpportunities';
 import { isApiEnabled } from '../../services/api/config';
 
 const ACCENT = '#176B5B';
@@ -162,6 +180,22 @@ export function ProductIdeasPage() {
   useEffect(() => {
     if (!isApiEnabled()) return;
     let active = true;
+    void fetchProductOpportunities()
+      .then((serverOpps) => {
+        if (!active) return;
+        if (Array.isArray(serverOpps) && serverOpps.length > 0) {
+          dispatch(setOpportunities(serverOpps));
+        } else if (opportunities.length > 0) {
+          void batchCreateProductOpportunities(opportunities).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!isApiEnabled()) return;
+    let active = true;
     void fetchProductOpportunityAssignments()
       .then((assignments) => {
         if (!active) return;
@@ -209,6 +243,25 @@ export function ProductIdeasPage() {
   const [reassignUserIds, setReassignUserIds] = useState<string[]>([]);
   const [reassignWorkStatus, setReassignWorkStatus] = useState<OpportunityWorkStatus>('not_started');
   const [reassignNextStep, setReassignNextStep] = useState<string>('');
+  const [confirmDeleteOpp, setConfirmDeleteOpp] = useState<ProductOpportunity | null>(null);
+
+  const handleDeleteOpportunity = (opportunity: ProductOpportunity) => {
+    dispatch(deleteOpportunity(opportunity.id));
+    dispatch(deleteOpportunityProject({ opportunityName: opportunity.name }));
+    if (selectedOpportunity?.id === opportunity.id) {
+      setSelectedOpportunity(null);
+    }
+    if (editingOpportunityId === opportunity.id) {
+      setOpportunityDialogOpen(false);
+      setEditingOpportunityId(null);
+    }
+    setConfirmDeleteOpp(null);
+    if (isApiEnabled()) {
+      void deleteProductOpportunity(opportunity.id).catch((err: unknown) => {
+        console.error('Failed to delete opportunity from server:', err);
+      });
+    }
+  };
 
   const handleOpenReassignModal = (opportunity: ProductOpportunity) => {
     setReassignOpportunity(opportunity);
@@ -495,6 +548,9 @@ export function ProductIdeasPage() {
       if (current) {
         const updated = { ...current, ...opportunityForm };
         dispatch(updateOpportunity(updated));
+        if (isApiEnabled()) {
+          void updateProductOpportunity(updated).catch(() => {});
+        }
 
         if (updated.assigneeIds && updated.assigneeIds.length > 0) {
           const assignedUser = assignableUsers.find((u) => updated.assigneeIds?.includes(u.id));
@@ -534,7 +590,15 @@ export function ProductIdeasPage() {
         }
       }
     } else {
-      dispatch(addOpportunity(opportunityForm));
+      const newId = `opp-${Date.now()}`;
+      const createdOpp: ProductOpportunity = {
+        ...opportunityForm,
+        id: newId,
+      };
+      dispatch(addOpportunity(createdOpp));
+      if (isApiEnabled()) {
+        void createProductOpportunity(createdOpp).catch(() => {});
+      }
       if (opportunityForm.assigneeIds && opportunityForm.assigneeIds.length > 0) {
         const assignedUser = assignableUsers.find((u) => opportunityForm.assigneeIds.includes(u.id));
         const userName = assignedUser ? (getUserDisplayName(assignedUser) || assignedUser.email) : 'Teammate';
@@ -542,7 +606,7 @@ export function ProductIdeasPage() {
         dispatch(
           syncOpportunityProject({
             tenantId: currentTenantId,
-            opportunityId: opportunityForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            opportunityId: newId,
             opportunityName: opportunityForm.name,
             description: opportunityForm.problemStatement || opportunityForm.targetCustomers || 'Product validation',
             targetCustomers: opportunityForm.targetCustomers,
@@ -779,12 +843,20 @@ export function ProductIdeasPage() {
             <Table size="small" sx={{ minWidth: 900 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: alpha(theme.palette.text.primary, 0.025) }}>
-                  <TableCell>Opportunity</TableCell><TableCell>Target customers</TableCell><TableCell>Alternatives</TableCell><TableCell>Difficulty</TableCell><TableCell>MVP time</TableCell><TableCell>Suggested price</TableCell><TableCell align="center">Rank</TableCell>
+                  <TableCell>Opportunity</TableCell><TableCell>Target customers</TableCell><TableCell>Alternatives</TableCell><TableCell>Difficulty</TableCell><TableCell>MVP time</TableCell><TableCell>Suggested price</TableCell><TableCell align="center">Rank</TableCell><TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredOpportunities.map((item) => <OpportunityRow key={item.id} item={item} onSelect={setSelectedOpportunity} />)}
-                {filteredOpportunities.length === 0 && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>No opportunities match these filters.</TableCell></TableRow>}
+                {filteredOpportunities.map((item) => (
+                  <OpportunityRow
+                    key={item.id}
+                    item={item}
+                    onSelect={setSelectedOpportunity}
+                    onEdit={openEditOpportunity}
+                    onDelete={(opp) => setConfirmDeleteOpp(opp)}
+                  />
+                ))}
+                {filteredOpportunities.length === 0 && <TableRow><TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>No opportunities match these filters.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </TableContainer>
@@ -905,21 +977,31 @@ export function ProductIdeasPage() {
                 }).join(', ') || 'Unassigned'} />
               </Grid2>
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-              <Button onClick={() => setSelectedOpportunity(null)}>Close</Button>
-              <Button variant="outlined" startIcon={<PersonAddAlt1OutlinedIcon />} onClick={() => handleAssignToMeAndStart(selectedOpportunity)} disabled={!currentUser || ((selectedOpportunity.assigneeIds ?? []).includes(currentUser.id) && selectedOpportunity.workStatus === 'in_progress')}>
-                {(selectedOpportunity.assigneeIds ?? []).includes(currentUser?.id ?? '') ? 'Start working' : 'Assign to me & start'}
+            <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+              <Button
+                color="error"
+                variant="outlined"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => setConfirmDeleteOpp(selectedOpportunity)}
+              >
+                Delete opportunity
               </Button>
-              {canManageUsers && (
-                <Button
-                  variant="outlined"
-                  startIcon={<PersonOutlineIcon />}
-                  onClick={() => handleOpenReassignModal(selectedOpportunity)}
-                >
-                  Edit Assignee
+              <Stack direction="row" spacing={1}>
+                <Button onClick={() => setSelectedOpportunity(null)}>Close</Button>
+                <Button variant="outlined" startIcon={<PersonAddAlt1OutlinedIcon />} onClick={() => handleAssignToMeAndStart(selectedOpportunity)} disabled={!currentUser || ((selectedOpportunity.assigneeIds ?? []).includes(currentUser.id) && selectedOpportunity.workStatus === 'in_progress')}>
+                  {(selectedOpportunity.assigneeIds ?? []).includes(currentUser?.id ?? '') ? 'Start working' : 'Assign to me & start'}
                 </Button>
-              )}
-              <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => openEditOpportunity(selectedOpportunity)}>Edit opportunity</Button>
+                {canManageUsers && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<PersonOutlineIcon />}
+                    onClick={() => handleOpenReassignModal(selectedOpportunity)}
+                  >
+                    Edit Assignee
+                  </Button>
+                )}
+                <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => openEditOpportunity(selectedOpportunity)}>Edit opportunity</Button>
+              </Stack>
             </DialogActions>
           </>
         )}
@@ -1000,11 +1082,56 @@ export function ProductIdeasPage() {
               <TextField label="Next validation step" value={opportunityForm.nextStep} onChange={(event) => handleOpportunityFieldChange('nextStep', event.target.value)} />
             </Stack>
           </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={() => setOpportunityDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="contained">{editingOpportunityId ? 'Save changes' : 'Add to catalog'}</Button>
+          <DialogActions sx={{ px: 3, pb: 2, justifyContent: editingOpportunityId ? 'space-between' : 'flex-end' }}>
+            {editingOpportunityId && (
+              <Button
+                color="error"
+                variant="outlined"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => {
+                  const opp = opportunities.find((o) => o.id === editingOpportunityId);
+                  if (opp) setConfirmDeleteOpp(opp);
+                }}
+              >
+                Delete opportunity
+              </Button>
+            )}
+            <Stack direction="row" spacing={1}>
+              <Button onClick={() => setOpportunityDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" variant="contained">{editingOpportunityId ? 'Save changes' : 'Add to catalog'}</Button>
+            </Stack>
           </DialogActions>
         </Box>
+      </Dialog>
+
+      {/* Confirm Delete Opportunity Dialog */}
+      <Dialog
+        open={confirmDeleteOpp !== null}
+        onClose={() => setConfirmDeleteOpp(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteOutlineIcon color="error" />
+          Delete Opportunity?
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Are you sure you want to delete <strong>{confirmDeleteOpp?.name}</strong>? This will remove it from the catalog and any linked projects in Kanban.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmDeleteOpp(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (confirmDeleteOpp) handleDeleteOpportunity(confirmDeleteOpp);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Reassign / Edit Assignee Dialog */}
@@ -1159,7 +1286,17 @@ export function ProductIdeasPage() {
   );
 }
 
-function OpportunityRow({ item, onSelect }: Readonly<{ item: ProductOpportunity; onSelect: (item: ProductOpportunity) => void }>) {
+function OpportunityRow({
+  item,
+  onSelect,
+  onEdit,
+  onDelete,
+}: Readonly<{
+  item: ProductOpportunity;
+  onSelect: (item: ProductOpportunity) => void;
+  onEdit: (item: ProductOpportunity) => void;
+  onDelete: (item: ProductOpportunity) => void;
+}>) {
   const handleKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -1168,7 +1305,15 @@ function OpportunityRow({ item, onSelect }: Readonly<{ item: ProductOpportunity;
   };
 
   return (
-    <TableRow hover role="button" tabIndex={0} aria-label={`View details for ${item.name}`} onClick={() => onSelect(item)} onKeyDown={handleKeyDown} sx={{ cursor: 'pointer', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}>
+    <TableRow
+      hover
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${item.name}`}
+      onClick={() => onSelect(item)}
+      onKeyDown={handleKeyDown}
+      sx={{ cursor: 'pointer', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}
+    >
       <TableCell sx={{ minWidth: 190 }}>
         <Typography variant="body2" fontWeight={700}>{item.name}</Typography>
         <Typography variant="caption" color="text.secondary">{item.category}</Typography>
@@ -1178,7 +1323,38 @@ function OpportunityRow({ item, onSelect }: Readonly<{ item: ProductOpportunity;
       <TableCell><Chip size="small" label={item.difficulty} variant="outlined" /></TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.mvpTime || '—'}</TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{item.suggestedPrice || '—'}</TableCell>
-      <TableCell align="center">{item.shortlistRank ? <Chip size="small" icon={<StarOutlineIcon />} label={`#${item.shortlistRank}`} color="warning" variant="outlined" /> : '—'}</TableCell>
+      <TableCell align="center">
+        {item.shortlistRank ? <Chip size="small" icon={<StarOutlineIcon />} label={`#${item.shortlistRank}`} color="warning" variant="outlined" /> : '—'}
+      </TableCell>
+      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+        <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+          <Tooltip title="Edit opportunity">
+            <IconButton
+              size="small"
+              aria-label={`Edit ${item.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(item);
+              }}
+            >
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete opportunity">
+            <IconButton
+              size="small"
+              color="error"
+              aria-label={`Delete ${item.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(item);
+              }}
+            >
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </TableCell>
     </TableRow>
   );
 }

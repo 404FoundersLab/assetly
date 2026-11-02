@@ -1,9 +1,34 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { initialOpportunities, ProductOpportunity, ProductOpportunityAssignment, ProjectTodo } from '../features/tasks/productIdeasData';
 
+const OPPORTUNITIES_STORAGE_KEY = 'assetly_product_opportunities_v2';
 const SHARED_ASSIGNMENTS_STORAGE_KEY = 'assetly_shared_opportunity_assignments';
 const TODOS_STORAGE_KEY = 'assetly_product_todos_v1';
 const DUMMY_TODO_IDS = new Set(['todo-01', 'todo-02', 'todo-03', 'todo-04', 'todo-05']);
+
+function loadPersistedOpportunities(): ProductOpportunity[] {
+  if (typeof window === 'undefined') return initialOpportunities;
+  try {
+    const raw = localStorage.getItem(OPPORTUNITIES_STORAGE_KEY);
+    if (raw !== null) {
+      return JSON.parse(raw);
+    }
+    // First time initialization: persist default initial opportunities
+    savePersistedOpportunities(initialOpportunities);
+    return initialOpportunities;
+  } catch {
+    return initialOpportunities;
+  }
+}
+
+function savePersistedOpportunities(opportunities: ProductOpportunity[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(OPPORTUNITIES_STORAGE_KEY, JSON.stringify(opportunities));
+  } catch {
+    // ignore
+  }
+}
 
 function loadPersistedAssignments(): ProductOpportunityAssignment[] {
   if (typeof window === 'undefined') return [];
@@ -53,7 +78,8 @@ interface ProductIdeasState {
 }
 
 const initialAssignments = loadPersistedAssignments();
-const initialOpportunitiesWithAssignments = initialOpportunities.map((opp) => {
+const loadedOpportunities = loadPersistedOpportunities();
+const initialOpportunitiesWithAssignments = loadedOpportunities.map((opp) => {
   const oppAssignments = initialAssignments.filter((a) => a.opportunityId === opp.id);
   if (oppAssignments.length > 0) {
     return {
@@ -77,12 +103,23 @@ const productIdeasSlice = createSlice({
   name: 'productIdeas',
   initialState,
   reducers: {
-    addOpportunity: (state, action: PayloadAction<Omit<ProductOpportunity, 'id'>>) => {
-      state.opportunities.unshift({ ...action.payload, id: `opp-${Date.now()}` });
+    setOpportunities: (state, action: PayloadAction<ProductOpportunity[]>) => {
+      state.opportunities = action.payload;
+      savePersistedOpportunities(state.opportunities);
+    },
+    addOpportunity: (state, action: PayloadAction<ProductOpportunity | Omit<ProductOpportunity, 'id'>>) => {
+      const id = 'id' in action.payload && action.payload.id ? action.payload.id : `opp-${Date.now()}`;
+      const newOpp: ProductOpportunity = {
+        ...action.payload,
+        id,
+      };
+      state.opportunities.unshift(newOpp);
+      savePersistedOpportunities(state.opportunities);
     },
     updateOpportunity: (state, action: PayloadAction<ProductOpportunity>) => {
       const index = state.opportunities.findIndex((item) => item.id === action.payload.id);
       if (index >= 0) state.opportunities[index] = action.payload;
+      savePersistedOpportunities(state.opportunities);
       const opp = action.payload;
       if (opp.assigneeIds) {
         state.assignments = [
@@ -102,6 +139,13 @@ const productIdeasSlice = createSlice({
         ];
         savePersistedAssignments(state.assignments);
       }
+    },
+    deleteOpportunity: (state, action: PayloadAction<string>) => {
+      const id = action.payload;
+      state.opportunities = state.opportunities.filter((item) => item.id !== id);
+      state.assignments = state.assignments.filter((item) => item.opportunityId !== id);
+      savePersistedOpportunities(state.opportunities);
+      savePersistedAssignments(state.assignments);
     },
     assignOpportunityAndStart: (state, action: PayloadAction<{ opportunityId: string; userId: string; userName?: string; userEmail?: string }>) => {
       const opportunity = state.opportunities.find((item) => item.id === action.payload.opportunityId);
@@ -127,6 +171,7 @@ const productIdeasSlice = createSlice({
           nextStep: opportunity.nextStep ?? '',
         });
       }
+      savePersistedOpportunities(state.opportunities);
       savePersistedAssignments(state.assignments);
     },
     replaceOpportunityAssignments: (state, action: PayloadAction<{ assignments: ProductOpportunityAssignment[]; opportunityId?: string }>) => {
@@ -160,6 +205,7 @@ const productIdeasSlice = createSlice({
           opportunity.workStartedAt = undefined;
         }
       }
+      savePersistedOpportunities(state.opportunities);
     },
     addTodo: (state, action: PayloadAction<{ title: string; dueDate: string }>) => {
       state.todos.push({ ...action.payload, id: `todo-${Date.now()}`, status: 'todo' });
@@ -180,6 +226,10 @@ const productIdeasSlice = createSlice({
   extraReducers: (builder) => {
     builder.addCase('persist/REHYDRATE', (state, action: any) => {
       if (action.payload?.productIdeas) {
+        if (Array.isArray(action.payload.productIdeas.opportunities)) {
+          state.opportunities = action.payload.productIdeas.opportunities;
+          savePersistedOpportunities(state.opportunities);
+        }
         const storedTodos = (action.payload.productIdeas.todos || []).filter((t: ProjectTodo) => !DUMMY_TODO_IDS.has(t.id));
         if (storedTodos.length > 0) {
           state.todos = storedTodos;
@@ -196,5 +246,16 @@ const productIdeasSlice = createSlice({
   },
 });
 
-export const { addOpportunity, updateOpportunity, assignOpportunityAndStart, replaceOpportunityAssignments, addTodo, updateTodoStatus, deleteTodo } = productIdeasSlice.actions;
+export const {
+  setOpportunities,
+  addOpportunity,
+  updateOpportunity,
+  deleteOpportunity,
+  assignOpportunityAndStart,
+  replaceOpportunityAssignments,
+  addTodo,
+  updateTodoStatus,
+  deleteTodo,
+} = productIdeasSlice.actions;
+
 export default productIdeasSlice.reducer;
