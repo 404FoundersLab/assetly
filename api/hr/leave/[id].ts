@@ -1,5 +1,6 @@
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../../_lib/db';
 import { requireAuth, insertAuditLog, canManageHrLeave } from '../../_lib/auth';
+import { processApprovalAction } from '../../_lib/workflow-engine';
 
 export const config = { runtime: 'edge' };
 
@@ -109,6 +110,26 @@ export default async function handler(req: Request) {
           details: `Reporting Lead ${managerStatus} leave request${comment ? `: ${comment}` : ''}`,
         });
 
+        // Sync with workflow engine
+        try {
+          const wfRows = (await sql`
+            SELECT id FROM approval_requests
+            WHERE entity_type = 'leave_request' AND entity_id = ${id} AND tenant_id = ${auth.tenantId!}
+            LIMIT 1
+          `) as { id: string }[];
+          if (wfRows.length > 0) {
+            await processApprovalAction(sql, {
+              tenantId: auth.tenantId!,
+              approvalRequestId: wfRows[0].id,
+              actor: auth,
+              action: managerStatus === 'approved' ? 'approve' : 'reject',
+              comment: comment || undefined,
+            });
+          }
+        } catch (wfErr) {
+          console.warn('Sync workflow action note:', wfErr);
+        }
+
         return json(updated);
       }
 
@@ -154,6 +175,26 @@ export default async function handler(req: Request) {
         entityId: id,
         details: `HR marked leave request as ${finalStatus}${comment ? ` (${comment})` : ''}`,
       });
+
+      // Sync with workflow engine
+      try {
+        const wfRows = (await sql`
+          SELECT id FROM approval_requests
+          WHERE entity_type = 'leave_request' AND entity_id = ${id} AND tenant_id = ${auth.tenantId!}
+          LIMIT 1
+        `) as { id: string }[];
+        if (wfRows.length > 0) {
+          await processApprovalAction(sql, {
+            tenantId: auth.tenantId!,
+            approvalRequestId: wfRows[0].id,
+            actor: auth,
+            action: finalStatus === 'approved' ? 'approve' : 'reject',
+            comment: comment || undefined,
+          });
+        }
+      } catch (wfErr) {
+        console.warn('Sync workflow action note:', wfErr);
+      }
 
       return json(updatedRow);
     }

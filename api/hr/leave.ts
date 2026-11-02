@@ -1,5 +1,6 @@
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog, canManageHrLeave } from '../_lib/auth';
+import { startWorkflow } from '../_lib/workflow-engine';
 
 export const config = { runtime: 'edge' };
 
@@ -269,6 +270,42 @@ export default async function handler(req: Request) {
         insertedRow = rows[0];
       }
 
+      // Start multi-level approval workflow
+      let approvalReq: any = null;
+      try {
+        approvalReq = await startWorkflow(sql, {
+          tenantId: auth.tenantId!,
+          module: 'leave_request',
+          entityId: id,
+          requesterUser: auth,
+          requesterEmployeeId: employeeId,
+          title: `Leave Request: ${leaveType} (${daysCount}d)`,
+          description: reason || `Leave request from ${startDate} to ${endDate}`,
+          metadata: {
+            leaveType,
+            startDate,
+            endDate,
+            daysCount,
+            dayType,
+            employeeName,
+          },
+        });
+      } catch (wfErr) {
+        console.warn('Failed to start approval workflow for leave request:', wfErr);
+      }
+
+      // Track pending days on leave balance
+      try {
+        await sql`
+          UPDATE hr_leave_balances
+          SET pending_days = pending_days + ${daysCount}, updated_at = NOW()
+          WHERE tenant_id = ${auth.tenantId!}
+            AND employee_id = ${employeeId}
+            AND lower(leave_type) = ${leaveType.toLowerCase()}
+            AND year = EXTRACT(YEAR FROM CURRENT_DATE)::int
+        `;
+      } catch {}
+
       await insertAuditLog({
         tenantId: auth.tenantId,
         userId: auth.sub,
@@ -295,6 +332,8 @@ export default async function handler(req: Request) {
         dayType,
         reason: insertedRow.reason,
         status: insertedRow.status || 'pending',
+        approvalRequestId: approvalReq?.id,
+        currentApprovalStep: approvalReq?.currentStepName,
         managerId,
         managerName,
         managerStatus: 'pending',

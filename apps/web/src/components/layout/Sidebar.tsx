@@ -37,6 +37,8 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import HomeIcon from '@mui/icons-material/Home';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import LayersIcon from '@mui/icons-material/Layers';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
@@ -59,6 +61,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: <DashboardIcon fontSize="small" />, permission: 'module:assets' },
       { to: '/tasks', label: 'Work & Tasks', icon: <TaskAltIcon fontSize="small" />, permission: 'module:tasks' },
+      { to: '/approvals', label: 'Approvals In-box', icon: <AssignmentTurnedInIcon fontSize="small" />, permission: 'approval:review' },
+      { to: '/my-requests', label: 'My Requests', icon: <AssignmentIcon fontSize="small" /> },
       { to: '/analytics', label: 'AI & Analytics', icon: <AutoGraphIcon fontSize="small" />, permission: 'module:assets' },
       { to: '/requests', label: 'Requests', icon: <AssignmentIcon fontSize="small" />, permission: 'request:review' },
     ],
@@ -87,6 +91,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Organization',
     items: [
       { to: '/employees', label: 'Employees', icon: <PeopleIcon fontSize="small" />, permission: 'employee:read' },
+      { to: '/hierarchy', label: 'Org Hierarchy', icon: <AccountTreeIcon fontSize="small" />, permission: 'employee:read' },
       { to: '/departments', label: 'Departments', icon: <BusinessIcon fontSize="small" />, permission: 'employee:read' },
       { to: '/vendors', label: 'Vendors', icon: <StoreIcon fontSize="small" />, permission: 'vendor:write' },
     ],

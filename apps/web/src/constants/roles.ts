@@ -3,6 +3,7 @@ import type { UserRole } from '../types';
 export const ROLE_LABELS: Record<UserRole, string> = {
   platform_admin: 'Assetly Admin',
   tenant_admin: 'Tenant Admin',
+  manager: 'Manager',
   it_admin: 'IT Admin',
   hr_admin: 'HR Admin',
   finance_admin: 'Finance Admin',
@@ -13,6 +14,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   platform_admin: 'Full platform access — all tenants, organizations, and modules',
   tenant_admin: 'Full access within this organization; can create IT, HR, and employee accounts',
+  manager: 'Manages team members and acts as their primary approver',
   it_admin: 'Assets, devices, requests, and IT operations for this tenant',
   hr_admin: 'HR module, employees, leave, attendance, and policies',
   finance_admin: 'IT Spend, vendors, and finance workflows',
@@ -23,6 +25,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 /** Roles tenant admins can provision (multiple accounts per role allowed). */
 export const TENANT_ASSIGNABLE_ROLES: UserRole[] = [
   'tenant_admin',
+  'manager',
   'it_admin',
   'hr_admin',
   'finance_admin',

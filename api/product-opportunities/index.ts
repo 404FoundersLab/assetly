@@ -265,3 +265,4 @@ export default async function handler(req: Request) {
     return error(message, 500);
   }
 }
+

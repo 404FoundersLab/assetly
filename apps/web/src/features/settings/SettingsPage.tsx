@@ -24,6 +24,7 @@ import { isApiEnabled } from '../../services/api/config';
 import { BillingCard } from './BillingCard';
 import { ChangePasswordCard } from './ChangePasswordCard';
 import { MfaCard, MfaStatusChip } from './MfaCard';
+import { WorkflowSettingsCard } from './WorkflowSettingsCard';
 import {
   SettingRow,
   SettingsCard,
@@ -138,6 +139,10 @@ export function SettingsPage() {
                 </Button>
               </SettingsCard>
             </SettingsCardGridItem>
+
+            <Grid item xs={12}>
+              <WorkflowSettingsCard />
+            </Grid>
           </>
         )}
 

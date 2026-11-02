@@ -229,6 +229,10 @@ export function canManageHrLeave(role: string | undefined): boolean {
   return role === 'tenant_admin' || role === 'hr_admin' || role === 'platform_admin';
 }
 
+export function canReviewApprovals(role: string | undefined): boolean {
+  return role === 'tenant_admin' || role === 'manager' || role === 'hr_admin' || role === 'it_admin' || role === 'finance_admin' || role === 'platform_admin';
+}
+
 export function canSearchAssets(role: string | undefined): boolean {
   return (
     role === 'tenant_admin' ||

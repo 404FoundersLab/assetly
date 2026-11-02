@@ -25,6 +25,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar, DRAWER_WIDTH } from './Sidebar';
 import { GlobalSearch } from '../GlobalSearch';
 import { ThemeModeToggle } from '../ThemeModeToggle';
+import { NotificationBell } from '../NotificationBell';
 import { useAppDispatch, useAuthUser, useTenant } from '../../hooks/storeHooks';
 import { logout } from '../../store/authSlice';
 import { getRoleLabel, getUserDisplayName, getUserInitials } from '../../utils/userDisplay';
@@ -112,6 +113,7 @@ export function AppLayout() {
           )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <NotificationBell />
             <ThemeModeToggle />
 
             <Tooltip title="Account menu">

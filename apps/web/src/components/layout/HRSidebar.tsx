@@ -42,6 +42,8 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import DescriptionIcon from '@mui/icons-material/Description';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTenant, useAuthUser, usePermissions } from '../../hooks/storeHooks';
 import { getUserDisplayName, getUserInitials, getRoleLabel } from '../../utils/userDisplay';
@@ -77,12 +79,25 @@ const HR_NAVIGATION: HRNavItem[] = [
     icon: <DashboardIcon sx={{ fontSize: 20 }} />,
   },
   {
+    type: 'single',
+    to: '/approvals',
+    label: 'Approvals In-box',
+    icon: <AssignmentTurnedInIcon sx={{ fontSize: 20 }} />,
+  },
+  {
+    type: 'single',
+    to: '/my-requests',
+    label: 'My Requests',
+    icon: <AssignmentIcon sx={{ fontSize: 20 }} />,
+  },
+  {
     type: 'group',
     id: 'employees',
     label: 'Employees',
     icon: <PeopleIcon sx={{ fontSize: 20 }} />,
     children: [
       { to: '/hr/employees', label: 'All Employees', icon: <PeopleIcon sx={{ fontSize: 18 }} /> },
+      { to: '/hierarchy', label: 'Org Hierarchy', icon: <AccountTreeIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/departments', label: 'Departments', icon: <BusinessIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/teams', label: 'Teams', icon: <GroupsIcon sx={{ fontSize: 18 }} /> },
       { to: '/hr/designations', label: 'Designations', icon: <BadgeIcon sx={{ fontSize: 18 }} /> },

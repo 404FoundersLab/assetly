@@ -18,7 +18,15 @@ export type AssetStatus = 'in_stock' | 'deployed' | 'in_repair' | 'retired' | 'l
 export type LifecycleStage = 'procurement' | 'active' | 'maintenance' | 'end_of_life';
 export type EmployeeStatus = 'active' | 'terminated' | 'on_leave';
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'ASSIGN' | 'RETURN' | 'LOGIN' | 'LOGOUT';
-export type UserRole = 'platform_admin' | 'tenant_admin' | 'it_admin' | 'hr_admin' | 'finance_admin' | 'viewer' | 'employee';
+export type UserRole =
+  | 'platform_admin'
+  | 'tenant_admin'
+  | 'manager'
+  | 'it_admin'
+  | 'hr_admin'
+  | 'finance_admin'
+  | 'viewer'
+  | 'employee';
 
 export interface Tenant {
   id: string;
@@ -128,6 +136,8 @@ export interface Employee {
   departmentId: string;
   status: EmployeeStatus;
   hireDate: string;
+  managerId?: string;
+  managerName?: string;
 }
 
 export interface AssetAssignment {
@@ -367,26 +377,31 @@ export interface DeviceContextData {
 
 export const PERMISSIONS = {
   'module:assets': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer'],
-  'module:hr': ['platform_admin', 'tenant_admin', 'hr_admin'],
+  'module:hr': ['platform_admin', 'tenant_admin', 'hr_admin', 'manager'],
   'module:finance': ['platform_admin', 'tenant_admin', 'finance_admin'],
-  'module:docs': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'finance_admin', 'viewer'],
-  'module:tasks': ['platform_admin', 'tenant_admin', 'it_admin', 'hr_admin', 'finance_admin', 'viewer', 'employee'],
-  'asset:read': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer'],
+  'module:docs': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'finance_admin', 'viewer', 'manager'],
+  'module:tasks': ['platform_admin', 'tenant_admin', 'it_admin', 'hr_admin', 'finance_admin', 'viewer', 'employee', 'manager'],
+  'asset:read': ['platform_admin', 'tenant_admin', 'it_admin', 'viewer', 'manager'],
   'asset:write': ['platform_admin', 'tenant_admin', 'it_admin'],
   'asset:delete': ['platform_admin', 'tenant_admin'],
   'asset:assign': ['platform_admin', 'tenant_admin', 'it_admin'],
   'asset_type:write': ['platform_admin', 'tenant_admin', 'it_admin'],
-  'employee:read': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'viewer'],
+  'employee:read': ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin', 'viewer', 'manager'],
   'employee:write': ['platform_admin', 'tenant_admin', 'hr_admin'],
   'employee:delete': ['platform_admin', 'tenant_admin'],
   'vendor:write': ['platform_admin', 'tenant_admin', 'it_admin', 'finance_admin'],
   'audit:read': ['platform_admin', 'tenant_admin', 'it_admin', 'hr_admin', 'finance_admin', 'viewer'],
   'settings:write': ['platform_admin', 'tenant_admin'],
   'user:manage': ['platform_admin', 'tenant_admin'],
-  'request:create': ['employee'],
-  'request:read-own': ['employee'],
-  'request:read': ['platform_admin', 'tenant_admin', 'it_admin'],
-  'request:review': ['platform_admin', 'tenant_admin', 'it_admin'],
+  'request:create': ['employee', 'manager', 'hr_admin', 'it_admin', 'finance_admin', 'tenant_admin'],
+  'request:read-own': ['employee', 'manager', 'hr_admin', 'it_admin', 'finance_admin', 'tenant_admin'],
+  'request:read': ['platform_admin', 'tenant_admin', 'it_admin', 'manager'],
+  'request:review': ['platform_admin', 'tenant_admin', 'it_admin', 'manager'],
+  'approval:read': ['platform_admin', 'tenant_admin', 'manager', 'hr_admin', 'it_admin', 'finance_admin'],
+  'approval:review': ['platform_admin', 'tenant_admin', 'manager', 'hr_admin', 'it_admin', 'finance_admin'],
+  'workflow:manage': ['platform_admin', 'tenant_admin'],
+  'hierarchy:manage': ['platform_admin', 'tenant_admin', 'hr_admin'],
+  'hierarchy:read': ['platform_admin', 'tenant_admin', 'manager', 'hr_admin', 'it_admin', 'finance_admin', 'employee', 'viewer'],
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

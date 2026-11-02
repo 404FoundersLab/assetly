@@ -70,6 +70,9 @@ import { CompletedReportPage } from './features/exe-docs/meetings/CompletedRepor
 import { CompliancePage } from './features/exe-docs/compliance/CompliancePage';
 import { ProductIdeasPage } from './features/tasks/ProductIdeasPage';
 import { TasksPage } from './features/tasks/TasksPage';
+import { MyRequestsPage } from './features/approvals/MyRequestsPage';
+import { MyApprovalsPage } from './features/approvals/MyApprovalsPage';
+import { HierarchyPage } from './features/hierarchy/HierarchyPage';
 
 export default function App() {
   return (
@@ -121,6 +124,7 @@ export default function App() {
         {/* Employees */}
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="employees/:id" element={<EmployeeDetailPage />} />
+        <Route path="hierarchy" element={<HierarchyPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route path="teams" element={<TeamsPage />} />
         <Route path="designations" element={<DesignationsPage />} />
@@ -184,6 +188,11 @@ export default function App() {
         {/* IT Spend module (asset financials, budgets, expense approvals) */}
         <Route path="it-spend" element={<ModuleRoute module="module:finance"><FinancePage /></ModuleRoute>} />
         <Route path="finance" element={<Navigate to="/it-spend" replace />} />
+
+        {/* Approvals, Requests & Org Hierarchy */}
+        <Route path="approvals" element={<MyApprovalsPage />} />
+        <Route path="my-requests" element={<MyRequestsPage />} />
+        <Route path="hierarchy" element={<HierarchyPage />} />
 
         {/* Shared / General admin routes (visible to multiple admins depending on permissions) */}
         <Route path="employees" element={<ModuleRoute module="employee:read"><EmployeesPage /></ModuleRoute>} />

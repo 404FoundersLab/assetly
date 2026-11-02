@@ -1,6 +1,7 @@
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapEmployee, type DbEmployee } from '../_lib/mappers';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
+import { checkCircularManager, ensureWorkflowTables } from '../_lib/workflow-engine';
 
 export const config = { runtime: 'edge' };
 
@@ -12,12 +13,17 @@ export default async function handler(req: Request) {
   if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
 
   const sql = await getTenantSql(auth.tenantId!);
+  await ensureWorkflowTables(sql);
 
   try {
     if (req.method === 'GET') {
-      const rows = await sql`
-        SELECT * FROM employees WHERE tenant_id = ${auth.tenantId!} ORDER BY created_at DESC
-      ` as DbEmployee[];
+      const rows = (await sql`
+        SELECT e.*, m.first_name || ' ' || m.last_name as manager_name
+        FROM employees e
+        LEFT JOIN employees m ON e.manager_id = m.id
+        WHERE e.tenant_id = ${auth.tenantId!}
+        ORDER BY e.created_at DESC
+      `) as DbEmployee[];
       return json(rows.map(mapEmployee));
     }
 
@@ -31,48 +37,59 @@ export default async function handler(req: Request) {
       }
 
       const id = body.id && String(body.id) ? String(body.id) : crypto.randomUUID();
+      const managerId = body.managerId ? String(body.managerId).trim() : null;
+
+      if (managerId) {
+        const isCycle = await checkCircularManager(sql, auth.tenantId!, id, managerId);
+        if (isCycle) {
+          return error('Circular reporting relationship detected: an employee cannot report to themselves or someone in their reporting sub-tree', 400);
+        }
+      }
+
       let rows: DbEmployee[];
       try {
-        rows = await sql`
-        INSERT INTO employees (
-          id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
-          job_title, department_id, status, hire_date
-        ) VALUES (
-          ${id}, ${auth.tenantId!},
-          ${body.employeeNumber ? String(body.employeeNumber) : null},
-          ${firstName}, ${lastName}, ${joiningEmail}, ${joiningEmail}, NULL,
-          ${body.jobTitle ? String(body.jobTitle) : null},
-          ${body.departmentId ? String(body.departmentId) : null},
-          ${body.status ? String(body.status) : 'active'},
-          ${body.hireDate ? String(body.hireDate) : null}
-        )
-        RETURNING *
-      ` as DbEmployee[];
+        rows = (await sql`
+          INSERT INTO employees (
+            id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
+            job_title, department_id, status, hire_date, manager_id
+          ) VALUES (
+            ${id}, ${auth.tenantId!},
+            ${body.employeeNumber ? String(body.employeeNumber) : null},
+            ${firstName}, ${lastName}, ${joiningEmail}, ${joiningEmail}, NULL,
+            ${body.jobTitle ? String(body.jobTitle) : null},
+            ${body.departmentId ? String(body.departmentId) : null},
+            ${body.status ? String(body.status) : 'active'},
+            ${body.hireDate ? String(body.hireDate) : null},
+            ${managerId}
+          )
+          RETURNING *
+        `) as DbEmployee[];
       } catch (insertErr: unknown) {
         const errMsg = insertErr instanceof Error ? insertErr.message : String(insertErr);
-        if (errMsg.includes('joining_email') || errMsg.includes('column') || (insertErr as { code?: string })?.code === '42703') {
+        if (errMsg.includes('manager_id') || errMsg.includes('joining_email') || errMsg.includes('column') || (insertErr as { code?: string })?.code === '42703') {
           try {
+            await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS manager_id UUID REFERENCES employees(id)`;
             await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS joining_email TEXT`;
             await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS official_email TEXT`;
-            await sql`UPDATE employees SET joining_email = email WHERE joining_email IS NULL`;
 
-            rows = await sql`
-        INSERT INTO employees (
-          id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
-          job_title, department_id, status, hire_date
-        ) VALUES (
-          ${id}, ${auth.tenantId!},
-          ${body.employeeNumber ? String(body.employeeNumber) : null},
-          ${firstName}, ${lastName}, ${joiningEmail}, ${joiningEmail}, NULL,
-          ${body.jobTitle ? String(body.jobTitle) : null},
-          ${body.departmentId ? String(body.departmentId) : null},
-          ${body.status ? String(body.status) : 'active'},
-          ${body.hireDate ? String(body.hireDate) : null}
-        )
-        RETURNING *
-      ` as DbEmployee[];
+            rows = (await sql`
+              INSERT INTO employees (
+                id, tenant_id, employee_number, first_name, last_name, email, joining_email, official_email,
+                job_title, department_id, status, hire_date, manager_id
+              ) VALUES (
+                ${id}, ${auth.tenantId!},
+                ${body.employeeNumber ? String(body.employeeNumber) : null},
+                ${firstName}, ${lastName}, ${joiningEmail}, ${joiningEmail}, NULL,
+                ${body.jobTitle ? String(body.jobTitle) : null},
+                ${body.departmentId ? String(body.departmentId) : null},
+                ${body.status ? String(body.status) : 'active'},
+                ${body.hireDate ? String(body.hireDate) : null},
+                ${managerId}
+              )
+              RETURNING *
+            `) as DbEmployee[];
           } catch {
-            rows = await sql`
+            rows = (await sql`
               INSERT INTO employees (
                 id, tenant_id, employee_number, first_name, last_name, email,
                 job_title, department_id, status, hire_date
@@ -86,7 +103,7 @@ export default async function handler(req: Request) {
                 ${body.hireDate ? String(body.hireDate) : null}
               )
               RETURNING *
-            ` as DbEmployee[];
+            `) as DbEmployee[];
           }
         } else {
           throw insertErr;
@@ -100,7 +117,7 @@ export default async function handler(req: Request) {
         entityType: 'employee',
         entityId: id,
         entityLabel: `${firstName} ${lastName}`,
-        details: `Created employee with joining email ${joiningEmail}`,
+        details: `Created employee with joining email ${joiningEmail}${managerId ? ' and assigned manager' : ''}`,
       });
 
       const userId = crypto.randomUUID();
@@ -130,6 +147,14 @@ export default async function handler(req: Request) {
         `;
       } catch {
         /* user_passwords table might not have email constraint or already updated */
+      }
+
+      // If manager name is available, fetch it for mapped return
+      if (rows[0] && managerId) {
+        try {
+          const m = (await sql`SELECT first_name || ' ' || last_name as manager_name FROM employees WHERE id = ${managerId}`) as any[];
+          if (m[0]?.manager_name) rows[0].manager_name = m[0].manager_name;
+        } catch {}
       }
 
       return json(mapEmployee(rows[0]), 201);

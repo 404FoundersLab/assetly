@@ -23,6 +23,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { HRSidebar, DRAWER_WIDTH } from './HRSidebar';
 import { GlobalSearch } from '../GlobalSearch';
 import { ThemeModeToggle } from '../ThemeModeToggle';
+import { NotificationBell } from '../NotificationBell';
 import { useAppDispatch, useAuthUser, useTenant } from '../../hooks/storeHooks';
 import { logout } from '../../store/authSlice';
 import { getRoleLabel, getUserDisplayName, getUserInitials } from '../../utils/userDisplay';
@@ -109,6 +110,7 @@ export function HRLayout() {
           )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <NotificationBell />
             <ThemeModeToggle />
 
             <Tooltip title="Account menu">

@@ -5,6 +5,7 @@ import {
   activeEmployeeLoginEmail,
   migrateEmployeeLoginEmail,
 } from '../_lib/employee-auth';
+import { checkCircularManager, ensureWorkflowTables } from '../_lib/workflow-engine';
 
 export const config = { runtime: 'edge' };
 
@@ -24,7 +25,10 @@ export default async function handler(req: Request) {
   try {
     if (req.method === 'GET') {
       const rows = await sql`
-        SELECT * FROM employees WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+        SELECT e.*, m.first_name || ' ' || m.last_name as manager_name
+        FROM employees e
+        LEFT JOIN employees m ON e.manager_id = m.id
+        WHERE e.id = ${id} AND e.tenant_id = ${auth.tenantId!}
       ` as DbEmployee[];
       if (rows.length === 0) return error('Employee not found', 404);
       return json(mapEmployee(rows[0]));
@@ -44,6 +48,20 @@ export default async function handler(req: Request) {
       const firstName = body.firstName ? String(body.firstName).trim() : current.first_name;
       const lastName =
         body.lastName !== undefined ? String(body.lastName).trim() : (current.last_name ?? '');
+
+      const managerId = body.managerId !== undefined
+        ? (body.managerId ? String(body.managerId).trim() : null)
+        : current.manager_id;
+
+      if (body.managerId !== undefined && managerId) {
+        if (managerId === id) {
+          return error('An employee cannot be their own manager', 400);
+        }
+        const isCycle = await checkCircularManager(sql, auth.tenantId!, id, managerId);
+        if (isCycle) {
+          return error('Circular reporting relationship detected: an employee cannot report to someone in their reporting sub-tree', 400);
+        }
+      }
 
       let officialEmail = current.official_email?.trim().toLowerCase() ?? null;
       if (body.officialEmail !== undefined) {
@@ -95,14 +113,16 @@ export default async function handler(req: Request) {
               : null
           }, department_id),
           status = COALESCE(${body.status ? String(body.status) : null}, status),
-          hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
+          hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date),
+          manager_id = ${managerId}
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
         RETURNING *
       ` as DbEmployee[];
       } catch (updateErr: unknown) {
         const errMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
-        if (errMsg.includes('joining_email') || errMsg.includes('column') || (updateErr as { code?: string })?.code === '42703') {
+        if (errMsg.includes('joining_email') || errMsg.includes('manager_id') || errMsg.includes('column') || (updateErr as { code?: string })?.code === '42703') {
           try {
+            await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS manager_id UUID REFERENCES employees(id)`;
             await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS joining_email TEXT`;
             await sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS official_email TEXT`;
             await sql`UPDATE employees SET joining_email = email WHERE joining_email IS NULL`;
@@ -124,7 +144,8 @@ export default async function handler(req: Request) {
               : null
           }, department_id),
           status = COALESCE(${body.status ? String(body.status) : null}, status),
-          hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
+          hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date),
+          manager_id = ${managerId}
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
         RETURNING *
       ` as DbEmployee[];
@@ -144,7 +165,8 @@ export default async function handler(req: Request) {
                     : null
                 }, department_id),
                 status = COALESCE(${body.status ? String(body.status) : null}, status),
-                hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date)
+                hire_date = COALESCE(${body.hireDate != null ? String(body.hireDate) : null}, hire_date),
+                manager_id = ${managerId}
               WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
               RETURNING *
             ` as DbEmployee[];

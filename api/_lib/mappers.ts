@@ -76,6 +76,8 @@ export interface DbEmployee {
   department_id: string | null;
   status: string;
   hire_date: string | null;
+  manager_id?: string | null;
+  manager_name?: string | null;
   created_at: string;
 }
 
@@ -247,6 +249,8 @@ export function mapEmployee(row: DbEmployee) {
     departmentId: row.department_id ?? '',
     status: row.status,
     hireDate: row.hire_date ?? '',
+    managerId: row.manager_id ?? undefined,
+    managerName: row.manager_name ?? undefined,
   };
 }
 

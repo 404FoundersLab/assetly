@@ -50,6 +50,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const departments = useAppSelector((s) => s.departments.items);
+  const allEmployees = useAppSelector((s) => s.employees.items);
   const [loading, setLoading] = useState(false);
   const [deptDialogOpen, setDeptDialogOpen] = useState(false);
   const [form, setForm] = useState({
@@ -60,6 +61,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
     officialEmail: '',
     jobTitle: '',
     departmentId: '',
+    managerId: '',
     status: 'active' as EmployeeStatus,
     hireDate: '',
   });
@@ -75,6 +77,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
         officialEmail: employee.officialEmail ?? '',
         jobTitle: employee.jobTitle,
         departmentId: employee.departmentId ?? '',
+        managerId: employee.managerId ?? '',
         status: employee.status,
         hireDate: toDateInputValue(employee.hireDate),
       });
@@ -87,6 +90,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
         officialEmail: '',
         jobTitle: '',
         departmentId: departments[0]?.id ?? '',
+        managerId: '',
         status: 'active',
         hireDate: '',
       });
@@ -108,6 +112,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           officialEmail: form.officialEmail.trim() || undefined,
           jobTitle: form.jobTitle.trim() || undefined,
           departmentId: form.departmentId.trim() || undefined,
+          managerId: form.managerId.trim() || undefined,
           status: form.status,
           hireDate: formattedHireDate,
         });
@@ -117,6 +122,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           joiningEmail: form.joiningEmail.trim().toLowerCase(),
           email: form.joiningEmail.trim().toLowerCase(),
           departmentId: form.departmentId.trim() || '',
+          managerId: form.managerId.trim() || undefined,
           id: safeRandomUUID(),
           hireDate: formattedHireDate,
         });
@@ -264,6 +270,27 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
                   </IconButton>
                 </Tooltip>
               </Box>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Reporting Manager"
+                value={form.managerId}
+                onChange={(e) => setForm({ ...form, managerId: e.target.value })}
+                helperText="Primary approver in approval workflows"
+              >
+                <MenuItem value="">
+                  <em>None (Reports to Tenant Admin / Fallback)</em>
+                </MenuItem>
+                {allEmployees
+                  .filter((emp) => !employee || emp.id !== employee.id)
+                  .map((emp) => (
+                    <MenuItem key={emp.id} value={emp.id}>
+                      {emp.firstName} {emp.lastName} {emp.jobTitle ? `(${emp.jobTitle})` : ''}
+                    </MenuItem>
+                  ))}
+              </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField

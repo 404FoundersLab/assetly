@@ -145,6 +145,7 @@ export function EmployeeDetailPage() {
                 />
                 <DetailRow label="Sign-in email" value={employee.email} />
                 <DetailRow label="Department" value={department?.name ?? '—'} />
+                <DetailRow label="Reporting Manager" value={employee.managerName || 'None (Reports to Tenant Admin)'} />
                 <DetailRow label="Hire Date" value={formatDate(employee.hireDate)} />
                 <DetailRow label="Status" value={<Chip label={employee.status} size="small" color={employee.status === 'active' ? 'success' : 'default'} variant="outlined" />} />
               </CardContent>
