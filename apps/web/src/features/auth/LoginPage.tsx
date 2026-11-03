@@ -165,6 +165,8 @@ export function LoginPage() {
       (window as any).__pendingToken = data.token;
       (await import('../../services/api/auth')).storeToken(data.token);
       dispatch(setPendingSession({ user: data.user, tenant: data.tenant, token: data.token }));
+      setPassword('');
+      setConfirmPassword('');
       return;
     }
     dispatch(
@@ -617,6 +619,7 @@ export function LoginPage() {
                   fullWidth
                   label="New Password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   margin="normal"
@@ -627,6 +630,7 @@ export function LoginPage() {
                   fullWidth
                   label="Confirm Password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   margin="normal"
