@@ -185,8 +185,18 @@ export default async function handler(req: Request) {
       ` as { asset_tag: string }[];
       if (rows.length === 0) return error('Asset not found', 404);
 
-      await sql`DELETE FROM ownership_history WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`;
-      await sql`DELETE FROM asset_assignments WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`;
+      // Child tables differ between schema versions; some FKs have no ON DELETE CASCADE.
+      const cleanups = [
+        () => sql`DELETE FROM ownership_history WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`,
+        () => sql`DELETE FROM asset_ownership_history WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`,
+        () => sql`DELETE FROM asset_assignments WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`,
+        () => sql`DELETE FROM warranty_records WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`,
+        () => sql`DELETE FROM purchase_records WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`,
+        () => sql`DELETE FROM depreciation_records WHERE asset_id = ${id} AND tenant_id = ${auth.tenantId!}`,
+      ];
+      for (const run of cleanups) {
+        try { await run(); } catch { /* table or column absent in this schema */ }
+      }
       await sql`DELETE FROM assets WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
 
       await insertAuditLog({
