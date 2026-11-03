@@ -63,6 +63,7 @@ export default async function handler(req: Request) {
       if (rows.length === 0) return error('User not found', 404);
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'UPDATE',
@@ -89,6 +90,7 @@ export default async function handler(req: Request) {
       await sql`DELETE FROM user_passwords WHERE email = ${rows[0].email}`;
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'DELETE',

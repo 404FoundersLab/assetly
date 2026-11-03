@@ -66,6 +66,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
     hireDate: '',
   });
   const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
     if (open && employee) {
@@ -96,6 +97,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
       });
     }
     setError(null);
+    setCreated(null);
   }, [open, employee, departments]);
 
   const handleSave = async () => {
@@ -117,7 +119,7 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           hireDate: formattedHireDate,
         });
       } else {
-        await createEmployee({
+        const result = await createEmployee({
           ...form,
           joiningEmail: form.joiningEmail.trim().toLowerCase(),
           email: form.joiningEmail.trim().toLowerCase(),
@@ -126,6 +128,13 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
           id: safeRandomUUID(),
           hireDate: formattedHireDate,
         });
+        await reloadFromApi(dispatch);
+        if (result.temporaryPassword) {
+          setCreated({ email: form.joiningEmail.trim().toLowerCase(), password: result.temporaryPassword });
+          return;
+        }
+        onClose();
+        return;
       }
       await reloadFromApi(dispatch);
       onClose();
@@ -143,6 +152,13 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
       <Dialog open={open} onClose={loading ? undefined : onClose} maxWidth="sm" fullWidth>
         <DialogTitle>{employee ? 'Edit Employee' : 'Add Employee'}</DialogTitle>
         <DialogContent>
+          {created && (
+            <Alert severity="success" sx={{ mt: 1, mb: 1 }}>
+              Employee created. Share this one-time temporary password securely ? it is shown only once and must be changed at first sign-in.
+              <br />
+              <strong>{created.email}</strong> / <code>{created.password}</code>
+            </Alert>
+          )}
           {error && (
             <Alert severity="error" sx={{ mt: 1, mb: 1 }} onClose={() => setError(null)}>
               {error}
@@ -306,13 +322,13 @@ export function EmployeeFormDialog({ open, onClose, employee }: Props) {
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} disabled={loading}>
-            Cancel
+            {created ? 'Close' : 'Cancel'}
           </Button>
           <LoadingButton
             variant="contained"
             onClick={() => void handleSave()}
             loading={loading}
-            disabled={!form.firstName || !form.joiningEmail}
+            disabled={!form.firstName || !form.joiningEmail || Boolean(created)}
           >
             Save
           </LoadingButton>

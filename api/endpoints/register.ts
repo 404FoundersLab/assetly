@@ -20,6 +20,9 @@ export default async function handler(req: Request) {
     }
 
     const sql = getSql();
+
+    const tenantRows = await sql`SELECT 1 FROM tenants WHERE id::text = ${String(tenant_id)} LIMIT 1`;
+    if (tenantRows.length === 0) return error('Unknown tenant', 403);
     
     // Check if endpoint exists by MAC or Hostname
     const [existing] = await sql`

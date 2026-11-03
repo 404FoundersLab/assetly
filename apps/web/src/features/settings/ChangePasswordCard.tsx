@@ -23,7 +23,7 @@ import { ApiError } from '../../services/api/client';
 import { LoadingButton } from '../../components/Loader';
 import { SettingsCard } from './SettingsCard';
 
-const MIN_LENGTH = 8;
+const MIN_LENGTH = 12;
 
 function RequirementRow({ met, label }: { met: boolean; label: string }) {
   return (

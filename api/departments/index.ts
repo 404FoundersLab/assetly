@@ -35,6 +35,7 @@ export default async function handler(req: Request) {
       ` as DbDepartment[];
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'CREATE',

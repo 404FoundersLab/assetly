@@ -13,6 +13,8 @@ export const DUMMY_TICKET_TITLES = new Set([
 // Retain empty set for backward compatibility
 export const DUMMY_TICKET_IDS = new Set<string>();
 
+import { tenantLoad, tenantSave } from './tenantStorage';
+
 const TICKETS_STORAGE_KEY = 'assetly_tickets_store_v2';
 
 export function isDummyTicket(t: SupportTicket): boolean {
@@ -20,23 +22,11 @@ export function isDummyTicket(t: SupportTicket): boolean {
 }
 
 function loadPersistedTickets(): SupportTicket[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(TICKETS_STORAGE_KEY);
-    if (!raw) return [];
-    const list: SupportTicket[] = JSON.parse(raw);
-    return list.filter((t) => !isDummyTicket(t));
-  } catch {
-    return [];
-  }
+  return tenantLoad<SupportTicket[]>(TICKETS_STORAGE_KEY, []).filter((t) => !isDummyTicket(t));
 }
 
 function savePersistedTickets(tickets: SupportTicket[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    const clean = tickets.filter((t) => !isDummyTicket(t));
-    localStorage.setItem(TICKETS_STORAGE_KEY, JSON.stringify(clean));
-  } catch {}
+  tenantSave(TICKETS_STORAGE_KEY, tickets.filter((t) => !isDummyTicket(t)));
 }
 
 interface TicketsState {
@@ -114,8 +104,14 @@ const ticketsSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    builder.addMatcher(
+      (a) => a.type === 'auth/setSession' || a.type === 'auth/logout',
+      (state) => {
+        state.items = loadPersistedTickets();
+      },
+    );
     builder.addCase('persist/REHYDRATE', (state, action: any) => {
-      if (action.payload?.tickets) {
+      if (false && action.payload?.tickets) {
         const list = (action.payload.tickets.items || []).filter((t: SupportTicket) => !isDummyTicket(t));
         state.items = list;
         savePersistedTickets(state.items);

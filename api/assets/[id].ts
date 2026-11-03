@@ -1,6 +1,7 @@
-import { getSql, getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
+import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapAsset, type DbAsset } from '../_lib/mappers';
-import { verifyAuthToken, requireAuth, insertAuditLog } from '../_lib/auth';
+import { belongsToTenant } from '../_lib/fk';
+import { requireAuth, insertAuditLog, canManageAssets } from '../_lib/auth';
 
 export const config = { runtime: 'edge' };
 
@@ -19,42 +20,20 @@ export default async function handler(req: Request) {
 
   const id = decodeURIComponent(rawId).trim();
 
-  // Allow public/unauthenticated GET requests for QR code lookup
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
+
   if (req.method === 'GET') {
-    const auth = await verifyAuthToken(req);
-    const sql = auth?.tenantId ? await getTenantSql(auth.tenantId) : getSql();
-
-    let rows: DbAsset[] = [];
-    if (isUuid(id)) {
-      if (auth?.tenantId) {
-        rows = (await sql`
-          SELECT * FROM assets WHERE (id = ${id} OR asset_tag = ${id}) AND tenant_id = ${auth.tenantId}
-        `) as DbAsset[];
-      } else {
-        rows = (await sql`
-          SELECT * FROM assets WHERE id = ${id} OR asset_tag = ${id}
-        `) as DbAsset[];
-      }
-    } else {
-      if (auth?.tenantId) {
-        rows = (await sql`
-          SELECT * FROM assets WHERE asset_tag = ${id} AND tenant_id = ${auth.tenantId}
-        `) as DbAsset[];
-      } else {
-        rows = (await sql`
-          SELECT * FROM assets WHERE asset_tag = ${id}
-        `) as DbAsset[];
-      }
-    }
-
+    const sql = await getTenantSql(auth.tenantId);
+    const rows = (isUuid(id)
+      ? await sql`SELECT * FROM assets WHERE (id = ${id} OR asset_tag = ${id}) AND tenant_id = ${auth.tenantId}`
+      : await sql`SELECT * FROM assets WHERE asset_tag = ${id} AND tenant_id = ${auth.tenantId}`) as DbAsset[];
     if (rows.length === 0) return error('Asset not found', 404);
     return json(mapAsset(rows[0]));
   }
 
-  const auth = await requireAuth(req);
-  if (auth instanceof Response) return auth;
-  if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-
+  if (!canManageAssets(auth.role)) return error('Forbidden', 403);
   const sql = await getTenantSql(auth.tenantId!);
 
   try {
@@ -68,6 +47,10 @@ export default async function handler(req: Request) {
             ? String(body.vendorId)
             : null
           : undefined;
+
+      if (vendorId && !(await belongsToTenant(sql, 'vendors', vendorId, auth.tenantId!))) {
+        return error('Referenced vendor was not found', 404);
+      }
 
       let rows: DbAsset[];
       try {
@@ -182,8 +165,9 @@ export default async function handler(req: Request) {
       const asset = mapAsset(rows[0]);
       const audit = body.audit as Record<string, string> | undefined;
       await insertAuditLog({
-        userId: audit?.userId ?? auth.sub,
-        userName: audit?.userName ?? `${auth.firstName} ${auth.lastName}`,
+        tenantId: auth.tenantId,
+        userId: auth.sub,
+        userName: `${auth.firstName} ${auth.lastName}`,
         action: 'UPDATE',
         entityType: 'asset',
         entityId: id,
@@ -205,6 +189,7 @@ export default async function handler(req: Request) {
       await sql`DELETE FROM assets WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'DELETE',

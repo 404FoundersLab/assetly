@@ -50,6 +50,11 @@ export const DUMMY_TASK_TITLES = new Set([
 export const DUMMY_PROJECT_IDS = new Set<string>();
 export const DUMMY_TASK_IDS = new Set<string>();
 
+import { createAction } from '@reduxjs/toolkit';
+import { tenantLoad, tenantSave } from './tenantStorage';
+
+export const hydrateWorkspace = createAction<{ kind: 'projects' | 'tasks' | 'todos'; items: any[] }>('workspace/hydrate');
+
 const PROJECTS_STORAGE_KEY = 'assetly_projects_store_v3';
 const TASKS_STORAGE_KEY = 'assetly_tasks_store_v3';
 
@@ -89,49 +94,19 @@ export const DEFAULT_USER_PROJECTS: Project[] = [];
 export const DEFAULT_USER_TASKS: EmployeeTask[] = [];
 
 function loadPersistedProjects(): Project[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const rawV3 = localStorage.getItem(PROJECTS_STORAGE_KEY);
-    if (rawV3) {
-      const list: Project[] = JSON.parse(rawV3);
-      return list.filter((p) => !isDummyProject(p));
-    }
-    return [];
-  } catch {
-    return [];
-  }
+  return tenantLoad<Project[]>(PROJECTS_STORAGE_KEY, []).filter((p) => !isDummyProject(p));
 }
 
 function savePersistedProjects(projects: Project[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    const clean = projects.filter((p) => !isDummyProject(p));
-    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(clean));
-    localStorage.setItem('assetly_projects_store_v2', JSON.stringify(clean));
-  } catch {}
+  tenantSave(PROJECTS_STORAGE_KEY, projects.filter((p) => !isDummyProject(p)), 'projects');
 }
 
 function loadPersistedTasks(): EmployeeTask[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const rawV3 = localStorage.getItem(TASKS_STORAGE_KEY);
-    if (rawV3) {
-      const list: EmployeeTask[] = JSON.parse(rawV3);
-      return list.filter((t) => !isDummyTask(t));
-    }
-    return [];
-  } catch {
-    return [];
-  }
+  return tenantLoad<EmployeeTask[]>(TASKS_STORAGE_KEY, []).filter((t) => !isDummyTask(t));
 }
 
 function savePersistedTasks(tasks: EmployeeTask[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    const clean = tasks.filter((t) => !isDummyTask(t));
-    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(clean));
-    localStorage.setItem('assetly_tasks_store_v2', JSON.stringify(clean));
-  } catch {}
+  tenantSave(TASKS_STORAGE_KEY, tasks.filter((t) => !isDummyTask(t)), 'tasks');
 }
 
 const initialState: TasksState = {
@@ -511,8 +486,24 @@ const tasksSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    builder.addCase(hydrateWorkspace, (state, action) => {
+      if (action.payload.kind === 'projects') {
+        state.projects = action.payload.items.filter((p: Project) => !isDummyProject(p));
+        savePersistedProjects(state.projects);
+      } else if (action.payload.kind === 'tasks') {
+        state.items = action.payload.items.filter((t: EmployeeTask) => !isDummyTask(t));
+        savePersistedTasks(state.items);
+      }
+    });
+    builder.addMatcher(
+      (a) => a.type === 'auth/setSession' || a.type === 'auth/logout',
+      (state) => {
+        state.items = loadPersistedTasks();
+        state.projects = loadPersistedProjects();
+      },
+    );
     builder.addCase('persist/REHYDRATE', (state, action: any) => {
-      if (action.payload?.tasks) {
+      if (false && action.payload?.tasks) {
         const pList = (action.payload.tasks.projects || []).filter((p: Project) => !isDummyProject(p));
         const tList = (action.payload.tasks.items || []).filter((t: EmployeeTask) => !isDummyTask(t));
         if (pList.length > 0) {

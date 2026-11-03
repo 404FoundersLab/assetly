@@ -134,10 +134,11 @@ export function MfaCard() {
                 disabled={code.length !== 6}
                 onClick={() =>
                   void run(async () => {
-                    await enableMfa(code);
+                    const res = await enableMfa(code);
                     setEnabled(true);
                     reset();
-                    setMessage({ type: 'success', text: 'MFA enabled. You will be asked for a code at next sign-in.' });
+                    const codes = res.recoveryCodes?.length ? ` Save these one-time recovery codes now (shown once): ${res.recoveryCodes.join('  ')}` : '';
+                    setMessage({ type: 'success', text: `MFA enabled. You will be asked for a code at next sign-in.${codes}` });
                   })
                 }
               >

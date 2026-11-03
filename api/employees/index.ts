@@ -1,6 +1,7 @@
-import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
+import { getSql, getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapEmployee, type DbEmployee } from '../_lib/mappers';
-import { requireAuth, insertAuditLog } from '../_lib/auth';
+import { belongsToTenant } from '../_lib/fk';
+import { requireAuth, insertAuditLog, hashPassword, generateTempPassword } from '../_lib/auth';
 import { checkCircularManager, ensureWorkflowTables } from '../_lib/workflow-engine';
 
 export const config = { runtime: 'edge' };
@@ -10,13 +11,20 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
 
   const sql = await getTenantSql(auth.tenantId!);
   await ensureWorkflowTables(sql);
 
   try {
     if (req.method === 'GET') {
+      if (auth.role === 'employee') {
+        if (!auth.employeeId) return json([]);
+        const own = (await sql`
+          SELECT e.* FROM employees e WHERE e.tenant_id = ${auth.tenantId!} AND e.id = ${auth.employeeId}
+        `) as DbEmployee[];
+        return json(own.map(mapEmployee));
+      }
       const rows = (await sql`
         SELECT e.*, m.first_name || ' ' || m.last_name as manager_name
         FROM employees e
@@ -36,8 +44,18 @@ export default async function handler(req: Request) {
         return error('firstName, lastName, and joiningEmail are required', 400);
       }
 
+      const existingUser = (await getSql()`SELECT tenant_id FROM users WHERE lower(email) = ${joiningEmail} LIMIT 1`) as { tenant_id: string }[];
+      if (existingUser.length > 0 && existingUser[0].tenant_id !== auth.tenantId) {
+        return error('This email is already registered to another organization', 409);
+      }
+
       const id = body.id && String(body.id) ? String(body.id) : crypto.randomUUID();
       const managerId = body.managerId ? String(body.managerId).trim() : null;
+
+      const deptRef = body.departmentId ? String(body.departmentId) : null;
+      if (!(await belongsToTenant(sql, 'departments', deptRef, auth.tenantId!)) || !(await belongsToTenant(sql, 'employees', managerId, auth.tenantId!))) {
+        return error('Referenced department or manager was not found', 404);
+      }
 
       if (managerId) {
         const isCycle = await checkCircularManager(sql, auth.tenantId!, id, managerId);
@@ -111,6 +129,7 @@ export default async function handler(req: Request) {
       }
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'CREATE',
@@ -120,35 +139,30 @@ export default async function handler(req: Request) {
         details: `Created employee with joining email ${joiningEmail}${managerId ? ' and assigned manager' : ''}`,
       });
 
-      const userId = crypto.randomUUID();
+      let temporaryPassword: string | undefined;
       try {
-        await sql`
+        const mainSql = getSql();
+        const userId = crypto.randomUUID();
+        await mainSql`
           INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
           VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
           ON CONFLICT (email) DO NOTHING
         `;
-      } catch {
-        try {
-          await sql`
-            INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
-            VALUES (${userId}, ${auth.tenantId!}, ${joiningEmail}, ${firstName}, ${lastName}, 'employee')
-            ON CONFLICT (tenant_id, email) DO NOTHING
+        const hasPassword = (await mainSql`
+          SELECT 1 FROM user_passwords WHERE lower(email) = ${joiningEmail}
+        `) as unknown[];
+        if (hasPassword.length === 0) {
+          temporaryPassword = generateTempPassword();
+          const hash = await hashPassword(temporaryPassword);
+          await mainSql`
+            INSERT INTO user_passwords (email, password_hash, must_change_password)
+            VALUES (${joiningEmail}, ${hash}, true)
+            ON CONFLICT (email) DO NOTHING
           `;
-        } catch {
-          /* user may already exist */
         }
-      }
-
-      try {
-        await sql`
-          INSERT INTO user_passwords (email, password_hash, must_change_password)
-          VALUES (${joiningEmail}, 'optional-on-first-login', true)
-          ON CONFLICT (email) DO UPDATE SET password_hash = 'optional-on-first-login', must_change_password = true
-        `;
       } catch {
-        /* user_passwords table might not have email constraint or already updated */
+        temporaryPassword = undefined;
       }
-
       // If manager name is available, fetch it for mapped return
       if (rows[0] && managerId) {
         try {
@@ -157,7 +171,7 @@ export default async function handler(req: Request) {
         } catch {}
       }
 
-      return json(mapEmployee(rows[0]), 201);
+      return json({ ...mapEmployee(rows[0]), temporaryPassword }, 201);
     }
 
     return error('Method not allowed', 405);

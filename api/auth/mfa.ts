@@ -1,12 +1,15 @@
-import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
+import { getSql, json, error, corsPreflight } from '../_lib/db';
+import { validateBody, z } from '../_lib/validate';
 import { requireAuth, signAuthToken, verifyPassword, insertAuditLog } from '../_lib/auth';
 import {
   buildOtpAuthUri,
   ensureMfaTable,
   generateSecret,
   getMfaRecord,
+  generateRecoveryCodes,
   isMfaEnforced,
-  verifyTotp,
+  saveMfaSecret,
+  verifyMfaWithLockout,
 } from '../_lib/mfa';
 
 export const config = { runtime: 'edge' };
@@ -28,7 +31,13 @@ export default async function handler(req: Request) {
     }
     if (req.method !== 'POST') return error('Method not allowed', 405);
 
-    const body = await parseBody<{ action?: string; code?: string; password?: string }>(req);
+    const parsed = await validateBody(req, z.object({
+      action: z.enum(['setup', 'enable', 'disable']),
+      code: z.string().max(32).optional(),
+      password: z.string().max(256).optional(),
+    }));
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const action = body.action;
     const sql = getSql();
     await ensureMfaTable();
@@ -37,20 +46,16 @@ export default async function handler(req: Request) {
       const existing = await getMfaRecord(email);
       if (existing?.enabled) return error('MFA is already enabled', 400);
       const secret = generateSecret();
-      await sql`
-        INSERT INTO user_mfa (email, secret, enabled, updated_at)
-        VALUES (${email}, ${secret}, false, NOW())
-        ON CONFLICT (email) DO UPDATE SET secret = ${secret}, enabled = false, updated_at = NOW()
-      `;
+      await saveMfaSecret(email, secret);
       return json({ secret, otpauthUri: buildOtpAuthUri(email, secret) });
     }
 
     if (action === 'enable') {
       const rec = await getMfaRecord(email);
       if (!rec) return error('Start MFA setup first', 400);
-      if (!(await verifyTotp(rec.secret, String(body.code ?? '')))) {
-        return error('Invalid verification code', 400);
-      }
+      const check = await verifyMfaWithLockout(email, rec.secret, String(body.code ?? ''));
+      if (check === 'locked') return error('Too many failed attempts. Try again later.', 429);
+      if (check !== 'ok') return error('Invalid verification code', 400);
       await sql`UPDATE user_mfa SET enabled = true, updated_at = NOW() WHERE email = ${email}`;
       await insertAuditLog({
         tenantId: auth.tenantId,
@@ -74,7 +79,8 @@ export default async function handler(req: Request) {
             employeeId: auth.employeeId,
           })
         : undefined;
-      return json({ enabled: true, ...(token ? { token } : {}) });
+      const recoveryCodes = await generateRecoveryCodes(email);
+      return json({ enabled: true, recoveryCodes, ...(token ? { token } : {}) });
     }
 
     if (action === 'disable') {
@@ -87,9 +93,9 @@ export default async function handler(req: Request) {
       if (!(await verifyPassword(email, String(body.password ?? '')))) {
         return error('Password is incorrect', 401);
       }
-      if (!(await verifyTotp(rec.secret, String(body.code ?? '')))) {
-        return error('Invalid verification code', 400);
-      }
+      const dcheck = await verifyMfaWithLockout(email, rec.secret, String(body.code ?? ''));
+      if (dcheck === 'locked') return error('Too many failed attempts. Try again later.', 429);
+      if (dcheck !== 'ok') return error('Invalid verification code', 400);
       await sql`DELETE FROM user_mfa WHERE email = ${email}`;
       await insertAuditLog({
         tenantId: auth.tenantId,

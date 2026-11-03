@@ -33,6 +33,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RoomOutlinedIcon from '@mui/icons-material/RoomOutlined';
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DOMPurify from 'dompurify';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { MeetingData } from './modal/MeetingCard';
@@ -344,7 +345,7 @@ export function CompletedReportPage() {
                     >
                       <EditOutlinedIcon fontSize="small" />
                     </IconButton>
-                    <Box dangerouslySetInnerHTML={{ __html: summaryHtml }} sx={{ pr: 4, '& p': { m: 0 } }} />
+                    <Box dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(summaryHtml) }} sx={{ pr: 4, '& p': { m: 0 } }} />
                   </>
                 ) : (
                   <Box sx={{

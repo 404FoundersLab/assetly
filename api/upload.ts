@@ -1,4 +1,4 @@
-import { json, error, corsPreflight, parseBody } from './_lib/db';
+import { json, error, corsPreflight, parseBody, MAX_UPLOAD_BYTES } from './_lib/db';
 import { requireAuth } from './_lib/auth';
 
 export const config = { runtime: 'edge' };
@@ -8,17 +8,19 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
   if (req.method !== 'POST') return error('Method not allowed', 405);
 
   try {
-    const body = await parseBody<{ dataUrl?: string; filename?: string }>(req);
+    const body = await parseBody<{ dataUrl?: string; filename?: string }>(req, MAX_UPLOAD_BYTES);
     const dataUrl = String(body.dataUrl ?? '');
     const filename = String(body.filename ?? 'asset.jpg');
 
-    if (!dataUrl.startsWith('data:image/')) {
-      return error('Invalid image data', 400);
+    if (!/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(dataUrl)) {
+      return error('Only PNG, JPEG, WebP or GIF images are allowed', 400);
+    }
+    if (dataUrl.length > 4_000_000) {
+      return error('Image is too large (max ~3 MB)', 413);
     }
 
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,7 +32,7 @@ export default async function handler(req: Request) {
 
       const contentType = match[1];
       const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
-      const path = `assets/${crypto.randomUUID()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const path = `${auth.tenantId}/${crypto.randomUUID()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
       const res = await fetch(`${supabaseUrl}/storage/v1/object/asset-images/${path}`, {
         method: 'POST',

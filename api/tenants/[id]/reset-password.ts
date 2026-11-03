@@ -1,5 +1,8 @@
 import { getSql, json, error, corsPreflight, parseBody } from '../../_lib/db';
 import { requireAuth, hashPassword, insertAuditLog } from '../../_lib/auth';
+import { validateNewPassword } from '../../_lib/password-policy';
+import { consume, tooManyRequests } from '../../_lib/ratelimit';
+import { revokeAllForUser } from '../../_lib/session';
 import type { DbTenant } from '../../_lib/mappers';
 
 export const config = { runtime: 'edge' };
@@ -30,6 +33,8 @@ export default async function handler(req: Request) {
   }
 
   try {
+    const limit = await consume(`reset-pw:${auth.sub}`, 10, 60);
+    if (!limit.allowed) return tooManyRequests(limit.retryAfterSec);
     const body = await parseBody<{
       password?: string;
       email?: string;
@@ -37,9 +42,8 @@ export default async function handler(req: Request) {
     }>(req);
 
     const newPassword = String(body.password ?? '').trim();
-    if (!newPassword || newPassword.length < 8) {
-      return error('Password must be at least 8 characters long', 400);
-    }
+    const policyProblem = await validateNewPassword(newPassword, { email: body.email });
+    if (policyProblem) return error(policyProblem, 400);
 
     const sql = getSql();
     const tenants = (await sql`
@@ -62,8 +66,8 @@ export default async function handler(req: Request) {
 
     // 1. Ensure user exists in users table and has tenant_admin role
     const existingUsers = (await sql`
-      SELECT id FROM users WHERE lower(email) = ${targetEmail} LIMIT 1
-    `) as { id: string }[];
+      SELECT id, tenant_id, role FROM users WHERE lower(email) = ${targetEmail} LIMIT 1
+    `) as { id: string; tenant_id: string; role: string }[];
 
     if (existingUsers.length === 0) {
       const newUserId = crypto.randomUUID();
@@ -78,19 +82,12 @@ export default async function handler(req: Request) {
           VALUES (${newUserId}, ${tenantId}, ${targetEmail}, ${firstName}, ${lastName}, 'tenant_admin')
         `;
       } catch (insertErr) {
-        // Fallback if concurrent insert or conflict occurred
-        await sql`
-          UPDATE users
-          SET tenant_id = ${tenantId}, role = 'tenant_admin'
-          WHERE lower(email) = ${targetEmail}
-        `;
+        return error('Could not create the admin user', 409);
       }
-    } else {
-      await sql`
-        UPDATE users
-        SET tenant_id = ${tenantId}, role = 'tenant_admin'
-        WHERE id = ${existingUsers[0].id}
-      `;
+    } else if (existingUsers[0].tenant_id !== tenantId) {
+      return error('That email belongs to a user in a different organization', 409);
+    } else if (existingUsers[0].role === 'platform_admin') {
+      return error('Cannot reset a platform admin through this endpoint', 403);
     }
 
     // Also update users.password_hash if column exists
@@ -157,6 +154,8 @@ export default async function handler(req: Request) {
         throw dbErr;
       }
     }
+
+    if (existingUsers[0]) await revokeAllForUser(existingUsers[0].id);
 
     // 3. Log audit event
     await insertAuditLog({

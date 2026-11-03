@@ -18,13 +18,21 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId! && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
 
   const sql = await getTenantSql(auth.tenantId!);
 
   try {
     if (req.method === 'GET') {
+      if (auth.role === 'employee') {
+        if (!auth.employeeId) return json({ data: [], assignments: [], ownershipHistory: [] });
+        const own = await sql`
+          SELECT * FROM assets
+          WHERE tenant_id = ${auth.tenantId!} AND assigned_employee_id = ${auth.employeeId}
+          ORDER BY created_at DESC
+        ` as DbAsset[];
+        return json({ data: own.map(mapAsset), assignments: [], ownershipHistory: [] });
+      }
       const rows = await sql`
         SELECT * FROM assets
         WHERE tenant_id = ${auth.tenantId!}
@@ -190,7 +198,7 @@ export default async function handler(req: Request) {
         await insertAuditLog({
           tenantId: auth.tenantId!,
           userId: auth.sub ?? null,
-          userName: audit?.userName ?? (body.assignedBy ? String(body.assignedBy) : `${auth.firstName} ${auth.lastName}`),
+          userName: `${auth.firstName} ${auth.lastName}`,
           action: 'CREATE',
           entityType: 'asset',
           entityId: asset.id,

@@ -40,17 +40,6 @@ import { ApiError, checkApiHealth, loginErrorMessage } from '../../services/api/
 import { getHomeRouteForRole } from '../../utils/routing';
 import { apiUrl } from '../../services/api/config';
 
-/** Full demo admin — only when DEMO_AUTH_ENABLED is on (do not use on a public portfolio). */
-const DEMO_LOGIN = {
-  email: 'admin@solumtechnologies.com',
-  password: 'Demo@123456',
-} as const;
-
-const DEFAULT_PORTFOLIO_GUEST = {
-  email: 'guest@assetly.demo',
-  password: 'ViewOnly@2026',
-} as const;
-
 const features = [
   {
     icon: <Inventory2Icon fontSize="small" />,
@@ -89,11 +78,8 @@ export function LoginPage() {
   const [enroll, setEnroll] = useState<{ user: User; tenant: Tenant } | null>(null);
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
-  const [demoAuthEnabled, setDemoAuthEnabled] = useState(
-    import.meta.env.VITE_DEMO_AUTH === 'true',
-  );
   const [portfolioGuest, setPortfolioGuest] = useState<{ email: string; password: string } | null>(
-    import.meta.env.VITE_PORTFOLIO_GUEST === 'true' ? DEFAULT_PORTFOLIO_GUEST : null,
+    null,
   );
   const [apiWarning, setApiWarning] = useState<string | null>(null);
   const [activeFeature, setActiveFeature] = useState(0);
@@ -146,7 +132,6 @@ export function LoginPage() {
           enabled?: boolean;
           portfolioGuest?: { enabled?: boolean; email?: string; password?: string };
         };
-        if (typeof data.enabled === 'boolean') setDemoAuthEnabled(data.enabled);
         if (data.portfolioGuest?.enabled && data.portfolioGuest.email && data.portfolioGuest.password) {
           setPortfolioGuest({
             email: data.portfolioGuest.email,
@@ -210,24 +195,6 @@ export function LoginPage() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    dispatch(clearError());
-    setEmail(DEMO_LOGIN.email);
-    setPassword(DEMO_LOGIN.password);
-    setDemoLoading(true);
-    try {
-      await completeLogin(DEMO_LOGIN.email, DEMO_LOGIN.password);
-    } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? loginErrorMessage(err.status, err.message)
-          : 'Demo sign-in failed';
-      dispatch(setLoginError(msg));
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
   // Portfolio deep link: /login?demo=1
   useEffect(() => {
     if (portfolioGuest) {
@@ -238,60 +205,15 @@ export function LoginPage() {
       void handleGuestLogin();
       return;
     }
-    if (!demoAuthEnabled) return;
-    if (demoAutoStarted.current || isAuthenticated || requirePasswordSetup) return;
-    if (searchParams.get('demo') !== '1') return;
-    demoAutoStarted.current = true;
-    setSearchParams({}, { replace: true });
-
-    let cancelled = false;
-    (async () => {
-      dispatch(clearError());
-      setEmail(DEMO_LOGIN.email);
-      setPassword(DEMO_LOGIN.password);
-      setDemoLoading(true);
-      try {
-        const data = await apiLogin(DEMO_LOGIN.email, DEMO_LOGIN.password);
-        if (cancelled) return;
-        if (data.requirePasswordSetup) {
-          (window as any).__pendingUser = data.user;
-          (window as any).__pendingTenant = data.tenant;
-          (window as any).__pendingToken = data.token;
-          (await import('../../services/api/auth')).storeToken(data.token);
-          dispatch(setPendingSession({ user: data.user, tenant: data.tenant, token: data.token }));
-        } else {
-          dispatch(
-            setSession({
-              user: data.user,
-              tenant: data.tenant,
-              token: data.token,
-            }),
-          );
-        }
-      } catch (err) {
-        if (cancelled) return;
-        const msg =
-          err instanceof ApiError
-            ? loginErrorMessage(err.status, err.message)
-            : 'Demo sign-in failed';
-        dispatch(setLoginError(msg));
-      } finally {
-        if (!cancelled) setDemoLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [demoAuthEnabled, portfolioGuest, isAuthenticated, requirePasswordSetup, searchParams, setSearchParams, dispatch]);
+  }, [portfolioGuest, isAuthenticated, requirePasswordSetup, searchParams, setSearchParams, dispatch]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     dispatch(clearError());
 
     if (requirePasswordSetup) {
-      if (password.length < 8) {
-        dispatch(setLoginError('Password must be at least 8 characters'));
+      if (password.length < 12) {
+        dispatch(setLoginError('Password must be at least 12 characters with upper, lower, number and symbol'));
         return;
       }
       if (password !== confirmPassword) {
@@ -775,29 +697,6 @@ export function LoginPage() {
                         Instant exploration with pre-seeded enterprise fleet telemetry.
                       </Typography>
                     </Box>
-
-                    <Divider sx={{ my: 2.5 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                        or sign in with credentials
-                      </Typography>
-                    </Divider>
-                  </Box>
-                )}
-
-                {demoAuthEnabled && !portfolioGuest && (
-                  <Box sx={{ mb: 2.5 }}>
-                    <Button
-                      type="button"
-                      fullWidth
-                      variant="outlined"
-                      size="large"
-                      startIcon={<PlayArrowIcon />}
-                      onClick={() => void handleDemoLogin()}
-                      disabled={loading || demoLoading || Boolean(apiWarning)}
-                      sx={{ py: 1.4, mb: 1.5, borderRadius: '12px' }}
-                    >
-                      {demoLoading ? 'Opening demo…' : 'Quick Demo Sign-In'}
-                    </Button>
 
                     <Divider sx={{ my: 2.5 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>

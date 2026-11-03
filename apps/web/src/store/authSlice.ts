@@ -1,6 +1,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { Tenant, User } from '../types';
 import { storeToken } from '../services/api/auth';
+import { serverLogout } from '../services/api/client';
+import { resetRemoteSync } from './tenantStorage';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -35,6 +37,7 @@ const authSlice = createSlice({
       state,
       action: PayloadAction<{ user: User; tenant: Tenant; token: string }>,
     ) => {
+      resetRemoteSync();
       state.isAuthenticated = true;
       state.requirePasswordSetup = false;
       state.pendingUserEmail = null;
@@ -60,6 +63,8 @@ const authSlice = createSlice({
       storeToken(action.payload.token);
     },
     logout: (state) => {
+      serverLogout();
+      resetRemoteSync();
       state.isAuthenticated = false;
       state.user = null;
       state.tenant = null;

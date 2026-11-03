@@ -5,6 +5,10 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+if (process.env.AGENT_SECRET) {
+  axios.defaults.headers.common['X-Agent-Token'] = process.env.AGENT_SECRET;
+}
+
 const MANAGER_URL = process.env.MANAGER_URL || 'https://assetly-azure.vercel.app/';
 
 // Extract Tenant ID from binary signature (___TENANT_ID___:{uuid}) or fallback to env/default

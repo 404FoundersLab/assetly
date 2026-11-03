@@ -20,12 +20,16 @@ export async function uploadImage(dataUrl: string, filename: string): Promise<{ 
 }
 
 // Employees
-export async function createEmployee(employee: Omit<Employee, 'id' | 'tenantId'> & { id?: string }): Promise<Employee> {
+export async function createEmployee(employee: Omit<Employee, 'id' | 'tenantId'> & { id?: string }): Promise<Employee & { temporaryPassword?: string }> {
   return apiFetch('/api/employees', { method: 'POST', body: JSON.stringify(employee) });
 }
 
 export async function updateEmployee(id: string, patch: Partial<Employee>): Promise<Employee> {
   return apiFetch(`/api/employees/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+export async function resetEmployeePassword(id: string): Promise<{ email: string; temporaryPassword: string }> {
+  return apiFetch(`/api/employees/${id}`, { method: 'POST' });
 }
 
 export async function deleteEmployee(id: string): Promise<void> {

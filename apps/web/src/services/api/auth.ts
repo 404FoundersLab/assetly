@@ -26,7 +26,7 @@ export async function setupMfa(): Promise<{ secret: string; otpauthUri: string }
 }
 
 /** Returns a full session token when enrollment was required at sign-in. */
-export async function enableMfa(code: string): Promise<{ enabled: boolean; token?: string }> {
+export async function enableMfa(code: string): Promise<{ enabled: boolean; token?: string; recoveryCodes?: string[] }> {
   return apiFetch('/api/auth/mfa', { method: 'POST', body: JSON.stringify({ action: 'enable', code }) });
 }
 
@@ -59,10 +59,11 @@ export async function adminMfaAction(
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  await apiFetch('/api/auth/change-password', {
+  const res = await apiFetch<{ token?: string }>('/api/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ currentPassword, newPassword }),
   });
+  if (res?.token) storeToken(res.token);
 }
 
 export const AUTH_TOKEN_KEY = 'assetly_token';

@@ -20,7 +20,7 @@ import { StatusChip } from '../../components/StatusChip';
 import { formatCurrency, formatDate, getEmployeeName } from '../../utils/format';
 import { CATEGORY_LABELS } from '../../data/demoData';
 import { EmployeeFormDialog } from './EmployeeFormDialog';
-import { deleteEmployee } from '../../services/api/entities';
+import { deleteEmployee, resetEmployeePassword } from '../../services/api/entities';
 import { reloadFromApi } from '../../components/DataBootstrap';
 
 const EXPENSE_STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error' | 'primary' | 'info'> = {
@@ -51,6 +51,10 @@ export function EmployeeDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const employee = useAppSelector(s => s.employees.items.find(e => e.id === id));
   const departments = useAppSelector(s => s.departments.items);
@@ -112,6 +116,9 @@ export function EmployeeDetailPage() {
             <>
               <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setEditOpen(true)}>
                 Edit Employee
+              </Button>
+              <Button variant="outlined" onClick={() => { setResetResult(null); setResetError(null); setResetOpen(true); }}>
+                Reset password
               </Button>
               <Button startIcon={<DeleteOutlineIcon />} variant="outlined" color="error" onClick={() => setDeleteOpen(true)}>
                 Delete
@@ -341,6 +348,47 @@ export function EmployeeDetailPage() {
         onClose={() => setEditOpen(false)}
         employee={employee}
       />
+
+      <Dialog open={resetOpen} onClose={() => !resetBusy && setResetOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Reset password</DialogTitle>
+        <DialogContent>
+          {resetError && <Typography color="error" variant="body2">{resetError}</Typography>}
+          {resetResult ? (
+            <Typography variant="body2">
+              Temporary password for <strong>{resetResult.email}</strong> (shown once, must be changed at next sign-in):
+              <br />
+              <code>{resetResult.temporaryPassword}</code>
+            </Typography>
+          ) : (
+            <Typography variant="body2">
+              Generate a new temporary password for{' '}
+              <strong>{getEmployeeName(employee.firstName, employee.lastName)}</strong>? Their current password will stop working.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResetOpen(false)} disabled={resetBusy}>{resetResult ? 'Close' : 'Cancel'}</Button>
+          {!resetResult && (
+            <Button
+              variant="contained"
+              disabled={resetBusy}
+              onClick={async () => {
+                setResetBusy(true);
+                setResetError(null);
+                try {
+                  setResetResult(await resetEmployeePassword(employee.id));
+                } catch (err) {
+                  setResetError(err instanceof Error ? err.message : 'Reset failed');
+                } finally {
+                  setResetBusy(false);
+                }
+              }}
+            >
+              {resetBusy ? 'Resetting?' : 'Reset'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={deleteOpen}

@@ -1,72 +1,36 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ProductOpportunity, ProductOpportunityAssignment, ProjectTodo } from '../features/tasks/productIdeasData';
 
+import { tenantLoad, tenantSave } from './tenantStorage';
+import { hydrateWorkspace } from './tasksSlice';
+
 const OPPORTUNITIES_STORAGE_KEY = 'assetly_product_opportunities_v2';
 const SHARED_ASSIGNMENTS_STORAGE_KEY = 'assetly_shared_opportunity_assignments';
 const TODOS_STORAGE_KEY = 'assetly_product_todos_v1';
 const DUMMY_TODO_IDS = new Set(['todo-01', 'todo-02', 'todo-03', 'todo-04', 'todo-05']);
 
 function loadPersistedOpportunities(): ProductOpportunity[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(OPPORTUNITIES_STORAGE_KEY);
-    if (raw !== null) {
-      return JSON.parse(raw);
-    }
-    return [];
-  } catch {
-    return [];
-  }
+  return tenantLoad<ProductOpportunity[]>(OPPORTUNITIES_STORAGE_KEY, []);
 }
 
 function savePersistedOpportunities(opportunities: ProductOpportunity[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(OPPORTUNITIES_STORAGE_KEY, JSON.stringify(opportunities));
-  } catch {
-    // ignore
-  }
+  tenantSave(OPPORTUNITIES_STORAGE_KEY, opportunities);
 }
 
 function loadPersistedAssignments(): ProductOpportunityAssignment[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(SHARED_ASSIGNMENTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return tenantLoad<ProductOpportunityAssignment[]>(SHARED_ASSIGNMENTS_STORAGE_KEY, []);
 }
 
 function savePersistedAssignments(assignments: ProductOpportunityAssignment[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(SHARED_ASSIGNMENTS_STORAGE_KEY, JSON.stringify(assignments));
-  } catch {
-    // ignore
-  }
+  tenantSave(SHARED_ASSIGNMENTS_STORAGE_KEY, assignments);
 }
 
 function loadPersistedTodos(): ProjectTodo[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(TODOS_STORAGE_KEY);
-    if (!raw) return [];
-    const list: ProjectTodo[] = JSON.parse(raw);
-    return list.filter((t) => !DUMMY_TODO_IDS.has(t.id));
-  } catch {
-    return [];
-  }
+  return tenantLoad<ProjectTodo[]>(TODOS_STORAGE_KEY, []).filter((t) => !DUMMY_TODO_IDS.has(t.id));
 }
 
 function savePersistedTodos(todos: ProjectTodo[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    const clean = todos.filter((t) => !DUMMY_TODO_IDS.has(t.id));
-    localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(clean));
-  } catch {
-    // ignore
-  }
+  tenantSave(TODOS_STORAGE_KEY, todos.filter((t) => !DUMMY_TODO_IDS.has(t.id)), 'todos');
 }
 
 interface ProductIdeasState {
@@ -222,8 +186,23 @@ const productIdeasSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    builder.addCase(hydrateWorkspace, (state, action) => {
+      if (action.payload.kind === 'todos') {
+        state.todos = action.payload.items.filter((t: ProjectTodo) => !DUMMY_TODO_IDS.has(t.id));
+        savePersistedTodos(state.todos);
+      }
+    });
+    builder.addMatcher(
+      (a) => a.type === 'auth/setSession' || a.type === 'auth/logout',
+      (state) => {
+        const assignments = loadPersistedAssignments();
+        state.assignments = assignments;
+        state.opportunities = loadPersistedOpportunities();
+        state.todos = loadPersistedTodos();
+      },
+    );
     builder.addCase('persist/REHYDRATE', (state, action: any) => {
-      if (action.payload?.productIdeas) {
+      if (false && action.payload?.productIdeas) {
         if (Array.isArray(action.payload.productIdeas.opportunities)) {
           state.opportunities = action.payload.productIdeas.opportunities;
           savePersistedOpportunities(state.opportunities);

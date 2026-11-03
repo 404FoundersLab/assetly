@@ -1,90 +1,158 @@
-import { neon } from '@neondatabase/serverless';
-import { resolveAllowedOrigin } from './security';
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
+import {
+  SECURITY_HEADERS,
+  assertSecurityConfig,
+  isProductionRuntime,
+  resolveAllowedOrigin,
+} from './security';
 
-/** Restrict to your production domain via ALLOWED_ORIGIN (or APP_URL). Defaults to * in local dev only. */
-const ALLOWED_ORIGIN = resolveAllowedOrigin();
+// Fail fast at cold start in production when mandatory secrets are missing/weak.
+if (isProductionRuntime()) assertSecurityConfig();
 
-// ── SQL client helpers ────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Test hook (only usable when NODE_ENV=test) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let testSql: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function __setTestSql(fn: any) {
+  if (process.env.NODE_ENV !== 'test') throw new Error('__setTestSql is only available in tests');
+  testSql = fn;
+}
+
+// Ã¢â€â‚¬Ã¢â€â‚¬ SQL client helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /** Returns the shared/platform SQL client (DATABASE_URL). */
 export function getSql() {
+  if (testSql) return testSql as NeonQueryFunction<false, false>;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not configured');
   return neon(url);
 }
 
-/**
- * Module-level cache: maps tenantId → Neon SQL client.
- * Vercel edge instances are long-lived, so this persists across requests on
- * the same instance and avoids repeated main-DB lookups.
- */
-// Store as any to avoid generic variance issues across TypeScript versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tenantSqlCache = new Map<string, any>();
 
 /**
- * Returns a SQL client scoped to the tenant's database.
- *
- * - If the tenant has a `database_url` in the tenants table (dedicated DB),
- *   queries go to that database exclusively.
- * - Otherwise falls back to the shared DATABASE_URL.
- *
- * Result is cached per tenant per edge instance.
+ * Returns a SQL client for the tenant's database (dedicated DB when configured, else shared).
+ * Fails closed: an unresolvable tenant never silently falls back.
  */
-// Return as any to sidestep NeonQueryFunction<false,false> vs <boolean,boolean>
-// generic variance strictness in TypeScript 5.9+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getTenantSql(tenantId: string): Promise<any> {
+  if (testSql) return testSql;
   const cached = tenantSqlCache.get(tenantId);
   if (cached) return cached;
 
   const mainSql = getSql();
-  try {
-    const rows = await mainSql`
-      SELECT database_url FROM tenants WHERE id = ${tenantId} LIMIT 1
-    ` as { database_url: string | null }[];
+  const rows = (await mainSql`
+    SELECT database_url FROM tenants WHERE id = ${tenantId} LIMIT 1
+  `) as { database_url: string | null }[];
+  if (rows.length === 0) throw new Error('Tenant not found');
 
-    const url = rows[0]?.database_url ?? process.env.DATABASE_URL;
-    if (!url) throw new Error('DATABASE_URL is not configured');
+  const url = rows[0].database_url ?? process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not configured');
 
-    const sql = neon(url);
-    tenantSqlCache.set(tenantId, sql);
-    return sql;
-  } catch {
-    // Fallback to shared DB (e.g. tenants table not yet created)
-    const sql = getSql();
-    tenantSqlCache.set(tenantId, sql);
-    return sql;
+  const sql = neon(url);
+  tenantSqlCache.set(tenantId, sql);
+  return sql;
+}
+
+// Ã¢â€â‚¬Ã¢â€â‚¬ Redaction Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+
+const SENSITIVE_KEYS = new Set([
+  'password_hash',
+  'passwordhash',
+  'database_url',
+  'databaseurl',
+  'totp_secret',
+  'token_hash',
+]);
+
+/** Strips credentials/hashes from any JSON payload before it leaves the API. */
+export function redactDeep(value: unknown, depth = 0): unknown {
+  if (depth > 12 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((v) => redactDeep(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_KEYS.has(k.toLowerCase())) continue;
+    out[k] = redactDeep(v, depth + 1);
   }
+  return out;
 }
 
-export function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Token',
-    },
-  });
+/** Removes secrets from free-form text destined for logs. */
+export function redactText(text: string): string {
+  return String(text)
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[redacted-jwt]')
+    .replace(/Bearer\s+[\w.~+/=-]+/gi, 'Bearer [redacted]')
+    .replace(/pbkdf2v\d:[^\s"']+/g, '[redacted-hash]')
+    .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, '[redacted-connection-string]')
+    .replace(/(password|secret|token|api[_-]?key)(["']?\s*[:=]\s*["']?)[^\s"',}]+/gi, '$1$2[redacted]');
 }
+
+export function correlationId(): string {
+  return crypto.randomUUID();
+}
+
+// Ã¢â€â‚¬Ã¢â€â‚¬ Responses Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+
+function corsHeaders(): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': resolveAllowedOrigin(),
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Token, X-Requested-With',
+    Vary: 'Origin',
+  };
+}
+
+export function json(data: unknown, status = 200, opts?: { cookies?: string[] }) {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    ...SECURITY_HEADERS,
+    ...corsHeaders(),
+  });
+  for (const c of opts?.cookies ?? []) headers.append('Set-Cookie', c);
+  return new Response(JSON.stringify(redactDeep(data)), { status, headers });
+}
+
+const KNOWN_CLIENT_ERRORS: Record<string, number> = {
+  'Payload too large': 413,
+  'Invalid JSON body': 400,
+};
 
 export function error(message: string, status = 400) {
+  if (status >= 500) {
+    const known = KNOWN_CLIENT_ERRORS[message];
+    if (known) return json({ error: message }, known);
+    const id = correlationId();
+    console.error(JSON.stringify({ level: 'error', correlationId: id, status, message: redactText(message) }));
+    return json(
+      { error: isProductionRuntime() ? 'Internal server error' : redactText(message), correlationId: id },
+      status,
+    );
+  }
   return json({ error: message }, status);
 }
 
 export function corsPreflight() {
   return new Response(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Token',
-    },
+    headers: { ...SECURITY_HEADERS, ...corsHeaders(), 'Access-Control-Max-Age': '600' },
   });
 }
 
-export async function parseBody<T>(req: Request): Promise<T> {
-  return (await req.json()) as T;
+export const MAX_JSON_BYTES = 1_000_000;
+export const MAX_UPLOAD_BYTES = 10_000_000;
+
+/** Reads a JSON body with a hard size cap. Empty body yields {}. */
+export async function parseBody<T>(req: Request, maxBytes = MAX_JSON_BYTES): Promise<T> {
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (declared > maxBytes) throw new Error('Payload too large');
+  const text = await req.text();
+  if (text.length > maxBytes) throw new Error('Payload too large');
+  if (!text.trim()) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error('Invalid JSON body');
+  }
 }

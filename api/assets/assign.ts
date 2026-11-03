@@ -9,7 +9,7 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
   if (req.method !== 'POST') return error('Method not allowed', 405);
 
   try {
@@ -23,43 +23,28 @@ export default async function handler(req: Request) {
 
     const assetId = String(body.assetId ?? '').trim();
     const employeeId = String(body.employeeId ?? '').trim();
-    const assignedBy = String(body.assignedBy ?? `${auth.firstName} ${auth.lastName}`).trim();
+    const assignedBy = `${auth.firstName} ${auth.lastName}`.trim();
 
     if (!assetId || !employeeId) return error('assetId and employeeId are required', 400);
 
-    const sql = await getTenantSql(auth.tenantId!);
+    const sql = await getTenantSql(auth.tenantId);
+    const tenantId = auth.tenantId;
 
-    // Query asset by id or tag
     const existing = await sql`
-      SELECT id, tenant_id FROM assets WHERE id = ${assetId} OR asset_tag = ${assetId} LIMIT 1
-    ` as { id: string; tenant_id?: string }[];
+      SELECT id FROM assets WHERE tenant_id = ${tenantId} AND (id::text = ${assetId} OR asset_tag = ${assetId}) LIMIT 1
+    ` as { id: string }[];
     if (existing.length === 0) return error('Asset not found', 404);
-
     const resolvedAssetId = existing[0].id;
-    const tenantId = auth.tenantId || existing[0].tenant_id || '11111111-1111-1111-1111-111111111111';
 
-    // Verify employee exists in DB so foreign key constraint does not fail
-    try {
-      const empCheck = await sql`
-        SELECT id FROM employees WHERE id = ${employeeId} LIMIT 1
-      ` as { id: string }[];
-      if (empCheck.length === 0) {
-        // Auto-provision stub employee record if missing (e.g. demo employee or out-of-sync id)
-        await sql`
-          INSERT INTO employees (id, tenant_id, first_name, last_name, email, status)
-          VALUES (${employeeId}, ${tenantId}, 'Employee', 'Member', ${'emp_' + employeeId.slice(0, 8) + '@example.com'}, 'active')
-          ON CONFLICT (id) DO NOTHING
-        `;
-      }
-    } catch {
-      /* ignore employee check errors */
-    }
-
+    const empCheck = await sql`
+      SELECT id FROM employees WHERE id::text = ${employeeId} AND tenant_id = ${tenantId} LIMIT 1
+    ` as { id: string }[];
+    if (empCheck.length === 0) return error('Employee not found', 404);
     // 1. Mark existing active assignment as returned
     try {
       await sql`
         UPDATE asset_assignments SET returned_at = NOW()
-        WHERE asset_id = ${resolvedAssetId} AND returned_at IS NULL
+        WHERE asset_id = ${resolvedAssetId} AND tenant_id = ${tenantId} AND returned_at IS NULL
       `;
     } catch {
       /* ignore if table does not exist */
@@ -115,8 +100,8 @@ export default async function handler(req: Request) {
       const audit = body.audit;
       await insertAuditLog({
         tenantId,
-        userId: audit?.userId ?? auth.sub,
-        userName: audit?.userName ?? assignedBy,
+        userId: auth.sub,
+        userName: assignedBy,
         action: 'ASSIGN',
         entityType: 'asset',
         entityId: resolvedAssetId,
@@ -128,7 +113,7 @@ export default async function handler(req: Request) {
     }
 
     const rows = await sql`
-      SELECT * FROM assets WHERE id = ${resolvedAssetId}
+      SELECT * FROM assets WHERE id = ${resolvedAssetId} AND tenant_id = ${tenantId}
     ` as DbAsset[];
     return json(mapAsset(rows[0]));
   } catch (e) {

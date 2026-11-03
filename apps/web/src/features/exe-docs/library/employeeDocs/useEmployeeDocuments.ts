@@ -3,20 +3,16 @@ import type { Employee } from '../../../../types';
 import { getEmployeeName } from '../../../../utils/format';
 import type { EmployeeDocument, EmployeeDocStatus } from './types';
 
+import { pullRemote, tenantLoad, tenantSave } from '../../../../store/tenantStorage';
+
 const STORAGE_KEY = 'assetly_employee_documents';
 
 function loadStored(): EmployeeDocument[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as EmployeeDocument[];
-  } catch {
-    return [];
-  }
+  return tenantLoad<EmployeeDocument[]>(STORAGE_KEY, []);
 }
 
 function saveStored(docs: EmployeeDocument[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+  tenantSave(STORAGE_KEY, docs, 'employee_docs');
 }
 
 /** Try to link legacy JSON titles to employees by number or name. */
@@ -70,8 +66,19 @@ export function useEmployeeDocuments(employees: Employee[]) {
   const [documents, setDocuments] = useState<EmployeeDocument[]>(() => loadStored());
   const [initialized, setInitialized] = useState(false);
 
+  const [remoteLoaded, setRemoteLoaded] = useState(false);
+
   useEffect(() => {
-    if (initialized || employees.length === 0) return;
+    let cancelled = false;
+    pullRemote<EmployeeDocument>('employee_docs')
+      .then((items) => { if (!cancelled && items.length > 0) setDocuments(items); })
+      .catch(() => { /* fall back to local cache */ })
+      .finally(() => { if (!cancelled) setRemoteLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteLoaded || initialized || employees.length === 0) return;
     const stored = loadStored();
     if (stored.length > 0) {
       setDocuments(stored);
@@ -93,11 +100,11 @@ export function useEmployeeDocuments(employees: Employee[]) {
       })
       .catch(() => { /* no legacy seed */ })
       .finally(() => setInitialized(true));
-  }, [employees, initialized]);
+  }, [employees, initialized, remoteLoaded]);
 
   useEffect(() => {
-    if (initialized) saveStored(documents);
-  }, [documents, initialized]);
+    if (initialized && remoteLoaded) saveStored(documents);
+  }, [documents, initialized, remoteLoaded]);
 
   const addDocument = useCallback((doc: Omit<EmployeeDocument, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const now = new Date().toISOString();

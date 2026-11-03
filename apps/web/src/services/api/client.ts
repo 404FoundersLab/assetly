@@ -1,5 +1,5 @@
 import { apiUrl } from './config';
-import { getStoredToken } from './auth';
+import { getStoredToken, storeToken } from './auth';
 
 export class ApiError extends Error {
   constructor(
@@ -11,16 +11,64 @@ export class ApiError extends Error {
   }
 }
 
+let refreshInFlight: Promise<boolean> | null = null;
+
+/** Exchanges the HttpOnly refresh cookie for a new short-lived access token (single-flight). */
+function refreshAccessToken(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const res = await fetch(apiUrl('/api/auth/refresh'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!res.ok) return false;
+        const data = (await res.json()) as { token?: string };
+        if (!data.token) return false;
+        storeToken(data.token);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setTimeout(() => {
+          refreshInFlight = null;
+        }, 0);
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
+/** Revokes the refresh token server-side and clears auth cookies. Best effort. */
+export function serverLogout(): void {
+  void fetch(apiUrl('/api/auth/logout'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  }).catch(() => undefined);
+}
+
+const NO_REFRESH_PATHS = ['/api/auth/login', '/api/auth/refresh', '/api/auth/logout'];
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getStoredToken();
-  const res = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  });
+  const send = () => {
+    const token = getStoredToken();
+    return fetch(apiUrl(path), {
+      ...init,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+    });
+  };
+  let res = await send();
+  if (res.status === 401 && !NO_REFRESH_PATHS.some((p) => path.startsWith(p)) && (await refreshAccessToken())) {
+    res = await send();
+  }
 
   if (!res.ok) {
     let message = res.statusText;

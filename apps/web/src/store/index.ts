@@ -1,6 +1,6 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
+import storage from 'redux-persist/lib/storage/session';
 
 import authReducer from './authSlice';
 import assetsReducer from './assetsSlice';
@@ -57,6 +57,7 @@ const rootReducer = (state: any, action: any) => {
 const persistConfig = {
   key: 'root',
   storage,
+  blacklist: ['auth', 'tasks', 'tickets', 'productIdeas'],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

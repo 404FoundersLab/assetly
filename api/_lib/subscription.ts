@@ -261,6 +261,10 @@ export function appBaseUrl(req: Request): string {
   if (configured) {
     return configured.startsWith('http') ? configured : `https://${configured}`;
   }
+  // The Host header is attacker-controlled; never derive public URLs from it in production.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    throw new Error('APP_URL is not configured');
+  }
   const host = req.headers.get('host');
   if (host?.includes('localhost') || host?.includes('127.0.0.1')) {
     return `http://${host.replace(/:\d+$/, '')}:5173`;

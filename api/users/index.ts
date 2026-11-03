@@ -1,6 +1,6 @@
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapUser, type DbUser } from '../_lib/mappers';
-import { requireAuth, insertAuditLog, hashPassword } from '../_lib/auth';
+import { requireAuth, insertAuditLog, hashPassword, generateTempPassword } from '../_lib/auth';
 import { checkAdminLimit } from '../_lib/subscription';
 import {
   assertTenantAccess,
@@ -87,8 +87,7 @@ export default async function handler(req: Request) {
         RETURNING *
       ` as DbUser[];
 
-      const randomSuffix = crypto.randomUUID().split('-')[0].toUpperCase();
-      const generatedPassword = `Temp-${randomSuffix}`;
+      const generatedPassword = generateTempPassword();
       const hashed = await hashPassword(generatedPassword);
 
       await sql`
@@ -98,6 +97,7 @@ export default async function handler(req: Request) {
       `;
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'CREATE',

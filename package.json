@@ -24,12 +24,15 @@
     "migrate:hide-infra-requests": "tsx scripts/migrate-016.ts",
     "migrate:product-opportunity-assignments": "tsx scripts/migrate-022.ts",
     "migrate:email-lifecycle": "tsx scripts/migrate-012.ts",
-    "migrate:assets-columns": "tsx scripts/migrate-assets-columns.ts"
+    "migrate:assets-columns": "tsx scripts/migrate-assets-columns.ts",
+    "test": "node --import tsx --test tests/security-pentest.test.ts && tsx tests/rbac-workflow-test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
     "dotenv": "^17.4.2",
-    "jose": "^5.9.6"
+    "jose": "^5.9.6",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

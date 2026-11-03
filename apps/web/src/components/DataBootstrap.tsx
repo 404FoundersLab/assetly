@@ -17,6 +17,8 @@ import { replaceAllTickets } from '../store/ticketsSlice';
 import { fetchTickets } from '../services/api/tickets';
 import { setBootstrapReady, startLoading, stopLoading } from '../store/uiSlice';
 import { logout, updateTenantSession } from '../store/authSlice';
+import { hydrateWorkspace } from '../store/tasksSlice';
+import { pullRemote } from '../store/tenantStorage';
 import type { AppDispatch } from '../store';
 
 function hydrateFromSync(dispatch: AppDispatch, data: Awaited<ReturnType<typeof fetchSync>>) {
@@ -100,6 +102,15 @@ export function DataBootstrap() {
             if (!cancelled) dispatch(replaceAllTickets(tickets));
           } catch {
             /* tickets load is non-blocking */
+          }
+        }
+
+        for (const kind of ['projects', 'tasks', 'todos'] as const) {
+          try {
+            const items = await pullRemote(kind);
+            if (!cancelled) dispatch(hydrateWorkspace({ kind, items }));
+          } catch {
+            /* workspace load is non-blocking; local cache stays */
           }
         }
 

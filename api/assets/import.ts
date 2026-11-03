@@ -24,19 +24,20 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId! && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
-  if (auth instanceof Response) return auth;
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
 
   try {
     const sql = await getTenantSql(auth.tenantId!);
     const body = await parseBody<ImportBody>(req);
+    const assignedBy = `${auth.firstName} ${auth.lastName}`.trim();
     const items = body.items ?? [];
     const employees = body.employees ?? [];
 
     if (items.length === 0) return error('No assets to import', 400);
 
-    // Only wipe existing data when the caller explicitly requests a full replace
+    // Only wipe existing data when a tenant admin explicitly requests a full replace
     if (body.replaceAll === true) {
+      if (auth.role !== 'tenant_admin') return error('Only a tenant admin can replace all data', 403);
       await sql`DELETE FROM ownership_history WHERE tenant_id = ${auth.tenantId!}`;
       await sql`DELETE FROM asset_assignments WHERE tenant_id = ${auth.tenantId!}`;
       await sql`DELETE FROM assets WHERE tenant_id = ${auth.tenantId!}`;
@@ -134,19 +135,19 @@ export default async function handler(req: Request) {
       const asset = mapAsset(rows[0]);
       created.push(asset);
 
-      if (payload.assignedEmployeeId && body.assignedBy) {
+      if (payload.assignedEmployeeId) {
         await sql`
           INSERT INTO asset_assignments (tenant_id, asset_id, employee_id, assigned_by, notes)
           VALUES (
             ${auth.tenantId!}, ${asset.id}, ${payload.assignedEmployeeId},
-            ${body.assignedBy}, 'Imported from Excel'
+            ${assignedBy}, 'Imported from Excel'
           )
         `;
         await sql`
           INSERT INTO ownership_history (tenant_id, asset_id, event_type, description, performed_by)
           VALUES (
             ${auth.tenantId!}, ${asset.id}, 'ASSIGNED', 'Assigned during Excel import',
-            ${body.assignedBy}
+            ${assignedBy}
           )
         `;
       }
@@ -157,7 +158,7 @@ export default async function handler(req: Request) {
       await sql`
         INSERT INTO audit_logs (tenant_id, user_id, user_name, action, entity_type, entity_id, entity_label, details)
         VALUES (
-          ${auth.tenantId!}, ${audit.userId ?? null}, ${audit.userName ?? null},
+          ${auth.tenantId!}, ${auth.sub}, ${assignedBy},
           ${audit.action ?? 'CREATE'}, ${audit.entityType ?? 'asset'}, ${audit.entityId ?? 'bulk-import'},
           ${audit.entityLabel ?? 'Bulk Import'}, ${audit.details ?? null}
         )

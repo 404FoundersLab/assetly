@@ -1,11 +1,20 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
-import { getSql, error } from './db';
+import { getSql, getTenantSql, error } from './db';
 import { DEMO_USERS } from './demo-users';
-import { getJwtSecretKey, isDemoAuthEnabled } from './security';
+import { getJwtSecretKey, clientIp, isDemoAuthEnabled, isProductionRuntime, resolveAllowedOrigins, timingSafeEqual } from './security';
+import { memoryLimit, tooManyRequests } from './ratelimit';
 import { isPortfolioGuestEmail, isReadOnlyRole, matchPortfolioGuest } from './portfolio-guest';
 
-const PBKDF2_ITERATIONS = 100_000;
-const PBKDF2_PREFIX = 'pbkdf2v1:';
+const PBKDF2_V1_ITERATIONS = 100_000;
+const PBKDF2_V1_PREFIX = 'pbkdf2v1:';
+/** OWASP-recommended minimum for PBKDF2-HMAC-SHA512. Overridable (higher) via PBKDF2_ITERATIONS. */
+const PBKDF2_V2_ITERATIONS = Math.max(210_000, Number(process.env.PBKDF2_ITERATIONS) || 0);
+const PBKDF2_V2_PREFIX = 'pbkdf2v2:';
+
+export const JWT_ISSUER = 'assetly';
+export const JWT_AUDIENCE = 'assetly-app';
+export const ACCESS_TOKEN_TTL_SEC = 15 * 60;
+export const SESSION_COOKIE = 'assetly_session';
 
 const secret = () => getJwtSecretKey();
 
@@ -19,61 +28,56 @@ export interface AuthUser extends JWTPayload {
   employeeId?: string;
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-  const saltHex = Array.from(saltBytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: PBKDF2_ITERATIONS },
-    keyMaterial,
-    256,
-  );
-  const hashHex = Array.from(new Uint8Array(bits))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  return `${PBKDF2_PREFIX}${saltHex}:${hashHex}`;
+const toHex = (buf: ArrayBuffer) =>
+  Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+
+async function derive(password: string, salt: BufferSource, iterations: number, hash: 'SHA-256' | 'SHA-512', bits: number) {
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  return toHex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash, salt, iterations }, keyMaterial, bits));
 }
 
-async function verifyPbkdf2Hash(password: string, stored: string): Promise<boolean> {
-  const inner = stored.slice(PBKDF2_PREFIX.length);
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const saltHex = toHex(salt.buffer as ArrayBuffer);
+  const hashHex = await derive(password, salt, PBKDF2_V2_ITERATIONS, 'SHA-512', 512);
+  return `${PBKDF2_V2_PREFIX}${PBKDF2_V2_ITERATIONS}:${saltHex}:${hashHex}`;
+}
+
+function hexToBytes(hex: string): BufferSource {
+  return new Uint8Array((hex.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16))) as unknown as BufferSource;
+}
+
+async function verifyPbkdf2V2(password: string, stored: string): Promise<boolean> {
+  const [iterStr, saltHex, expectedHex] = stored.slice(PBKDF2_V2_PREFIX.length).split(':');
+  const iterations = Number(iterStr);
+  if (!iterations || iterations > 5_000_000 || !saltHex || !expectedHex) return false;
+  return timingSafeEqual(await derive(password, hexToBytes(saltHex), iterations, 'SHA-512', 512), expectedHex);
+}
+
+async function verifyPbkdf2V1(password: string, stored: string): Promise<boolean> {
+  const inner = stored.slice(PBKDF2_V1_PREFIX.length);
   const colonIdx = inner.indexOf(':');
   if (colonIdx === -1) return false;
-  const saltHex = inner.slice(0, colonIdx);
   const expectedHex = inner.slice(colonIdx + 1);
-  const saltBytes = new Uint8Array(
-    (saltHex.match(/.{2}/g) ?? []).map(b => parseInt(b, 16)),
-  );
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: PBKDF2_ITERATIONS },
-    keyMaterial,
-    256,
-  );
-  const hashHex = Array.from(new Uint8Array(bits))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  return hashHex === expectedHex;
+  return timingSafeEqual(await derive(password, hexToBytes(inner.slice(0, colonIdx)), PBKDF2_V1_ITERATIONS, 'SHA-256', 256), expectedHex);
 }
 
 async function legacySha256Hash(password: string): Promise<string> {
-  const pepper = process.env.JWT_SECRET || 'assetly-dev-secret-change-in-production';
-  const data = new TextEncoder().encode(`${password}:${pepper}`);
-  const hash = await crypto.subtle.digest('SHA-256', data);
+  const pepper = process.env.JWT_SECRET;
+  if (!pepper) return '';
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${password}:${pepper}`));
   return btoa(String.fromCharCode(...new Uint8Array(hash)));
+}
+
+/** Transparently upgrades weaker stored hashes after a successful verification. */
+async function rehashIfNeeded(email: string, password: string, stored: string): Promise<void> {
+  if (stored.startsWith(PBKDF2_V2_PREFIX) && Number(stored.split(':')[1]) >= PBKDF2_V2_ITERATIONS) return;
+  try {
+    const hash = await hashPassword(password);
+    await getSql()`UPDATE user_passwords SET password_hash = ${hash}, updated_at = NOW() WHERE email = ${email}`;
+  } catch {
+    /* upgrade is best-effort */
+  }
 }
 
 function matchDemoPassword(email: string, password: string): boolean {
@@ -96,7 +100,8 @@ export async function verifyPassword(email: string, password: string): Promise<b
     if (rows.length > 0) {
       const stored = rows[0].password_hash;
       if (stored === 'optional-on-first-login') {
-        return true;
+        // Legacy passwordless placeholder: never valid. An admin must reset the password.
+        return false;
       }
       if (stored === 'seed-placeholder') {
         if (matchDemoPassword(normalized, password)) {
@@ -114,26 +119,12 @@ export async function verifyPassword(email: string, password: string): Promise<b
         }
         return false;
       }
-      if (stored.startsWith(PBKDF2_PREFIX)) {
-        return verifyPbkdf2Hash(password, stored);
-      }
-      // Legacy SHA-256 hash — auto-upgrade on next password change
-      return (await legacySha256Hash(password)) === stored;
-    } else {
-      // If user_passwords has no row, check if this email belongs to an employee
-      try {
-        const empRows = await sql`
-          SELECT id FROM employees
-          WHERE lower(COALESCE(official_email, joining_email, email)) = ${normalized}
-             OR lower(email) = ${normalized}
-          LIMIT 1
-        ` as { id: string }[];
-        if (empRows.length > 0) {
-          return true;
-        }
-      } catch {
-        /* ignore */
-      }
+      let ok: boolean;
+      if (stored.startsWith(PBKDF2_V2_PREFIX)) ok = await verifyPbkdf2V2(password, stored);
+      else if (stored.startsWith(PBKDF2_V1_PREFIX)) ok = await verifyPbkdf2V1(password, stored);
+      else ok = timingSafeEqual(await legacySha256Hash(password), stored);
+      if (ok) await rehashIfNeeded(normalized, password, stored);
+      return ok;
     }
   } catch {
     /* user_passwords table may not exist yet — fall back to demo credentials when enabled */
@@ -162,11 +153,24 @@ export async function signAuthToken(user: {
     ...(user.employeeId ? { employeeId: user.employeeId } : {}),
     ...(opts?.mfaPending ? { mfaPending: true } : {}),
   })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(user.id)
+    .setIssuer(JWT_ISSUER)
+    .setAudience(JWT_AUDIENCE)
+    .setJti(crypto.randomUUID())
     .setIssuedAt()
-    .setExpirationTime(opts?.mfaPending ? '15m' : isGuest ? '4h' : '8h')
+    .setExpirationTime(opts?.mfaPending ? '15m' : isGuest ? '1h' : `${ACCESS_TOKEN_TTL_SEC}s`)
     .sign(secret());
+}
+
+export function readCookie(req: Request, name: string): string | null {
+  const raw = req.headers.get('Cookie');
+  if (!raw) return null;
+  for (const part of raw.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx > 0 && part.slice(0, idx).trim() === name) return decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return null;
 }
 
 /** Tokens issued while MFA enrollment is pending are rejected unless `allowMfaPending` is set. */
@@ -175,14 +179,68 @@ export async function verifyAuthToken(
   allowMfaPending = false,
 ): Promise<AuthUser | null> {
   const header = req.headers.get('Authorization');
-  if (!header?.startsWith('Bearer ')) return null;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : readCookie(req, SESSION_COOKIE);
+  if (!token) return null;
   try {
-    const { payload } = await jwtVerify(header.slice(7), secret());
+    const { payload } = await jwtVerify(token, secret(), {
+      algorithms: ['HS256'],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
     if (payload.mfaPending && !allowMfaPending) return null;
     return payload as AuthUser;
   } catch {
     return null;
   }
+}
+
+/** CSRF defence for cookie-authenticated unsafe requests: same-site Origin plus a custom header. */
+function csrfViolation(req: Request): boolean {
+  const method = req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+  if (req.headers.get('Authorization')?.startsWith('Bearer ')) return false;
+  const origin = req.headers.get('Origin');
+  if (origin && !resolveAllowedOrigins().includes(origin) && origin !== new URL(req.url).origin) return true;
+  return req.headers.get('X-Requested-With') !== 'XMLHttpRequest';
+}
+
+const accountCache = new Map<string, { ok: boolean; at: number }>();
+const ACCOUNT_CACHE_MS = 30_000;
+
+export function clearAccountCache(): void {
+  accountCache.clear();
+}
+
+/** The account must still exist, and its tenant must be active. Fails closed on DB errors in production. */
+async function isAccountActive(user: AuthUser): Promise<boolean> {
+  if (isPortfolioGuestEmail(user.email) || !user.tenantId || !isUuid(user.tenantId)) return true;
+  const key = `${user.sub}:${user.tenantId}`;
+  const hit = accountCache.get(key);
+  if (hit && Date.now() - hit.at < ACCOUNT_CACHE_MS) return hit.ok;
+  let ok: boolean;
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT id FROM users WHERE id = ${user.sub} AND tenant_id = ${user.tenantId} LIMIT 1
+    `) as unknown[];
+    ok = rows.length > 0;
+    if (!ok && isDemoAuthEnabled() && DEMO_USERS[user.email.toLowerCase()]) {
+      accountCache.set(key, { ok: true, at: Date.now() });
+      return true;
+    }
+    if (ok) {      try {
+        const t = (await sql`SELECT status FROM tenants WHERE id = ${user.tenantId} LIMIT 1`) as { status?: string }[];
+        if (t.length === 0) ok = false;
+        else if (['suspended', 'inactive', 'disabled', 'deleted'].includes(String(t[0].status ?? '').toLowerCase())) ok = false;
+      } catch {
+        /* tenants.status may not exist */
+      }
+    }
+  } catch {
+    ok = !isProductionRuntime();
+  }
+  accountCache.set(key, { ok, at: Date.now() });
+  return ok;
 }
 
 export async function requireAuth(
@@ -191,6 +249,11 @@ export async function requireAuth(
 ): Promise<AuthUser | Response> {
   const user = await verifyAuthToken(req, opts?.allowMfaPending);
   if (!user?.sub) return error('Unauthorized', 401);
+  if (csrfViolation(req)) return error('Forbidden', 403);
+  const general = memoryLimit(`api:${clientIp(req)}:${user.sub}`, Number(process.env.API_RATE_LIMIT_PER_MIN) || 300, 60_000);
+  if (!general.allowed) return tooManyRequests(general.retryAfterSec);
+  if (!(await isAccountActive(user))) return error('Unauthorized', 401);
+
   if (isPortfolioGuestEmail(user.email)) {
     user.role = 'viewer';
   }
@@ -200,7 +263,28 @@ export async function requireAuth(
       return error('This account is read-only', 403);
     }
   }
+  const denied = enforceWriteRbac(req, user.role);
+  if (denied) return denied;
   return user;
+}
+
+const ADMIN_WRITE_ROLES = ['platform_admin', 'tenant_admin', 'it_admin', 'finance_admin'];
+const PEOPLE_WRITE_ROLES = ['platform_admin', 'tenant_admin', 'hr_admin', 'it_admin'];
+
+/** Central role gate for mutating requests on core inventory/people routes. */
+function enforceWriteRbac(req: Request, role: string): Response | null {
+  const method = req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
+  const path = new URL(req.url).pathname;
+  let allowed: string[] | null = null;
+  if (/^\/api\/(assets|asset-categories|vendors)(\/|$)/.test(path)) allowed = ADMIN_WRITE_ROLES;
+  else if (/^\/api\/(employees|departments)(\/|$)/.test(path)) allowed = PEOPLE_WRITE_ROLES;
+  if (allowed && !allowed.includes(role)) return error('Forbidden', 403);
+  return null;
+}
+
+export function canManageAssets(role: string | undefined): boolean {
+  return ADMIN_WRITE_ROLES.includes(role ?? '');
 }
 
 function isUuid(value: string): boolean {
@@ -249,10 +333,8 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
   if (pathname === '/api/billing/webhooks' && method === 'POST') return true;
   if (pathname === '/api/billing/webhooks-razorpay' && method === 'POST') return true;
   if (pathname === '/api/auth/login' && method === 'POST') return true;
-  if (method === 'GET' && /^\/api\/assets\/[^/]+$/.test(pathname)) {
-    const segment = pathname.split('/').pop();
-    if (segment && segment !== 'import') return true;
-  }
+  if (pathname === '/api/auth/refresh' && method === 'POST') return true;
+  if (pathname === '/api/auth/logout' && method === 'POST') return true;
   return false;
 }
 
@@ -269,9 +351,9 @@ export async function insertAuditLog(
   },
 ): Promise<void> {
   try {
-    const sql = getSql();
     const tenantId = audit.tenantId;
-    if (!tenantId) return; // Silent return if no tenant id since we can't log it
+    if (!tenantId) return;
+    const sql = await getTenantSql(tenantId);
     await sql`
       INSERT INTO audit_logs (tenant_id, user_id, user_name, action, entity_type, entity_id, entity_label, details)
       VALUES (
@@ -288,4 +370,13 @@ export async function insertAuditLog(
   } catch {
     // Non-blocking: audit log errors should never prevent user operations
   }
+}
+
+const TEMP_PW_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+
+/** Cryptographically random one-time password (meets typical complexity rules). */
+export function generateTempPassword(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(14));
+  const body = Array.from(bytes, (b) => TEMP_PW_ALPHABET[b % TEMP_PW_ALPHABET.length]).join('');
+  return `Tmp-${body}-7a`;
 }

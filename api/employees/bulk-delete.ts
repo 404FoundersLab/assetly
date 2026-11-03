@@ -13,27 +13,27 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
 
   try {
     const body = await parseBody<{ ids?: string[]; all?: boolean }>(req);
     const sql = await getTenantSql(auth.tenantId!);
 
     if (body.all === true) {
-      // Unlink all assets in tenant
+      if (auth.role !== 'tenant_admin') return error('Only a tenant admin can delete all employees', 403);
+      // Remove employee logins first (while the users rows still exist)
+      await sql`
+        DELETE FROM user_passwords WHERE LOWER(email) IN (
+          SELECT LOWER(email) FROM users WHERE tenant_id = ${auth.tenantId!} AND role = 'employee'
+        )
+      `;
+      await sql`DELETE FROM users WHERE tenant_id = ${auth.tenantId!} AND role = 'employee'`;
       await sql`UPDATE assets SET assigned_employee_id = NULL WHERE tenant_id = ${auth.tenantId!}`;
       await sql`DELETE FROM asset_assignments WHERE tenant_id = ${auth.tenantId!}`;
       await sql`DELETE FROM employees WHERE tenant_id = ${auth.tenantId!}`;
 
-      // Purge corresponding employee user records and passwords
-      await sql`
-        DELETE FROM user_passwords WHERE user_id IN (
-          SELECT id FROM users WHERE tenant_id = ${auth.tenantId!} AND role = 'employee'
-        )
-      `;
-      await sql`DELETE FROM users WHERE tenant_id = ${auth.tenantId!} AND role = 'employee'`;
-
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'DELETE',
@@ -104,6 +104,7 @@ export default async function handler(req: Request) {
         await sql`
           DELETE FROM user_passwords
           WHERE LOWER(email) = ANY(${emails}::text[])
+            AND NOT EXISTS (SELECT 1 FROM users u WHERE LOWER(u.email) = LOWER(user_passwords.email))
         `;
       } catch {}
     }
@@ -115,6 +116,7 @@ export default async function handler(req: Request) {
     `) as { id: string; employee_number: string; first_name: string; last_name: string }[];
 
     await insertAuditLog({
+      tenantId: auth.tenantId,
       userId: auth.sub,
       userName: `${auth.firstName} ${auth.lastName}`,
       action: 'DELETE',

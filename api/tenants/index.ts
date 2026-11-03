@@ -1,6 +1,6 @@
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapTenant, type DbTenant } from '../_lib/mappers';
-import { requireAuth, insertAuditLog, hashPassword } from '../_lib/auth';
+import { requireAuth, insertAuditLog, hashPassword, generateTempPassword } from '../_lib/auth';
 import { provisionTenantDatabase } from '../_lib/provision';
 
 export const config = { runtime: 'edge' };
@@ -86,6 +86,13 @@ export default async function handler(req: Request) {
         /* column may already exist */
       }
 
+      if (adminEmail) {
+        const taken = (await sql`SELECT 1 FROM users WHERE lower(email) = ${adminEmail} LIMIT 1`) as unknown[];
+        if (taken.length > 0) {
+          return error('This admin email is already registered to another account', 409);
+        }
+      }
+
       let rows: DbTenant[] = [];
       try {
         rows = await sql`
@@ -132,30 +139,15 @@ export default async function handler(req: Request) {
             SELECT id FROM users WHERE lower(email) = ${adminEmail} LIMIT 1
           `) as { id: string }[];
 
-          if (existingUser.length > 0) {
-            await sql`
-              UPDATE users
-              SET tenant_id = ${id}, role = 'tenant_admin'
-              WHERE id = ${existingUser[0].id}
-            `;
-          } else {
+          if (existingUser.length === 0) {
             const userId = crypto.randomUUID();
-            try {
-              await sql`
-                INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
-                VALUES (${userId}, ${id}, ${adminEmail}, ${firstName}, ${lastName}, 'tenant_admin')
-              `;
-            } catch {
-              await sql`
-                UPDATE users
-                SET tenant_id = ${id}, role = 'tenant_admin'
-                WHERE lower(email) = ${adminEmail}
-              `;
-            }
+            await sql`
+              INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+              VALUES (${userId}, ${id}, ${adminEmail}, ${firstName}, ${lastName}, 'tenant_admin')
+            `;
           }
 
-          const randomSuffix = crypto.randomUUID().split('-')[0].toUpperCase();
-          generatedPassword = `Temp-${randomSuffix}`;
+          generatedPassword = generateTempPassword();
           const hashed = await hashPassword(generatedPassword);
 
           const existingPw = (await sql`

@@ -1,5 +1,9 @@
-import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
-import { requireAuth, hashPassword, verifyPassword, insertAuditLog } from '../_lib/auth';
+import { getSql, json, error, corsPreflight } from '../_lib/db';
+import { validateBody, z } from '../_lib/validate';
+import { requireAuth, hashPassword, verifyPassword, insertAuditLog, signAuthToken } from '../_lib/auth';
+import { validateNewPassword } from '../_lib/password-policy';
+import { consume, tooManyRequests } from '../_lib/ratelimit';
+import { issueRefreshToken, revokeAllForUser, sessionCookies } from '../_lib/session';
 
 export const config = { runtime: 'edge' };
 
@@ -11,18 +15,23 @@ export default async function handler(req: Request) {
   if (req.method !== 'POST') return error('Method not allowed', 405);
 
   try {
-    const body = await parseBody<{ currentPassword?: string; newPassword?: string }>(req);
+    const limit = await consume(`change-pw:${auth.sub}`, 5, 60);
+    if (!limit.allowed) return tooManyRequests(limit.retryAfterSec);
+    const parsed = await validateBody(req, z.object({
+      currentPassword: z.string().max(256).optional(),
+      newPassword: z.string().max(256).optional(),
+    }));
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const currentPassword = String(body.currentPassword ?? '');
     const newPassword = String(body.newPassword ?? '');
 
     if (!newPassword) {
       return error('New password is required', 400);
     }
-    if (newPassword.length < 8) {
-      return error('New password must be at least 8 characters', 400);
-    }
-
     const email = String(auth.email ?? '').toLowerCase();
+    const policyProblem = await validateNewPassword(newPassword, { email });
+    if (policyProblem) return error(policyProblem, 400);
 
     // For first-time password setup, currentPassword may be empty if no password is set yet
     if (currentPassword) {
@@ -110,7 +119,18 @@ export default async function handler(req: Request) {
       details: 'Password changed',
     });
 
-    return json({ success: true });
+    await revokeAllForUser(auth.sub);
+    const token = await signAuthToken({
+      id: auth.sub,
+      email: auth.email,
+      role: auth.role,
+      firstName: auth.firstName,
+      lastName: auth.lastName,
+      tenantId: auth.tenantId,
+      employeeId: auth.employeeId,
+    });
+    const cookies = sessionCookies(token, await issueRefreshToken(auth.sub));
+    return json({ success: true, token }, 200, { cookies });
   } catch (e) {
     return error(e instanceof Error ? e.message : 'Password change failed', 500);
   }

@@ -1,4 +1,5 @@
-import { corsPreflight, error, getTenantSql, json, parseBody } from '../_lib/db';
+import { corsPreflight, error, getTenantSql, json } from '../_lib/db';
+import { validateBody, z } from '../_lib/validate';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
 import { processApprovalAction } from '../_lib/workflow-engine';
 
@@ -15,7 +16,14 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'POST') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const parsed = await validateBody(req, z.object({
+        approvalRequestId: z.string().max(128).optional(),
+        id: z.string().max(128).optional(),
+        action: z.string().max(16),
+        comment: z.string().max(2000).optional(),
+      }));
+      if (!parsed.ok) return parsed.response;
+      const body: Record<string, unknown> = parsed.data;
       const approvalRequestId = String(body.approvalRequestId ?? body.id ?? '').trim();
       const action = String(body.action ?? '').trim().toLowerCase();
       const comment = body.comment ? String(body.comment).trim() : undefined;

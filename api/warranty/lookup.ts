@@ -56,9 +56,15 @@ async function lookupLenovo(serialNumber: string): Promise<WarrantyLookupRespons
   }
 
   const product = prods[0];
+  // The id comes from a remote response: allow only a strict token so it cannot alter the URL path/host.
+  if (!/^[A-Za-z0-9-]{4,64}$/.test(product.Id)) {
+    throw new Error('Unexpected product identifier from Lenovo');
+  }
   const warrantyUrl = `https://pcsupport.lenovo.com/in/en/products/${product.Id.toLowerCase()}/warranty`;
 
   const pageRes = await fetch(warrantyUrl, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(10000),
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

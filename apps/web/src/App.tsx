@@ -98,7 +98,14 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/lookup/:id" element={<AssetLookupPage />} />
+      <Route
+        path="/lookup/:id"
+        element={
+          <ProtectedRoute>
+            <AssetLookupPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         element={
           <ProtectedRoute>

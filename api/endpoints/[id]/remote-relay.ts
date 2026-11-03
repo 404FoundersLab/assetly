@@ -63,6 +63,9 @@ export default async function handler(req: Request) {
   try {
     await ensureRemoteTables(sql, tenantId);
 
+    const [owned] = await sql`SELECT id FROM endpoints WHERE id = ${id} AND tenant_id = ${tenantId} LIMIT 1`;
+    if (!owned) return error('Endpoint not found', 404);
+
     if (req.method === 'GET') {
       if (isAgent) {
         // Agent gets active status, consumes input queue, and reads new WebRTC signals

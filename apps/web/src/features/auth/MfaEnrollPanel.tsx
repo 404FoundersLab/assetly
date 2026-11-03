@@ -17,6 +17,7 @@ export function MfaEnrollPanel({ onComplete, onCancel }: Props) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<{ token: string; codes: string[] } | null>(null);
 
   useEffect(() => {
     setupMfa()
@@ -31,13 +32,29 @@ export function MfaEnrollPanel({ onComplete, onCancel }: Props) {
     try {
       const res = await enableMfa(code);
       if (!res.token) throw new Error('No session returned');
-      onComplete(res.token);
+      setDone({ token: res.token, codes: res.recoveryCodes ?? [] });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Verification failed');
     } finally {
       setLoading(false);
     }
   };
+
+  if (done) {
+    return (
+      <Stack spacing={2}>
+        <Alert severity="warning">
+          Save these recovery codes now. Each can be used once if you lose your authenticator. They will not be shown again.
+        </Alert>
+        <Box component="pre" sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, m: 0, fontSize: 14 }}>
+          {done.codes.join('\n')}
+        </Box>
+        <LoadingButton fullWidth variant="contained" size="large" onClick={() => onComplete(done.token)}>
+          I have saved them - continue
+        </LoadingButton>
+      </Stack>
+    );
+  }
 
   return (
     <Box component="form" onSubmit={submit}>

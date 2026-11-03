@@ -1,6 +1,7 @@
-import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
+import { getSql, getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapEmployee, type DbEmployee } from '../_lib/mappers';
-import { requireAuth, insertAuditLog } from '../_lib/auth';
+import { belongsToTenant } from '../_lib/fk';
+import { requireAuth, insertAuditLog, hashPassword, generateTempPassword } from '../_lib/auth';
 import {
   activeEmployeeLoginEmail,
   migrateEmployeeLoginEmail,
@@ -14,11 +15,12 @@ export default async function handler(req: Request) {
 
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
-  if (!auth.tenantId && auth.role !== 'platform_admin') return error('Tenant ID is required', 400);
+  if (!auth.tenantId) return error('Tenant ID is required', 400);
 
   const url = new URL(req.url);
   const id = url.pathname.split('/').filter(Boolean).pop();
   if (!id || id === 'employees') return error('Employee id required', 400);
+  if (auth.role === 'employee' && id !== auth.employeeId) return error('Forbidden', 403);
 
   const sql = await getTenantSql(auth.tenantId!);
 
@@ -52,6 +54,11 @@ export default async function handler(req: Request) {
       const managerId = body.managerId !== undefined
         ? (body.managerId ? String(body.managerId).trim() : null)
         : current.manager_id;
+
+      const deptRef = body.departmentId ? String(body.departmentId) : null;
+      if (!(await belongsToTenant(sql, 'departments', deptRef, auth.tenantId!)) || (body.managerId !== undefined && !(await belongsToTenant(sql, 'employees', managerId, auth.tenantId!)))) {
+        return error('Referenced department or manager was not found', 404);
+      }
 
       if (body.managerId !== undefined && managerId) {
         if (managerId === id) {
@@ -183,6 +190,7 @@ export default async function handler(req: Request) {
           : 'Employee updated';
 
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'UPDATE',
@@ -192,6 +200,46 @@ export default async function handler(req: Request) {
         details: emailNote,
       });
       return json(emp);
+    }
+
+    if (req.method === 'POST') {
+      const rows = await sql`
+        SELECT email, joining_email, official_email, first_name, last_name FROM employees
+        WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
+      ` as { email?: string; joining_email?: string; official_email?: string; first_name: string; last_name?: string }[];
+      if (rows.length === 0) return error('Employee not found', 404);
+      const loginEmail = (rows[0].official_email || rows[0].joining_email || rows[0].email || '').trim().toLowerCase();
+      if (!loginEmail) return error('Employee has no email', 400);
+
+      const mainSql = getSql();
+      const owner = await mainSql`SELECT tenant_id, role FROM users WHERE lower(email) = ${loginEmail} LIMIT 1` as { tenant_id: string; role: string }[];
+      if (owner.length > 0 && (owner[0].tenant_id !== auth.tenantId || owner[0].role !== 'employee')) {
+        return error('This email belongs to a non-employee account; use user management to reset it', 409);
+      }
+      if (owner.length === 0) {
+        await mainSql`
+          INSERT INTO users (id, tenant_id, email, first_name, last_name, role)
+          VALUES (${crypto.randomUUID()}, ${auth.tenantId!}, ${loginEmail}, ${rows[0].first_name}, ${rows[0].last_name ?? ''}, 'employee')
+        `;
+      }
+      const temporaryPassword = generateTempPassword();
+      const hash = await hashPassword(temporaryPassword);
+      await mainSql`
+        INSERT INTO user_passwords (email, password_hash, must_change_password)
+        VALUES (${loginEmail}, ${hash}, true)
+        ON CONFLICT (email) DO UPDATE SET password_hash = ${hash}, must_change_password = true, updated_at = NOW()
+      `;
+      await insertAuditLog({
+        tenantId: auth.tenantId,
+        userId: auth.sub,
+        userName: `${auth.firstName} ${auth.lastName}`,
+        action: 'UPDATE',
+        entityType: 'employee',
+        entityId: id,
+        entityLabel: loginEmail,
+        details: 'Employee password reset',
+      });
+      return json({ email: loginEmail, temporaryPassword });
     }
 
     if (req.method === 'DELETE') {
@@ -219,6 +267,7 @@ export default async function handler(req: Request) {
             await sql`
               DELETE FROM user_passwords
               WHERE LOWER(email) = ANY(${emails}::text[])
+                AND NOT EXISTS (SELECT 1 FROM users u WHERE LOWER(u.email) = LOWER(user_passwords.email))
             `;
           } catch {}
         }
@@ -226,6 +275,7 @@ export default async function handler(req: Request) {
 
       await sql`DELETE FROM employees WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'DELETE',

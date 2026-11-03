@@ -32,6 +32,7 @@ export default async function handler(req: Request) {
 
       const dept = mapDepartment(rows[0]);
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'UPDATE',
@@ -46,6 +47,7 @@ export default async function handler(req: Request) {
     if (req.method === 'DELETE') {
       await sql`DELETE FROM departments WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
       await insertAuditLog({
+        tenantId: auth.tenantId,
         userId: auth.sub,
         userName: `${auth.firstName} ${auth.lastName}`,
         action: 'DELETE',

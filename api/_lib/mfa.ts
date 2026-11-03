@@ -1,4 +1,6 @@
 import { getSql } from './db';
+import { decryptSecret, encryptSecret, randomToken, sha256Hex } from './crypto';
+import { clearBucket, isLocked, recordHit } from './ratelimit';
 
 /** TOTP (RFC 6238) helpers using Web Crypto — works in the edge runtime. */
 
@@ -73,12 +75,15 @@ export async function ensureMfaTable(): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS user_mfa (
       email VARCHAR(255) PRIMARY KEY,
-      secret VARCHAR(128) NOT NULL,
+      secret TEXT NOT NULL,
+      recovery_codes TEXT,
       enabled BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE user_mfa ALTER COLUMN secret TYPE TEXT`;
+  await sql`ALTER TABLE user_mfa ADD COLUMN IF NOT EXISTS recovery_codes TEXT`;
   tableReady = true;
 }
 
@@ -127,9 +132,71 @@ export async function getMfaRecord(
     const rows = (await sql`
       SELECT secret, enabled FROM user_mfa WHERE email = ${email.toLowerCase()}
     `) as { secret: string; enabled: boolean }[];
-    return rows[0] ?? null;
+    if (!rows[0]) return null;
+    return { secret: await decryptSecret(rows[0].secret), enabled: rows[0].enabled };
   } catch {
     return null;
   }
 }
 
+/** Persists a TOTP secret encrypted with AES-256-GCM (APP_ENCRYPTION_KEY). Resets recovery codes. */
+export async function saveMfaSecret(email: string, secret: string): Promise<void> {
+  await ensureMfaTable();
+  const enc = await encryptSecret(secret);
+  await getSql()`
+    INSERT INTO user_mfa (email, secret, enabled, recovery_codes, updated_at)
+    VALUES (${email.toLowerCase()}, ${enc}, false, NULL, NOW())
+    ON CONFLICT (email) DO UPDATE SET secret = ${enc}, enabled = false, recovery_codes = NULL, updated_at = NOW()
+  `;
+}
+
+const MFA_MAX_FAILURES = 5;
+const MFA_WINDOW_SEC = 15 * 60;
+const mfaBucket = (email: string) => `mfa:${email.toLowerCase()}`;
+
+export async function isMfaLocked(email: string): Promise<boolean> {
+  return isLocked(mfaBucket(email), MFA_MAX_FAILURES, MFA_WINDOW_SEC);
+}
+
+/** Generates 10 single-use recovery codes; only SHA-256 digests are stored. Returns the plaintext once. */
+export async function generateRecoveryCodes(email: string): Promise<string[]> {
+  const codes = Array.from({ length: 10 }, () => {
+    const t = randomToken(8).replace(/[-_]/g, 'x').toLowerCase();
+    return `${t.slice(0, 5)}-${t.slice(5, 10)}`;
+  });
+  const hashes = await Promise.all(codes.map((c) => sha256Hex(c)));
+  await getSql()`UPDATE user_mfa SET recovery_codes = ${JSON.stringify(hashes)} WHERE email = ${email.toLowerCase()}`;
+  return codes;
+}
+
+async function consumeRecoveryCode(email: string, code: string): Promise<boolean> {
+  const rows = (await getSql()`SELECT recovery_codes FROM user_mfa WHERE email = ${email.toLowerCase()}`) as { recovery_codes: string | null }[];
+  if (!rows[0]?.recovery_codes) return false;
+  const hashes: string[] = JSON.parse(rows[0].recovery_codes);
+  const h = await sha256Hex(code.trim().toLowerCase());
+  if (!hashes.includes(h)) return false;
+  const remaining = JSON.stringify(hashes.filter((x) => x !== h));
+  await getSql()`UPDATE user_mfa SET recovery_codes = ${remaining} WHERE email = ${email.toLowerCase()}`;
+  return true;
+}
+
+/**
+ * Verifies a TOTP (or recovery) code with lockout: after 5 consecutive failures in 15 minutes
+ * all attempts are refused until the window clears. Returns 'locked' when throttled.
+ */
+export async function verifyMfaWithLockout(
+  email: string,
+  secret: string,
+  code: string,
+): Promise<'ok' | 'invalid' | 'locked'> {
+  if (await isMfaLocked(email)) return 'locked';
+  const trimmed = String(code ?? '').trim();
+  let ok = await verifyTotp(secret, trimmed);
+  if (!ok && /^[a-z0-9]{5}-[a-z0-9]{5}$/i.test(trimmed)) ok = await consumeRecoveryCode(email, trimmed);
+  if (ok) {
+    await clearBucket(mfaBucket(email));
+    return 'ok';
+  }
+  await recordHit(mfaBucket(email));
+  return 'invalid';
+}

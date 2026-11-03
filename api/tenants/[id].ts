@@ -109,6 +109,16 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'DELETE') {
+      try {
+        await sql`
+          DELETE FROM user_passwords WHERE LOWER(email) IN (
+            SELECT LOWER(email) FROM users WHERE tenant_id = ${id} AND role <> 'platform_admin'
+          )
+        `;
+        await sql`DELETE FROM users WHERE tenant_id = ${id} AND role <> 'platform_admin'`;
+      } catch {
+        /* best-effort cleanup of orphaned logins */
+      }
       const rows = await sql`
         DELETE FROM tenants WHERE id = ${id} RETURNING name, slug
       ` as { name: string; slug: string }[];

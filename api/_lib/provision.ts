@@ -128,6 +128,20 @@ const TENANT_SCHEMA_STATEMENTS = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
 
+  `CREATE OR REPLACE FUNCTION audit_logs_block_mutation() RETURNS trigger AS $$
+  BEGIN
+    IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+      RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'audit_logs is append-only (% not allowed)', TG_OP USING ERRCODE = 'insufficient_privilege';
+  END;
+  $$ LANGUAGE plpgsql`,
+
+  `DROP TRIGGER IF EXISTS audit_logs_immutable ON audit_logs`,
+
+  `CREATE TRIGGER audit_logs_immutable BEFORE UPDATE OR DELETE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION audit_logs_block_mutation()`,
+
   `CREATE TABLE IF NOT EXISTS asset_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
