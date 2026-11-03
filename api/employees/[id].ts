@@ -249,7 +249,8 @@ export default async function handler(req: Request) {
         WHERE id = ${id} AND tenant_id = ${auth.tenantId!}
       ` as { email?: string; joining_email?: string; official_email?: string }[];
 
-      if (empRows.length > 0) {
+      if (empRows.length === 0) return error('Employee not found', 404);
+      {
         const emp = empRows[0];
         const emails = [emp.email, emp.joining_email, emp.official_email]
           .filter(Boolean)

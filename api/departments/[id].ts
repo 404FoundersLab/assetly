@@ -45,7 +45,8 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'DELETE') {
-      await sql`DELETE FROM departments WHERE id = ${id} AND tenant_id = ${auth.tenantId!}`;
+      const removed = await sql`DELETE FROM departments WHERE id = ${id} AND tenant_id = ${auth.tenantId!} RETURNING id`;
+      if (removed.length === 0) return error('Department not found', 404);
       await insertAuditLog({
         tenantId: auth.tenantId,
         userId: auth.sub,
