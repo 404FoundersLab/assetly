@@ -11,7 +11,6 @@ import {
   Alert,
   Grid,
   Avatar,
-  Divider,
   Paper,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -23,7 +22,14 @@ import { PageHeader } from '../../components/PageHeader';
 import { fetchOrgHierarchy, type HierarchyNodeDto, type HierarchyResponseDto } from '../../services/api/workflows';
 
 function HierarchyCard({ node, depth = 0 }: { node: HierarchyNodeDto; depth?: number }) {
-  const hasReports = node.children && node.children.length > 0;
+  const children = Array.isArray(node?.children) ? node.children : [];
+  const hasReports = children.length > 0;
+
+  const firstName = (node?.firstName || (node?.name ? node.name.split(' ')[0] : '') || '').trim();
+  const lastName = (node?.lastName || (node?.name && node.name.includes(' ') ? node.name.split(' ').slice(1).join(' ') : '') || '').trim();
+  const firstInitial = (firstName[0] || (node?.name ? node.name[0] : (node?.email ? node.email[0] : 'E'))).toUpperCase();
+  const lastInitial = (lastName[0] || '').toUpperCase();
+  const displayName = node?.name || (firstName || lastName ? `${firstName} ${lastName}`.trim() : node?.email || 'Team Member');
 
   return (
     <Box sx={{ ml: depth > 0 ? 3 : 0, mt: 1.5, position: 'relative' }}>
@@ -48,23 +54,22 @@ function HierarchyCard({ node, depth = 0 }: { node: HierarchyNodeDto; depth?: nu
                 fontWeight: 600,
               }}
             >
-              {node.firstName[0]}
-              {node.lastName[0] || ''}
+              {firstInitial}{lastInitial}
             </Avatar>
             <Box>
               <Typography variant="subtitle1" fontWeight={700}>
-                {node.name}
+                {displayName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {node.jobTitle || 'Team Member'} {node.departmentName ? `• ${node.departmentName}` : ''}
+                {node?.jobTitle || 'Team Member'} {node?.departmentName ? `• ${node.departmentName}` : ''}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {node.email}
+                {node?.email || ''}
               </Typography>
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="center">
-            {node.directReportsCount > 0 && (
+            {Number(node?.directReportsCount || 0) > 0 && (
               <Chip
                 icon={<PeopleIcon />}
                 label={`${node.directReportsCount} Direct Report${node.directReportsCount > 1 ? 's' : ''}`}
@@ -74,8 +79,8 @@ function HierarchyCard({ node, depth = 0 }: { node: HierarchyNodeDto; depth?: nu
               />
             )}
             <Chip
-              label={node.status}
-              color={node.status === 'active' ? 'success' : 'default'}
+              label={node?.status || 'active'}
+              color={node?.status === 'active' ? 'success' : 'default'}
               size="small"
             />
           </Stack>
@@ -85,8 +90,8 @@ function HierarchyCard({ node, depth = 0 }: { node: HierarchyNodeDto; depth?: nu
       {/* Render Subordinates / Children */}
       {hasReports && (
         <Box sx={{ pl: 2, borderLeft: '2px dashed', borderColor: 'divider', ml: 2, mt: 1 }}>
-          {node.children.map((child) => (
-            <HierarchyCard key={child.id} node={child} depth={depth + 1} />
+          {children.map((child) => (
+            <HierarchyCard key={child.id || `node-${Math.random()}`} node={child} depth={depth + 1} />
           ))}
         </Box>
       )}
@@ -116,6 +121,11 @@ export function HierarchyPage() {
     void loadData();
   }, []);
 
+  const tree = Array.isArray(data?.tree) ? data.tree : (Array.isArray(data?.flat) ? data.flat : []);
+  const totalEmployees = data?.totalEmployees ?? tree.length;
+  const managersCount = data?.managersCount ?? 0;
+  const topLeadersCount = tree.length;
+
   return (
     <Box sx={{ p: 3 }}>
       <PageHeader
@@ -135,68 +145,66 @@ export function HierarchyPage() {
       )}
 
       {/* Stat Cards */}
-      {data && (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: 'primary.dark', width: 48, height: 48 }}>
-                  <BadgeIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Employees
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700}>
-                    {data.totalEmployees}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: 'secondary.dark', width: 48, height: 48 }}>
-                  <SupervisorAccountIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Reporting Managers
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700}>
-                    {data.managersCount}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: 'info.dark', width: 48, height: 48 }}>
-                  <AccountTreeIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Top-Level Leaders
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700}>
-                    {data.tree.length}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={4}>
+          <Card>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ bgcolor: 'primary.dark', width: 48, height: 48 }}>
+                <BadgeIcon />
+              </Avatar>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Total Employees
+                </Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {totalEmployees}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-      )}
+        <Grid item xs={12} sm={4}>
+          <Card>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ bgcolor: 'secondary.dark', width: 48, height: 48 }}>
+                <SupervisorAccountIcon />
+              </Avatar>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Reporting Managers
+                </Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {managersCount}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <Card>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ bgcolor: 'info.dark', width: 48, height: 48 }}>
+                <AccountTreeIcon />
+              </Avatar>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Top-Level Leaders
+                </Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {topLeadersCount}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Tree Visualization */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
           <CircularProgress />
         </Box>
-      ) : !data || data.tree.length === 0 ? (
+      ) : tree.length === 0 ? (
         <Card sx={{ p: 5, textAlign: 'center', bgcolor: 'background.paper' }}>
           <AccountTreeIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
           <Typography variant="h6" fontWeight={600}>
@@ -211,8 +219,8 @@ export function HierarchyPage() {
           <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             Organizational Reporting Structure
           </Typography>
-          {data.tree.map((rootNode) => (
-            <HierarchyCard key={rootNode.id} node={rootNode} />
+          {tree.map((rootNode) => (
+            <HierarchyCard key={rootNode.id || `node-${Math.random()}`} node={rootNode} />
           ))}
         </Box>
       )}

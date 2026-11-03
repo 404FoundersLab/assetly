@@ -22,9 +22,10 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pi
 
 const RATING_LABELS: Record<number, string> = { 1: 'Poor', 2: 'Below Avg', 3: 'Average', 4: 'Good', 5: 'Excellent' };
 const RATING_COLORS: Record<number, string> = { 1: '#ef5350', 2: '#ff9800', 3: '#ffc107', 4: '#66bb6a', 5: '#42a5f5' };
-const STATUS_COLORS = {
+const STATUS_COLORS: Record<string, string> = {
   present: '#4caf50', absent: '#f44336', wfh: '#2196f3', half_day: '#ff9800', on_leave: '#9c27b0',
 };
+const getStatusColor = (status: string): string => STATUS_COLORS[status] || '#9e9e9e';
 
 export function HRPage() {
   const navigate = useNavigate();
@@ -157,26 +158,29 @@ export function HRPage() {
               <Typography variant="h6" fontWeight={700}>Today's Attendance</Typography>
             </Stack>
             <Stack spacing={1.5}>
-              {Object.entries(todayAttendance).map(([status, count]) => (
-                <Box key={status}>
-                  <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: STATUS_COLORS[status as keyof typeof STATUS_COLORS] }} />
-                      <Typography variant="body2" textTransform="capitalize" fontWeight={500}>{status.replace('_', ' ')}</Typography>
+              {Object.entries(todayAttendance).map(([status, count]) => {
+                const color = getStatusColor(status);
+                return (
+                  <Box key={status}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
+                        <Typography variant="body2" textTransform="capitalize" fontWeight={500}>{status.replace('_', ' ')}</Typography>
+                      </Stack>
+                      <Typography variant="body2" fontWeight={700}>{count}</Typography>
                     </Stack>
-                    <Typography variant="body2" fontWeight={700}>{count}</Typography>
-                  </Stack>
-                  <LinearProgress
-                    variant="determinate"
-                    value={employees.length > 0 ? (count / employees.length) * 100 : 0}
-                    sx={{
-                      height: 6, borderRadius: 3,
-                      bgcolor: alpha(STATUS_COLORS[status as keyof typeof STATUS_COLORS], 0.15),
-                      '& .MuiLinearProgress-bar': { bgcolor: STATUS_COLORS[status as keyof typeof STATUS_COLORS], borderRadius: 3 }
-                    }}
-                  />
-                </Box>
-              ))}
+                    <LinearProgress
+                      variant="determinate"
+                      value={employees.length > 0 ? (count / employees.length) * 100 : 0}
+                      sx={{
+                        height: 6, borderRadius: 3,
+                        bgcolor: alpha(color, 0.15),
+                        '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 }
+                      }}
+                    />
+                  </Box>
+                );
+              })}
             </Stack>
             <Divider sx={{ my: 2 }} />
             <Button size="small" endIcon={<ArrowForwardIcon />} onClick={() => navigate('/hr/attendance')} sx={{ fontWeight: 600 }}>

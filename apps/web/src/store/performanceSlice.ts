@@ -100,8 +100,8 @@ const initialReviews: PerformanceReview[] = [
 ];
 
 const initialState: PerformanceState = {
-  reviews: initialReviews,
-  goals: initialGoals,
+  reviews: [],
+  goals: [],
 };
 
 const performanceSlice = createSlice({

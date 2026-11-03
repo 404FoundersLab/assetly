@@ -43,7 +43,7 @@ const initialClaims: ExpenseClaim[] = [
 ];
 
 const initialState: ExpensesState = {
-  claims: initialClaims,
+  claims: [],
 };
 
 const expensesSlice = createSlice({

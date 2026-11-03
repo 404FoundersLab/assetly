@@ -136,8 +136,8 @@ const initialTimesheets: TimesheetEntry[] = [
 ];
 
 const initialState: AttendanceState = {
-  records: [...todayRecords, ...historicalRecords],
-  timesheets: initialTimesheets,
+  records: [],
+  timesheets: [],
 };
 
 const attendanceSlice = createSlice({

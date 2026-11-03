@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { initialOpportunities, ProductOpportunity, ProductOpportunityAssignment, ProjectTodo } from '../features/tasks/productIdeasData';
+import { ProductOpportunity, ProductOpportunityAssignment, ProjectTodo } from '../features/tasks/productIdeasData';
 
 const OPPORTUNITIES_STORAGE_KEY = 'assetly_product_opportunities_v2';
 const SHARED_ASSIGNMENTS_STORAGE_KEY = 'assetly_shared_opportunity_assignments';
@@ -7,17 +7,15 @@ const TODOS_STORAGE_KEY = 'assetly_product_todos_v1';
 const DUMMY_TODO_IDS = new Set(['todo-01', 'todo-02', 'todo-03', 'todo-04', 'todo-05']);
 
 function loadPersistedOpportunities(): ProductOpportunity[] {
-  if (typeof window === 'undefined') return initialOpportunities;
+  if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(OPPORTUNITIES_STORAGE_KEY);
     if (raw !== null) {
       return JSON.parse(raw);
     }
-    // First time initialization: persist default initial opportunities
-    savePersistedOpportunities(initialOpportunities);
-    return initialOpportunities;
+    return [];
   } catch {
-    return initialOpportunities;
+    return [];
   }
 }
 

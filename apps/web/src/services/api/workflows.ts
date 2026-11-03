@@ -168,6 +168,16 @@ export async function markNotificationsRead(ids?: string[]): Promise<{ success: 
 }
 
 export async function fetchOrgHierarchy(): Promise<HierarchyResponseDto> {
-  return apiFetch<HierarchyResponseDto>('/api/hierarchy');
+  const res = await apiFetch<any>('/api/hierarchy');
+  const tree = Array.isArray(res?.tree) ? res.tree : Array.isArray(res?.topLevel) ? res.topLevel : [];
+  const flat = Array.isArray(res?.flat) ? res.flat : Array.isArray(res?.employees) ? res.employees : [];
+  const totalEmployees = res?.totalEmployees ?? res?.totalCount ?? flat.length ?? tree.length ?? 0;
+  const managersCount = res?.managersCount ?? (Array.isArray(res?.managers) ? res.managers.length : 0);
+  return {
+    totalEmployees,
+    managersCount,
+    tree,
+    flat,
+  };
 }
 

@@ -314,7 +314,9 @@ const tasksSlice = createSlice({
 
       const trimmedName = opportunityName.trim();
       const existingProject = state.projects.find(
-        (p) => p.name.trim().toLowerCase() === trimmedName.toLowerCase()
+        (p) =>
+          p.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+          isItemInTenant(p.tenantId, tenantId, undefined, undefined, undefined)
       );
 
       const now = new Date();
@@ -516,13 +518,13 @@ const tasksSlice = createSlice({
         if (pList.length > 0) {
           state.projects = pList.map((p: Project) => ({
             ...p,
-            tenantId: p.tenantId || (p.name === 'Assetly' || p.name === 'Schoolstack' ? '404founderslab' : '404founderslab'),
+            tenantId: p.tenantId || '',
           }));
         }
         if (tList.length > 0) {
           state.items = tList.map((t: EmployeeTask) => ({
             ...t,
-            tenantId: t.tenantId || (t.projectName === 'Assetly' || t.projectId === 'PRJ-101' ? '404founderslab' : '404founderslab'),
+            tenantId: t.tenantId || '',
           }));
         }
         savePersistedProjects(state.projects);

@@ -103,8 +103,8 @@ const initialOffboardings: OffboardingRecord[] = [
 
 const initialState: OnboardingState = {
   templates: defaultTemplates,
-  onboardings: initialOnboardings,
-  offboardings: initialOffboardings,
+  onboardings: [],
+  offboardings: [],
 };
 
 const onboardingSlice = createSlice({

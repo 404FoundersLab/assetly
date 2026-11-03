@@ -37,30 +37,57 @@ export default async function handler(req: Request) {
         ORDER BY d.name ASC NULLS LAST, e.first_name ASC
       `) as any[];
 
-      const employees = rows.map((r) => ({
-        id: r.id,
-        employeeNumber: r.employee_number ?? '',
-        firstName: r.first_name,
-        lastName: r.last_name,
-        fullName: `${r.first_name} ${r.last_name || ''}`.trim(),
-        email: r.email,
-        jobTitle: r.job_title ?? 'Employee',
-        departmentId: r.department_id ?? '',
-        departmentName: r.department_name ?? 'General',
-        status: r.status,
-        managerId: r.manager_id ?? undefined,
-        managerName: r.manager_name ? String(r.manager_name).trim() : undefined,
-        directReportsCount: Number(r.direct_reports_count || 0),
-      }));
+      const employees = rows.map((r) => {
+        const firstName = r.first_name ?? '';
+        const lastName = r.last_name ?? '';
+        const name = `${firstName} ${lastName}`.trim() || r.email || 'Employee';
+        return {
+          id: r.id,
+          employeeNumber: r.employee_number ?? '',
+          name,
+          firstName,
+          lastName,
+          fullName: name,
+          email: r.email ?? '',
+          jobTitle: r.job_title ?? 'Employee',
+          departmentId: r.department_id ?? '',
+          departmentName: r.department_name ?? 'General',
+          status: r.status ?? 'active',
+          managerId: r.manager_id ?? undefined,
+          managerName: r.manager_name ? String(r.manager_name).trim() : undefined,
+          directReportsCount: Number(r.direct_reports_count || 0),
+        };
+      });
 
-      // Group into hierarchy structure
+      // Build hierarchical tree
+      const nodeMap = new Map<string, any>();
+      for (const emp of employees) {
+        nodeMap.set(emp.id, {
+          ...emp,
+          children: [],
+        });
+      }
+
+      const tree: any[] = [];
+      for (const emp of employees) {
+        const node = nodeMap.get(emp.id)!;
+        if (emp.managerId && nodeMap.has(emp.managerId) && emp.managerId !== emp.id) {
+          nodeMap.get(emp.managerId)!.children.push(node);
+        } else {
+          tree.push(node);
+        }
+      }
+
       const managers = employees.filter((e) => e.directReportsCount > 0);
-      const topLevel = employees.filter((e) => !e.managerId);
 
       return json({
+        totalEmployees: employees.length,
+        managersCount: managers.length,
+        tree,
+        flat: Array.from(nodeMap.values()),
         employees,
         managers,
-        topLevel,
+        topLevel: tree,
         totalCount: employees.length,
       });
     }
