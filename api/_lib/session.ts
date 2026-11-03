@@ -11,7 +11,7 @@ let tableReady = false;
 async function ensureTable() {
   if (tableReady) return;
   const sql = getSql();
-  await sql`CREATE TABLE IF NOT EXISTS refresh_tokens (
+  await sql`CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     family_id UUID NOT NULL,
     user_id TEXT NOT NULL,
@@ -20,7 +20,7 @@ async function ensureTable() {
     revoked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_user ON auth_refresh_tokens(user_id)`;
   tableReady = true;
 }
 
@@ -46,7 +46,7 @@ export async function issueRefreshToken(userId: string, familyId?: string): Prom
   const token = randomToken(48);
   const sql = getSql();
   await sql`
-    INSERT INTO refresh_tokens (family_id, user_id, token_hash, expires_at)
+    INSERT INTO auth_refresh_tokens (family_id, user_id, token_hash, expires_at)
     VALUES (
       ${familyId ?? crypto.randomUUID()},
       ${userId},
@@ -60,7 +60,7 @@ export async function issueRefreshToken(userId: string, familyId?: string): Prom
 export async function revokeAllForUser(userId: string): Promise<void> {
   try {
     await ensureTable();
-    await getSql()`UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = ${userId} AND revoked_at IS NULL`;
+    await getSql()`UPDATE auth_refresh_tokens SET revoked_at = NOW() WHERE user_id = ${userId} AND revoked_at IS NULL`;
   } catch {
     /* best effort */
   }
@@ -69,7 +69,7 @@ export async function revokeAllForUser(userId: string): Promise<void> {
 export async function revokeByToken(token: string): Promise<void> {
   try {
     await ensureTable();
-    await getSql()`UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ${await sha256Hex(token)} AND revoked_at IS NULL`;
+    await getSql()`UPDATE auth_refresh_tokens SET revoked_at = NOW() WHERE token_hash = ${await sha256Hex(token)} AND revoked_at IS NULL`;
   } catch {
     /* best effort */
   }
@@ -132,7 +132,7 @@ export async function rotateRefreshToken(req: Request): Promise<Response> {
   await ensureTable();
   const sql = getSql();
   const rows = (await sql`
-    SELECT id, family_id, user_id, expires_at, revoked_at FROM refresh_tokens
+    SELECT id, family_id, user_id, expires_at, revoked_at FROM auth_refresh_tokens
     WHERE token_hash = ${await sha256Hex(presented)} LIMIT 1
   `) as { id: string; family_id: string; user_id: string; expires_at: string; revoked_at: string | null }[];
   const row = rows[0];
@@ -142,7 +142,7 @@ export async function rotateRefreshToken(req: Request): Promise<Response> {
   };
   if (!row) return reject();
   if (row.revoked_at) {
-    await sql`UPDATE refresh_tokens SET revoked_at = NOW() WHERE family_id = ${row.family_id} AND revoked_at IS NULL`;
+    await sql`UPDATE auth_refresh_tokens SET revoked_at = NOW() WHERE family_id = ${row.family_id} AND revoked_at IS NULL`;
     return reject();
   }
   if (new Date(row.expires_at).getTime() < Date.now()) return reject();
@@ -150,7 +150,7 @@ export async function rotateRefreshToken(req: Request): Promise<Response> {
   const user = await loadUser(row.user_id);
   if (!user) return reject();
 
-  await sql`UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = ${row.id}`;
+  await sql`UPDATE auth_refresh_tokens SET revoked_at = NOW() WHERE id = ${row.id}`;
   const access = await signAuthToken(user);
   const refresh = await issueRefreshToken(row.user_id, row.family_id);
   return json({ token: access, user }, 200, { cookies: sessionCookies(access, refresh) });
