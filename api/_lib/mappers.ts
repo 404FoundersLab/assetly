@@ -335,7 +335,7 @@ export function mapAssetRequest(row: DbAssetRequest) {
 export function assetInsertPayload(body: Record<string, unknown>, tenantId: string) {
   const assetTag = String(body.assetTag ?? '').trim();
   const name = String(body.name ?? '').trim();
-  if (!assetTag || !name) throw new Error('assetTag and name are required');
+  if (!assetTag || !name) throw new Error('Invalid request: assetTag, name');
 
   const id = body.id ? String(body.id) : crypto.randomUUID();
   const qrOrigin = body.qrOrigin ? String(body.qrOrigin) : '';
