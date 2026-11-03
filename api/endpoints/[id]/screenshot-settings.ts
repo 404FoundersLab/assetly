@@ -1,3 +1,4 @@
+import { z, parseValidated, looseBody } from '../../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../../_lib/db';
 import { requireAuth, canManageEndpoints } from '../../_lib/auth';
 
@@ -34,7 +35,7 @@ export default async function handler(req: Request) {
       return json({ interval_seconds: ep.screenshot_interval_seconds ?? 0, allowed: ALLOWED_INTERVALS });
     }
 
-    const body = await parseBody<{ interval_seconds?: number }>(req);
+    const body = await parseValidated(req, looseBody({ interval_seconds:z.coerce.number().optional() }));
     const interval = Number(body.interval_seconds);
     if (!ALLOWED_INTERVALS.includes(interval)) return error('Invalid interval', 400);
 

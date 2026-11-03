@@ -1,3 +1,4 @@
+import { z, parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapAsset, type DbAsset } from '../_lib/mappers';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
@@ -13,12 +14,7 @@ export default async function handler(req: Request) {
   if (req.method !== 'POST') return error('Method not allowed', 405);
 
   try {
-    const body = await parseBody<{
-      assetId?: string;
-      performedBy?: string;
-      returnCondition?: string;
-      audit?: Record<string, string>;
-    }>(req);
+    const body = await parseValidated(req, looseBody({ audit:z.record(z.string(),z.string()).optional(), assetId:text(128), returnCondition:text(500) }));
 
     const assetId = String(body.assetId ?? '').trim();
     const performedBy = `${auth.firstName} ${auth.lastName}`.trim();

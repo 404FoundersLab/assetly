@@ -1,3 +1,4 @@
+import { parseValidated, looseBody } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapAsset, type DbAsset } from '../_lib/mappers';
 import { belongsToTenant } from '../_lib/fk';
@@ -40,7 +41,7 @@ export default async function handler(req: Request) {
     if (req.method !== 'PATCH' && req.method !== 'DELETE') return error('Method not allowed', 405);
 
     if (req.method === 'PATCH') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({  }));
       const vendorId =
         body.vendorId !== undefined
           ? body.vendorId && isUuid(String(body.vendorId))

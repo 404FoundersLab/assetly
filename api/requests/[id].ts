@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapAssetRequest, type DbAssetRequest } from '../_lib/mappers';
 import { requireAuth, canReviewRequests, insertAuditLog } from '../_lib/auth';
@@ -25,7 +26,7 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'PATCH') {
-      const body = await parseBody<{ status?: string; reviewNotes?: string; assetId?: string }>(req);
+      const body = await parseValidated(req, looseBody({ status:text(50), reviewNotes:text(5000), assetId:text(128) }));
       const status = String(body.status ?? '').trim();
       const reviewNotes = body.reviewNotes ? String(body.reviewNotes).trim() : null;
       const assetId = body.assetId ? String(body.assetId).trim() : null;

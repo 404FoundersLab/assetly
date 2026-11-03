@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapDepartment, type DbDepartment } from '../_lib/mappers';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
@@ -20,7 +21,7 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'PATCH') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ name:text(200),costCenter:text(100),id:text(128) }));
       const rows = await sql`
         UPDATE departments SET
           name = COALESCE(${body.name ? String(body.name) : null}, name),

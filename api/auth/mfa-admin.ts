@@ -1,3 +1,4 @@
+import { z, parseValidated, looseBody, text } from '../_lib/validate';
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
 import { ensureMfaPolicyTables, ensureMfaTable } from '../_lib/mfa';
@@ -58,12 +59,7 @@ export default async function handler(req: Request) {
 
     if (req.method !== 'POST') return error('Method not allowed', 405);
 
-    const body = await parseBody<{
-      action?: string;
-      tenantId?: string;
-      email?: string;
-      enforced?: boolean;
-    }>(req);
+    const body = await parseValidated(req, looseBody({ action:text(50), tenantId:text(128), email:text(254), enforced:z.boolean().optional() }));
 
     const audit = (entityId: string, label: string, details: string) =>
       insertAuditLog({

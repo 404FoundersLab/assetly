@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getSql, getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapEmployee, type DbEmployee } from '../_lib/mappers';
 import { belongsToTenant } from '../_lib/fk';
@@ -37,7 +38,7 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'PATCH') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ firstName:text(100),lastName:text(100),email:text(254) }));
 
       const currentRows = await sql`
         SELECT * FROM employees WHERE id = ${id} AND tenant_id = ${auth.tenantId!}

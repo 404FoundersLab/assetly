@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
 import {
@@ -100,7 +101,7 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'POST') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ label:text(200),slug:text(200) }));
       const label = String(body.label ?? '').trim();
       if (!label) return error('label is required', 400);
       const slug = slugifyDeviceType(String(body.slug ?? label));

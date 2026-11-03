@@ -45,3 +45,27 @@ export function validateQuery<S extends ZodTypeAny>(
 export const uuidSchema = z.string().uuid();
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 export const idSchema = z.string().trim().min(1).max(128);
+
+/** Optional text field: accepts string/number/boolean, rejects objects and arrays, caps length. */
+export const text = (max = 255) =>
+  z.union([z.string().max(max), z.number(), z.boolean()]).transform((v) => String(v)).nullish();
+
+/** Passes unknown keys through (for large entity payloads) while typing/capping the listed ones. */
+export function looseBody<T extends z.ZodRawShape>(shape: T = {} as T) {
+  return z.looseObject(shape).superRefine((obj, ctx) => {
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v === 'string' && v.length > 100_000) ctx.addIssue({ code: 'custom', path: [k], message: 'too long' });
+    }
+  });
+}
+
+/** Like validateBody, but throws so existing handler catch blocks turn it into HTTP 400. */
+export async function parseValidated<S extends ZodTypeAny>(req: Request, schema: S, maxBytes?: number): Promise<z.infer<S>> {
+  const raw = await parseBody<unknown>(req, maxBytes);
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const fields = [...new Set(parsed.error.issues.map((i) => i.path.join('.') || 'body'))].join(', ');
+    throw new Error(`Invalid request: ${fields}`);
+  }
+  return parsed.data;
+}

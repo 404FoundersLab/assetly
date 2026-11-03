@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapUser, type DbUser } from '../_lib/mappers';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
@@ -35,7 +36,7 @@ export default async function handler(req: Request) {
     if (tenantDenied) return tenantDenied;
 
     if (req.method === 'PATCH') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ email:text(254),firstName:text(100),lastName:text(100),role:text(50),tenantId:text(128) }));
 
       if (body.role && !isRoleAllowedForActor(auth.role, String(body.role))) {
         return error(`Your role cannot assign the "${body.role}" role`, 403);

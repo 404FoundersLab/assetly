@@ -119,10 +119,16 @@ const KNOWN_CLIENT_ERRORS: Record<string, number> = {
   'Invalid JSON body': 400,
 };
 
+/** Validation failures thrown from parseValidated carry this prefix and are always client errors. */
+function isValidationMessage(message: string): boolean {
+  return message.startsWith('Invalid request:');
+}
+
 export function error(message: string, status = 400) {
   if (status >= 500) {
     const known = KNOWN_CLIENT_ERRORS[message];
     if (known) return json({ error: message }, known);
+    if (isValidationMessage(message)) return json({ error: message.slice(0, 300) }, 400);
     // Config-problem messages name the variable only (never its value), so operators can self-diagnose.
     if (/^Insecure configuration: [A-Z_]+ (is not set|is a known placeholder value|must be at least \d+ bytes)/.test(message)) {
       console.error(JSON.stringify({ level: 'error', status: 503, message }));
@@ -155,9 +161,29 @@ export async function parseBody<T>(req: Request, maxBytes = MAX_JSON_BYTES): Pro
   const text = await req.text();
   if (text.length > maxBytes) throw new Error('Payload too large');
   if (!text.trim()) return {} as T;
+  let parsed: unknown;
   try {
-    return JSON.parse(text) as T;
+    parsed = JSON.parse(text);
   } catch {
     throw new Error('Invalid JSON body');
+  }
+  assertSafeStructure(parsed, 0);
+  return parsed as T;
+}
+
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Rejects prototype-pollution keys, runaway nesting and oversized arrays before any handler sees the data. */
+function assertSafeStructure(value: unknown, depth: number): void {
+  if (value === null || typeof value !== 'object') return;
+  if (depth > 12) throw new Error('Invalid request: body nesting too deep');
+  if (Array.isArray(value)) {
+    if (value.length > 20_000) throw new Error('Invalid request: array too large');
+    for (const v of value) assertSafeStructure(v, depth + 1);
+    return;
+  }
+  for (const [k, v] of Object.entries(value)) {
+    if (FORBIDDEN_KEYS.has(k)) throw new Error('Invalid request: forbidden property');
+    assertSafeStructure(v, depth + 1);
   }
 }

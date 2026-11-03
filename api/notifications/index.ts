@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { corsPreflight, error, getTenantSql, json, parseBody } from '../_lib/db';
 import { requireAuth } from '../_lib/auth';
 import { ensureWorkflowTables } from '../_lib/workflow-engine';
@@ -39,7 +40,7 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'PUT') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ id:text(128) }));
       if (body.all || body.markAll) {
         await sql`
           UPDATE notifications

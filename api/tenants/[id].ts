@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapTenant, type DbTenant } from '../_lib/mappers';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
@@ -24,7 +25,7 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'PATCH') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ name:text(200),slug:text(100),plan:text(50),billingRegion:text(50),adminEmail:text(254),adminName:text(200),domain:text(253),infrastructureStrategy:text(50) }));
 
       // Auto-ensure enabled_modules column exists in tenants table
       try {

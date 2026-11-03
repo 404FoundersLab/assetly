@@ -1,3 +1,4 @@
+import { z, parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
 
@@ -16,7 +17,7 @@ export default async function handler(req: Request) {
   if (!auth.tenantId) return error('Tenant ID is required', 400);
 
   try {
-    const body = await parseBody<{ ids?: string[]; all?: boolean }>(req);
+    const body = await parseValidated(req, looseBody({ ids:z.array(z.string().max(128)).max(5000).optional(), all:z.boolean().optional() }));
     const sql = await getTenantSql(auth.tenantId!);
 
     if (body.all === true) {

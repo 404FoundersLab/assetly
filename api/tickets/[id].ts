@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, canReviewRequests, insertAuditLog } from '../_lib/auth';
 import { sendEmail, ticketStatusChangedEmail } from '../_lib/email';
@@ -62,7 +63,7 @@ export default async function handler(req: Request, { params }: { params: { id: 
 
       if (!existing.length) return error('Ticket not found', 404);
 
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ status:text(50),resolutionNotes:text(5000) }));
       const status          = body.status          ? String(body.status).trim()          : undefined;
       const resolutionNotes = body.resolutionNotes  ? String(body.resolutionNotes).trim()  : undefined;
       const assignedTo      = body.assignedTo       ? String(body.assignedTo).trim()       : undefined;

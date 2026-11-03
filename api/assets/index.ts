@@ -1,3 +1,4 @@
+import { parseValidated, looseBody } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import {
   mapAsset,
@@ -63,7 +64,7 @@ export default async function handler(req: Request) {
       const limitCheck = await checkAssetLimit(tenantId);
       if (!limitCheck.allowed) return error(limitCheck.message ?? 'Plan limit reached', 402);
 
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({  }));
       const payload = assetInsertPayload(body, (auth.tenantId!));
 
       // Sanitize foreign keys to prevent foreign key constraint violations if related entities were removed

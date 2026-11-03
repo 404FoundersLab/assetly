@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapUser, type DbUser } from '../_lib/mappers';
 import { requireAuth, insertAuditLog, hashPassword, generateTempPassword } from '../_lib/auth';
@@ -48,7 +49,7 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'POST') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ email:text(254),firstName:text(100),lastName:text(100),role:text(50),tenantId:text(128) }));
       const email = String(body.email ?? '').trim().toLowerCase();
       const firstName = String(body.firstName ?? '').trim();
       const lastName = String(body.lastName ?? '').trim();

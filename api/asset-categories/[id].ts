@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog } from '../_lib/auth';
 import { isDeviceFamily, mapAssetCategory, slugifyDeviceType } from '../_lib/asset-categories';
@@ -31,7 +32,7 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'PATCH') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ label:text(200),slug:text(200) }));
       const label = body.label != null ? String(body.label).trim() : null;
       const slug = body.slug != null ? slugifyDeviceType(String(body.slug)) : null;
       const sortOrder = body.sortOrder != null ? Number(body.sortOrder) : null;

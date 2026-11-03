@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog, canManageHrLeave } from '../_lib/auth';
 import { startWorkflow } from '../_lib/workflow-engine';
@@ -155,7 +156,7 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'POST') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ employeeId:text(128),leaveType:text(50) }));
       const employeeId = String(body.employeeId ?? selfEmployeeId ?? '').trim();
       const leaveType = String(body.leaveType ?? '').trim();
       const startDate = String(body.startDate ?? '').trim();

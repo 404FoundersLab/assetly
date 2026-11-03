@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, insertAuditLog, canManageHrLeave } from '../_lib/auth';
 
@@ -94,7 +95,7 @@ export default async function handler(req: Request) {
     if (req.method === 'POST') {
       if (!isHrAdmin) return error('Forbidden — HR admin required to adjust leave balances', 403);
 
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ employeeId:text(128),leaveType:text(50) }));
       const employeeId = String(body.employeeId ?? '').trim();
       const leaveType = String(body.leaveType ?? 'casual').trim();
       const allocatedDays = Number(body.allocatedDays ?? 12);

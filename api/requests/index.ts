@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { mapAssetRequest, type DbAssetRequest } from '../_lib/mappers';
 import { requireAuth, canReviewRequests, insertAuditLog, type AuthUser } from '../_lib/auth';
@@ -93,7 +94,7 @@ export default async function handler(req: Request) {
       const employeeId = await resolveEmployeeId(auth);
         if (employeeId instanceof Response) return employeeId;
 
-        const body = await parseBody<Record<string, unknown>>(req);
+        const body = await parseValidated(req, looseBody({ requestType:text(100),category:text(100),description:text(5000),neededBy:text(50) }));
       const requestType = String(body.requestType ?? '').trim();
       const category = String(body.category ?? '').trim();
       const description = String(body.description ?? '').trim();

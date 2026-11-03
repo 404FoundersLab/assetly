@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../_lib/validate';
 import { getSql, json, error, corsPreflight, parseBody } from '../_lib/db';
 import { requireAuth, resolveBillingTenantId, canManageBilling } from '../_lib/auth';
 import { type PlanTier, normalizeTier } from '../_lib/plans';
@@ -20,7 +21,7 @@ export default async function handler(req: Request) {
   const tenantId = resolveBillingTenantId(auth);
   if (!tenantId) return error('Tenant context required', 400);
 
-  const body = await parseBody<{ tier?: string }>(req);
+  const body = await parseValidated(req, looseBody({ tier:text(32) }));
   const tier = normalizeTier(body.tier) as PlanTier;
 
   if (tier === 'enterprise') {

@@ -1,3 +1,4 @@
+import { parseValidated, looseBody, text } from '../../_lib/validate';
 import { getTenantSql, json, error, corsPreflight, parseBody } from '../../_lib/db';
 import { requireAuth, insertAuditLog, canManageHrLeave } from '../../_lib/auth';
 import { processApprovalAction } from '../../_lib/workflow-engine';
@@ -22,7 +23,7 @@ export default async function handler(req: Request) {
 
   try {
     if (req.method === 'PUT') {
-      const body = await parseBody<Record<string, unknown>>(req);
+      const body = await parseValidated(req, looseBody({ action:text(50),status:text(50) }));
       const action = String(body.action ?? '').trim(); // 'manager_review' | 'hr_review' | 'cancel'
       const status = String(body.status ?? '').trim(); // 'approved' | 'rejected' | 'cancelled'
       const comment = body.comment ? String(body.comment).trim() : null;
