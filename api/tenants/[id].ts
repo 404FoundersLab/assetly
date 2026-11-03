@@ -120,6 +120,34 @@ export default async function handler(req: Request) {
       } catch {
         /* best-effort cleanup of orphaned logins */
       }
+
+      // Child tables mostly lack ON DELETE CASCADE, so purge tenant-scoped rows before the tenant itself.
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        const raw = (stmt: string) => (sql as any)(Object.assign([stmt], { raw: [stmt] }));
+        try {
+          const tables = (await sql`
+            SELECT c.table_name FROM information_schema.columns c
+            JOIN information_schema.tables t
+              ON t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
+            WHERE c.table_schema = 'public' AND c.column_name = 'tenant_id'
+              AND c.table_name NOT IN ('tenants', 'companies', 'audit_logs', 'users')
+          ` as { table_name: string }[]).map((r) => r.table_name).filter((n) => /^[a-z0-9_]+$/i.test(n));
+          let pending = tables;
+          for (let pass = 0; pass < 6 && pending.length > 0; pass++) {
+            const failed: string[] = [];
+            for (const t of pending) {
+              try {
+                await raw(`DELETE FROM "${t}" WHERE tenant_id::text = '${id.toLowerCase()}'`);
+              } catch {
+                failed.push(t);
+              }
+            }
+            pending = failed;
+          }
+        } catch {
+          /* fall through; the tenant delete below reports any remaining constraint */
+        }
+      }
       const rows = await sql`
         DELETE FROM tenants WHERE id = ${id} RETURNING name, slug
       ` as { name: string; slug: string }[];

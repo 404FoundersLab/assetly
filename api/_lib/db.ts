@@ -131,6 +131,9 @@ export function error(message: string, status = 400) {
     if (/violates check constraint|invalid input value for enum/i.test(message)) {
       return json({ error: 'Invalid value for one of the fields' }, 400);
     }
+    if (/invalid input syntax for type uuid/i.test(message)) {
+      return json({ error: 'Invalid identifier' }, 400);
+    }
     if (isValidationMessage(message)) return json({ error: message.slice(0, 300) }, 400);
     // Config-problem messages name the variable only (never its value), so operators can self-diagnose.
     if (/^Insecure configuration: [A-Z_]+ (is not set|is a known placeholder value|must be at least \d+ bytes)/.test(message)) {
