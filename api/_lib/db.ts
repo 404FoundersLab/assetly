@@ -123,6 +123,11 @@ export function error(message: string, status = 400) {
   if (status >= 500) {
     const known = KNOWN_CLIENT_ERRORS[message];
     if (known) return json({ error: message }, known);
+    // Config-problem messages name the variable only (never its value), so operators can self-diagnose.
+    if (/^Insecure configuration: [A-Z_]+ (is not set|is a known placeholder value|must be at least \d+ bytes)/.test(message)) {
+      console.error(JSON.stringify({ level: 'error', status: 503, message }));
+      return json({ error: message }, 503);
+    }
     const id = correlationId();
     console.error(JSON.stringify({ level: 'error', correlationId: id, status, message: redactText(message) }));
     return json(
