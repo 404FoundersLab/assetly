@@ -105,7 +105,10 @@ export function DataBootstrap() {
           }
         }
 
-        for (const kind of ['projects', 'tasks', 'todos'] as const) {
+        const workspaceKinds = role === 'employee'
+          ? (['projects', 'tasks', 'todos'] as const)
+          : (['projects', 'tasks', 'todos', 'tickets'] as const);
+        for (const kind of workspaceKinds) {
           try {
             const items = await pullRemote(kind);
             if (!cancelled) dispatch(hydrateWorkspace({ kind, items }));

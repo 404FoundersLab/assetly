@@ -14,6 +14,7 @@ export const DUMMY_TICKET_TITLES = new Set([
 export const DUMMY_TICKET_IDS = new Set<string>();
 
 import { tenantLoad, tenantSave } from './tenantStorage';
+import { hydrateWorkspace } from './tasksSlice';
 
 const TICKETS_STORAGE_KEY = 'assetly_tickets_store_v2';
 
@@ -26,7 +27,8 @@ function loadPersistedTickets(): SupportTicket[] {
 }
 
 function savePersistedTickets(tickets: SupportTicket[]) {
-  tenantSave(TICKETS_STORAGE_KEY, tickets.filter((t) => !isDummyTicket(t)));
+  const visible = tickets.filter((t) => !isDummyTicket(t));
+  tenantSave(TICKETS_STORAGE_KEY, visible, 'tickets');
 }
 
 interface TicketsState {
@@ -48,7 +50,12 @@ const ticketsSlice = createSlice({
       savePersistedTickets(state.items);
     },
     replaceAllTickets: (state, action: PayloadAction<SupportTicket[]>) => {
-      state.items = action.payload.filter((t) => !isDummyTicket(t));
+      const incoming = action.payload.filter((t) => !isDummyTicket(t));
+      const localById = new Map(state.items.map((t) => [t.id, t]));
+      const ids = new Set(incoming.map((t) => t.id));
+      // Server list is authoritative for existence; local copies keep edits (status, assignee, project) not stored server-side.
+      const localOnly = state.items.filter((t) => /^TICK-\d+$/.test(t.id) && !ids.has(t.id));
+      state.items = [...localOnly, ...incoming.map((t) => localById.get(t.id) ?? t)];
       state.seeded = true;
       savePersistedTickets(state.items);
     },
@@ -104,6 +111,15 @@ const ticketsSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    builder.addCase(hydrateWorkspace, (state, action) => {
+      if (action.payload.kind !== 'tickets') return;
+      const remote = (action.payload.items as SupportTicket[]).filter((t) => !isDummyTicket(t));
+      const remoteIds = new Set(remote.map((t) => t.id));
+      // Local-only tickets (e.g. created before sync existed) are kept and pushed up.
+      const others = state.items.filter((t) => !remoteIds.has(t.id));
+      state.items = [...remote, ...others].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      savePersistedTickets(state.items);
+    });
     builder.addMatcher(
       (a) => a.type === 'auth/setSession' || a.type === 'auth/logout',
       (state) => {

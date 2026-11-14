@@ -227,6 +227,7 @@ export interface SupportTicket {
   status:           TicketStatus;
   assignedTo?:      string;
   resolutionNotes?: string;
+  projectId?:       string;
   createdAt:        string;
   updatedAt:        string;
   // joined

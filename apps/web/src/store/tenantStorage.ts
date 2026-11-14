@@ -51,7 +51,7 @@ export function tenantLoad<T>(baseKey: string, fallback: T): T {
   }
 }
 
-export type RemoteKind = 'projects' | 'tasks' | 'todos' | 'employee_docs';
+export type RemoteKind = 'projects' | 'tasks' | 'todos' | 'employee_docs' | 'tickets';
 
 // Last server-confirmed state per kind, so only real changes are pushed. Absent until pulled.
 const synced = new Map<RemoteKind, { scope: string; items: Map<string, string> }>();
@@ -101,7 +101,7 @@ function pushDiff(kind: RemoteKind, sc: string, value: unknown) {
   if (!flushTimer) flushTimer = setTimeout(flush, 400);
 }
 
-export function tenantSave(baseKey: string, value: unknown, remote?: RemoteKind) {
+export function tenantSave(baseKey: string, value: unknown, remote?: RemoteKind, remoteValue: unknown = value) {
   const sc = scope();
   if (!sc) return;
   try {
@@ -109,7 +109,7 @@ export function tenantSave(baseKey: string, value: unknown, remote?: RemoteKind)
   } catch {
     /* ignore quota errors */
   }
-  if (remote && isApiEnabled()) pushDiff(remote, sc, value);
+  if (remote && isApiEnabled()) pushDiff(remote, sc, remoteValue);
 }
 
 /** Loads the tenant's shared items from the server and starts syncing local changes for this kind. */

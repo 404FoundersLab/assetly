@@ -73,6 +73,8 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
   const [status, setStatus] = useState<TicketStatus>('open');
   const [employeeId, setEmployeeId] = useState(assignableEmployees[0]?.id || employees[0]?.id || '');
   const [assignedTo, setAssignedTo] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const projects = useAppSelector((s) => s.tasks.projects);
 
   const handleSave = () => {
     if (!title.trim()) return;
@@ -94,7 +96,8 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
       category,
       priority,
       status,
-      assignedTo: assignedTo.trim() || undefined,
+      assignedTo: assignedTo || undefined,
+      projectId: projectId || undefined,
     };
 
     dispatch(addTicket(newTicketPayload));
@@ -106,6 +109,7 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
     setPriority('medium');
     setStatus('open');
     setAssignedTo('');
+    setProjectId('');
 
     if (onCreated) onCreated('NEW');
     onClose();
@@ -250,16 +254,43 @@ export function TicketModal({ open, onClose, onCreated }: TicketModalProps) {
           </Grid>
 
           {/* Assigned IT Staff */}
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6}>
             <TextField
+              select
               fullWidth
               label="Assigned IT Staff / Tech Lead"
               value={assignedTo}
               onChange={(e) => setAssignedTo(e.target.value)}
-              placeholder="e.g. IT Helpdesk / John Doe"
               size="small"
               helperText="Optional: Person responsible for resolving this issue"
-            />
+            >
+              <MenuItem value="">Unassigned</MenuItem>
+              {assignableEmployees.map((emp) => (
+                <MenuItem key={emp.id} value={emp.id}>
+                  {emp.firstName} {emp.lastName}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          {/* Project */}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              select
+              fullWidth
+              label="Related Project"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              size="small"
+              helperText="Optional: Project this ticket relates to"
+            >
+              <MenuItem value="">No project</MenuItem>
+              {projects.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.name}
+                </MenuItem>
+              ))}
+            </TextField>
           </Grid>
 
           {/* Description */}

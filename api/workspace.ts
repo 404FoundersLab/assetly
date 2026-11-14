@@ -4,10 +4,11 @@ import { requireAuth } from './_lib/auth';
 
 export const config = { runtime: 'edge' };
 
-const KINDS = ['projects', 'tasks', 'todos', 'employee_docs'] as const;
+const KINDS = ['projects', 'tasks', 'todos', 'employee_docs', 'tickets'] as const;
 type Kind = (typeof KINDS)[number];
 
 const READ_ONLY_ROLES = new Set(['viewer', 'employee']);
+const NO_EMPLOYEE_KINDS = new Set<Kind>(['tickets']);
 const DOC_ROLES = new Set(['tenant_admin', 'hr_admin', 'it_admin']);
 const MAX_ITEMS_PER_REQUEST = 500;
 const MAX_ITEM_CHARS = 200_000;
@@ -51,6 +52,7 @@ export default async function handler(req: Request) {
       const kind = parseKind(new URL(req.url).searchParams.get('kind'));
       if (!kind) return error('Invalid kind', 400);
       if (kind === 'employee_docs' && !DOC_ROLES.has(auth.role)) return error('Forbidden', 403);
+      if (NO_EMPLOYEE_KINDS.has(kind) && auth.role === 'employee') return error('Forbidden', 403);
       const rows = (await sql`
         SELECT id, data FROM workspace_items
         WHERE tenant_id = ${tenantId} AND kind = ${kind}

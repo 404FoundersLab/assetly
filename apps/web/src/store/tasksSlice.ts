@@ -53,7 +53,7 @@ export const DUMMY_TASK_IDS = new Set<string>();
 import { createAction } from '@reduxjs/toolkit';
 import { tenantLoad, tenantSave } from './tenantStorage';
 
-export const hydrateWorkspace = createAction<{ kind: 'projects' | 'tasks' | 'todos'; items: any[] }>('workspace/hydrate');
+export const hydrateWorkspace = createAction<{ kind: 'projects' | 'tasks' | 'todos' | 'tickets'; items: any[] }>('workspace/hydrate');
 
 const PROJECTS_STORAGE_KEY = 'assetly_projects_store_v3';
 const TASKS_STORAGE_KEY = 'assetly_tasks_store_v3';

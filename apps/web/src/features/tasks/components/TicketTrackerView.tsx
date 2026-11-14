@@ -79,6 +79,7 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
 
   const tickets = useAppSelector((s) => s.tickets.items);
   const tasks = useAppSelector((s) => s.tasks.items);
+  const projects = useAppSelector((s) => s.tasks.projects);
   const employees = useAppSelector((s) => s.employees.items);
 
   // Include tenant admin in the assignable employee list
@@ -406,6 +407,14 @@ export function TicketTrackerView({ onConvertToTask, onOpenCreateTicket }: Ticke
                           <Typography variant="caption" color="text.secondary">
                             Created {ticket.createdAt?.slice(0, 10)}
                           </Typography>
+                          {ticket.projectId && (
+                            <Chip
+                              label={projects.find((p) => p.id === ticket.projectId)?.name ?? 'Project'}
+                              size="small"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.62rem' }}
+                            />
+                          )}
                           {ticket.resolutionNotes && (
                             <Chip
                               label="Notes Added"
